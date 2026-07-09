@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>লাইভ কিউ ট্র্যাকার — Smart Queue Bot</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #e0f2fe, #f0fdf4);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .card {
+      background: white;
+      border-radius: 20px;
+      padding: 2.5rem 2rem;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .header h1 {
+      font-size: 1.3rem;
+      color: #0f172a;
+    }
+
+    .subtitle {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-bottom: 2rem;
+    }
+
+    .current-label {
+      font-size: 0.9rem;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .current-token {
+      font-size: 5rem;
+      font-weight: 800;
+      color: #16a34a;
+      line-height: 1;
+      margin: 0.5rem 0;
+    }
+
+    .waiting-label {
+      font-size: 0.9rem;
+      color: #94a3b8;
+      margin-bottom: 1.5rem;
+    }
+
+    .waiting-label span {
+      font-weight: 700;
+      color: #0ea5e9;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #f1f5f9;
+      margin: 1.5rem 0;
+    }
+
+    .pending-title {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      text-align: left;
+      margin-bottom: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .pending-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .pending-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.6rem 0.75rem;
+      background: #f8fafc;
+      border-radius: 10px;
+      font-size: 0.9rem;
+    }
+
+    .pending-name {
+      color: #334155;
+      font-weight: 500;
+    }
+
+    .token-badge {
+      background: #0ea5e9;
+      color: white;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+
+    .status-badge {
+      background: #fef9c3;
+      color: #854d0e;
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+
+    .refresh-note {
+      margin-top: 1.5rem;
+      font-size: 0.75rem;
+      color: #cbd5e1;
+    }
+
+    .dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background: #22c55e;
+      border-radius: 50%;
+      margin-right: 4px;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .error-msg {
+      color: #ef4444;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <span>🏥</span>
+      <h1>লাইভ কিউ ট্র্যাকার</h1>
+    </div>
+    <p class="subtitle"><span class="dot"></span>প্রতি ১৫ সেকেন্ডে আপডেট হয়</p>
+
+    <div class="current-label">বর্তমান টোকেন</div>
+    <div class="current-token" id="currentToken">—</div>
+    <div class="waiting-label">
+      আপনার পরে আরও <span id="pendingCount">—</span> জন অপেক্ষায় আছেন
+    </div>
+
+    <hr class="divider" />
+
+    <div class="pending-title">অপেক্ষায় থাকা রোগীগণ</div>
+    <div class="pending-list" id="pendingList">
+      <p style="color:#cbd5e1;font-size:0.9rem;">লোড হচ্ছে...</p>
+    </div>
+
+    <p class="refresh-note" id="lastUpdate"></p>
+  </div>
+
+  <script>
+    // Read scheduleId and date from URL query params
+    // Example: /tracker.html?scheduleId=abc-123&date=2026-07-15
+    const params = new URLSearchParams(window.location.search);
+    const scheduleId = params.get('scheduleId') || 'unknown';
+    const date = params.get('date') || new Date().toISOString().split('T')[0];
+
+    async function refresh() {
+      try {
+        const res = await fetch(`/api/queue/${encodeURIComponent(scheduleId)}/${date}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        document.getElementById('currentToken').textContent = data.currentToken ?? 0;
+        document.getElementById('pendingCount').textContent = data.pending.length;
+
+        const list = document.getElementById('pendingList');
+        if (data.pending.length === 0) {
+          list.innerHTML = `<p style="color:#94a3b8;font-size:0.9rem;">কোনো রোগী অপেক্ষায় নেই।</p>`;
+        } else {
+          list.innerHTML = data.pending
+            .map(
+              (p) => {
+                const escapedName = String(p.patient_name).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                return `
+              <div class="pending-item">
+                <span class="pending-name">${escapedName}</span>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <span class="token-badge">#${p.queue_number}</span>
+                  <span class="status-badge">${p.status}</span>
+                </div>
+              </div>`;
+            }
+            )
+            .join('');
+        }
+
+        const now = new Date().toLocaleTimeString('bn-BD');
+        document.getElementById('lastUpdate').textContent = `সর্বশেষ আপডেট: ${now}`;
+      } catch (e) {
+        document.getElementById('currentToken').innerHTML =
+          '<span class="error-msg">⚠</span>';
+        document.getElementById('pendingList').innerHTML =
+          '<p class="error-msg">ডেটা লোড করতে সমস্যা হয়েছে।</p>';
+      }
+    }
+
+    refresh();
+    setInterval(refresh, 15000);
+  </script>
+</body>
+</html>
