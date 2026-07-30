@@ -31,8 +31,8 @@ const MESSAGES = {
    * @param {number} queueNumber
    * @param {string} date
    */
-  BOOKING_CONFIRMED: (name, queueNumber, date) =>
-    `✅ *বুকিং সম্পন্ন!*\n\n👤 নাম: ${name}\n📅 তারিখ: ${date}\n🔢 আপনার টোকেন: *${queueNumber}*\n\nঅ্যাপয়েন্টমেন্টের দিন লাইভ স্ট্যাটাস দেখতে /queue লিখুন।`,
+  BOOKING_CONFIRMED: (name, queueNumber, date, scheduleId) =>
+    `✅ *বুকিং সম্পন্ন!*\n\n👤 নাম: ${name}\n📅 তারিখ: ${date}\n🔢 আপনার টোকেন: *${queueNumber}*\n\nলাইভ স্ট্যাটাস দেখতে লিংকে ক্লিক করুন:\n${process.env.PUBLIC_URL || ''}/tracker.html?scheduleId=${scheduleId}&date=${date}`,
 
   ADMIN_ASK_PIN: `🔒 আপনার সিক্রেট PIN দিন:`,
 

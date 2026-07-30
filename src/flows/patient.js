@@ -77,7 +77,8 @@ async function handlePatientFlow(chatId, text) {
     return MESSAGES.BOOKING_CONFIRMED(
       booking.patient_name,
       booking.queue_number,
-      booking.appointment_date
+      booking.appointment_date,
+      session.selectedSchedule.schedule_id
     );
   }
 

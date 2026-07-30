@@ -33,7 +33,7 @@ async function handleMessage(bot, msg) {
 
     if (text === '/queue') {
       return send(
-        `🔗 লাইভ ট্র্যাকার দেখতে এই লিংকে যান:\n${process.env.PUBLIC_URL || ''}/tracker.html`
+        `🔗 লাইভ ট্র্যাকার লিংকটি আপনার বুকিং কনফার্মেশন মেসেজে দেওয়া আছে।\nঅনুগ্রহ করে বুকিং সম্পন্ন হওয়ার মেসেজটি চেক করুন।`
       );
     }
 
