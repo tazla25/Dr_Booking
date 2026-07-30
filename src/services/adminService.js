@@ -1,3 +1,4 @@
+const { AppointmentError } = require('../utils/errors');
 // src/services/adminService.js
 // Admin PIN authentication, patient list, and status updates
 const supabase = require('../database/supabase');
@@ -7,17 +8,37 @@ const supabase = require('../database/supabase');
  * Returns the doctor_id if valid, null if not found.
  *
  * @param {string} pin - 4-digit PIN string
+ * @param {string} chatId - User's chat ID for tracking attempts
  * @returns {string|null} doctor_id or null
  */
-async function verifyAdminPin(pin) {
+async function verifyAdminPin(pin, chatId) {
+  // First, verify the PIN
   const { data, error } = await supabase
     .from('admin_access')
     .select('doctor_id, secret_pin')
     .eq('secret_pin', pin)
     .single();
 
-  if (error || !data) return null;
+  if (error || !data) {
+    if (chatId) {
+      await logFailedLogin(chatId, pin);
+    }
+    return null;
+  }
   return data.doctor_id;
+}
+
+/**
+ * Log a failed login attempt for admin access.
+ *
+ * @param {string} chatId - The telegram chat ID
+ * @param {string} pin - The attempted PIN
+ */
+async function logFailedLogin(chatId, pin) {
+  await supabase.from('failed_login_attempts').insert({
+    chat_id: String(chatId),
+    attempted_pin: String(pin)
+  });
 }
 
 /**
@@ -36,7 +57,7 @@ async function getTodaysPatients(scheduleId) {
     .eq('appointment_date', today)
     .order('queue_number', { ascending: true });
 
-  if (error) throw new Error(error.message);
+  if (error) throw new AppointmentError(error.message, 'DB_ERROR');
   return data || [];
 }
 
@@ -53,7 +74,7 @@ async function updateAppointmentStatus(bookingId, status) {
     .update({ status })
     .eq('booking_id', bookingId);
 
-  if (error) throw new Error(error.message);
+  if (error) throw new AppointmentError(error.message, 'DB_ERROR');
   return true;
 }
 

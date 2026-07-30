@@ -8,6 +8,7 @@ const {
 jest.mock('../../src/database/supabase', () => ({
   from: jest.fn().mockReturnThis(),
   select: jest.fn().mockReturnThis(),
+  insert: jest.fn().mockReturnThis(),
   update: jest.fn().mockReturnThis(),
   eq: jest.fn().mockReturnThis(),
   order: jest.fn().mockReturnThis(),
@@ -17,24 +18,37 @@ jest.mock('../../src/database/supabase', () => ({
 const supabase = require('../../src/database/supabase');
 
 describe('verifyAdminPin', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('returns doctor_id when PIN matches', async () => {
     supabase.single.mockResolvedValueOnce({
       data: { doctor_id: 'doc-1', secret_pin: '1234' },
       error: null,
     });
 
-    const result = await verifyAdminPin('1234');
+    const result = await verifyAdminPin('1234', 'chat-1');
     expect(result).toBe('doc-1');
+    expect(supabase.insert).not.toHaveBeenCalled();
   });
 
-  it('returns null when PIN does not match', async () => {
+  it('returns null when PIN does not match and logs attempt', async () => {
     supabase.single.mockResolvedValueOnce({
       data: null,
       error: { message: 'No rows returned' },
     });
 
-    const result = await verifyAdminPin('9999');
+    supabase.insert.mockResolvedValueOnce({ error: null });
+
+    const result = await verifyAdminPin('9999', 'chat-1');
     expect(result).toBeNull();
+
+    expect(supabase.from).toHaveBeenCalledWith('failed_login_attempts');
+    expect(supabase.insert).toHaveBeenCalledWith({
+      chat_id: 'chat-1',
+      attempted_pin: '9999'
+    });
   });
 });
 

@@ -1,3 +1,5 @@
+const { AppointmentError } = require('../utils/errors');
+const logger = require('../utils/logger');
 // src/bot/handler.js
 // Routes all incoming Telegram messages to the correct flow.
 const { getSession, setSession, clearSession } = require('./session');
@@ -64,7 +66,11 @@ async function handleMessage(bot, msg) {
 
     return send(reply);
   } catch (err) {
-    console.error(`[handler] Error for chatId=${chatId}:`, err.message);
+    if (err.name === 'AppointmentError') {
+      logger.error({ chatId, code: err.code, err: err.message }, 'AppointmentError occurred');
+      return send(err.userMessage || MESSAGES.ERROR);
+    }
+    logger.error({ chatId, err: err.message }, '[handler] Unhandled error');
     return send(MESSAGES.ERROR);
   }
 }

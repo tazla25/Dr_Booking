@@ -89,3 +89,13 @@ VALUES ('Dr. Arjun Sen', 'Optometry');
 
 -- INSERT INTO admin_access (doctor_id, secret_pin)
 -- VALUES ('<doctor_uuid>', '1234');
+
+-- ─── 6. Failed Login Attempts ────────────────────────────────────────────────
+CREATE TABLE failed_login_attempts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  chat_id TEXT NOT NULL,
+  attempted_pin TEXT NOT NULL,
+  attempt_time TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_failed_logins_chat_id ON failed_login_attempts(chat_id);
