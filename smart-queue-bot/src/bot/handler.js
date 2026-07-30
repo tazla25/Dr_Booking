@@ -33,8 +33,18 @@ async function handleMessage(bot, msg) {
 
     if (text === '/queue') {
       return send(
-        `🔗 লাইভ ট্র্যাকার দেখতে এই লিংকে যান:\n${process.env.PUBLIC_URL}/tracker.html`
+        `🔗 লাইভ ট্র্যাকার দেখতে এই লিংকে যান:\n${process.env.PUBLIC_URL || ''}/tracker.html`
       );
+    }
+
+    if (text === '/help') {
+      return send(MESSAGES.WELCOME);
+    }
+
+    // /cancel — reset current session
+    if (text === '/cancel' && !session.step.startsWith('ADMIN')) {
+      clearSession(chatId);
+      return send('❌ বর্তমান কার্যক্রম বাতিল হয়েছে। /start দিয়ে আবার শুরু করুন।');
     }
 
     // ── Flow routing ──────────────────────────────────────────

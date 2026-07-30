@@ -3,7 +3,7 @@
 // Keep all user-facing text here so it's easy to translate.
 
 const MESSAGES = {
-  WELCOME: `👋 নমস্কার! আমি *Smart Queue Bot*।\n\nআপনি কি করতে চান?\n\n📅 /book — অ্যাপয়েন্টমেন্ট বুক করুন\n🔢 /queue — লাইভ কিউ ট্র্যাকার\n🔒 /admin — কম্পাউন্ডার লগইন`,
+  WELCOME: `👋 নমস্কার! আমি *Smart Queue Bot*।\n\nআপনি কি করতে চান?\n\n📅 /book — অ্যাপয়েন্টমেন্ট বুক করুন\n🔢 /queue — লাইভ কিউ ট্র্যাকার\n🔒 /admin — কম্পাউন্ডার লগইন\n❓ /help — সাহায্য\n❌ /cancel — বাতিল করুন`,
 
   ASK_PIN: `📍 আপনার এলাকার *PIN Code* টাইপ করুন (৬ ডিজিট):`,
 
@@ -22,7 +22,7 @@ const MESSAGES = {
     return `✅ এই এলাকায় পাওয়া ডাক্তারগণ:\n\n${list}\n\nসংখ্যা টাইপ করে বেছে নিন (যেমন: *1*)`;
   },
 
-  ASK_DATE: `📅 কোন তারিখে অ্যাপয়েন্টমেন্ট চান?\n\n(YYYY-MM-DD ফরম্যাটে লিখুন, যেমন: *2026-07-15*)`,
+  ASK_DATE: `📅 কোন তারিখে অ্যাপয়েন্টমেন্ট চান?\n\n(YYYY-MM-DD ফরম্যাটে লিখুন, যেমন: *2026-07-15*)\n\n⚠️ পুরনো তারিখ গ্রহণযোগ্য নয়।`,
 
   ASK_NAME: `👤 আপনার পুরো নাম লিখুন:`,
 
@@ -34,7 +34,7 @@ const MESSAGES = {
   BOOKING_CONFIRMED: (name, queueNumber, date) =>
     `✅ *বুকিং সম্পন্ন!*\n\n👤 নাম: ${name}\n📅 তারিখ: ${date}\n🔢 আপনার টোকেন: *${queueNumber}*\n\nঅ্যাপয়েন্টমেন্টের দিন লাইভ স্ট্যাটাস দেখতে /queue লিখুন।`,
 
-  ADMIN_ASK_PIN: `🔒 আপনার ৪ ডিজিটের সিক্রেট PIN দিন:`,
+  ADMIN_ASK_PIN: `🔒 আপনার সিক্রেট PIN দিন:`,
 
   ADMIN_INVALID_PIN: `❌ ভুল PIN। আবার চেষ্টা করুন।`,
 
@@ -46,7 +46,7 @@ const MESSAGES = {
     const list = patients
       .map((p) => `#${p.queue_number} ${p.patient_name} — _${p.status}_`)
       .join('\n');
-    return `📋 *আজকের রোগী তালিকা:*\n\n${list}\n\n➡️ /next — পরবর্তী রোগী সম্পন্ন\n❌ /cancel <token> — বাতিল করুন`;
+    return `📋 *আজকের রোগী তালিকা:*\n\n${list}\n\n➡️ /next — পরবর্তী রোগী সম্পন্ন\n❌ /cancel <token> — বাতিল করুন\n🔄 /refresh — তালিকা রিফ্রেশ`;
   },
 
   /**
@@ -63,7 +63,7 @@ const MESSAGES = {
 
   INVALID_SELECTION: `সঠিক সংখ্যা দিন। আবার চেষ্টা করুন:`,
 
-  INVALID_DATE: `তারিখ YYYY-MM-DD ফরম্যাটে দিন (যেমন: 2026-07-15):`,
+  INVALID_DATE: `সঠিক তারিখ দিন (YYYY-MM-DD ফরম্যাট, আজ বা ভবিষ্যতের তারিখ):`,
 };
 
 module.exports = MESSAGES;

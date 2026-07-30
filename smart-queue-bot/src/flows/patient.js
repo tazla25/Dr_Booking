@@ -4,6 +4,7 @@
 const { getDoctorsByPin } = require('../services/doctorService');
 const { createBooking } = require('../services/bookingService');
 const { getSession, setSession, clearSession } = require('../bot/session');
+const { validatePinCode, validateDate, validateName } = require('../utils/validators');
 const MESSAGES = require('../utils/messages');
 
 /**
@@ -18,10 +19,8 @@ async function handlePatientFlow(chatId, text) {
 
   // Step 1: Waiting for PIN code
   if (session.step === 'AWAITING_PIN') {
-    const trimmed = text.trim();
-    const pin = parseInt(trimmed, 10);
-
-    if (isNaN(pin) || trimmed.length !== 6) {
+    const pin = validatePinCode(text);
+    if (pin === null) {
       return MESSAGES.INVALID_PIN_FORMAT;
     }
 
@@ -51,19 +50,24 @@ async function handlePatientFlow(chatId, text) {
 
   // Step 3: Waiting for appointment date
   if (session.step === 'AWAITING_DATE') {
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(text.trim())) {
+    const validDate = validateDate(text);
+    if (!validDate) {
       return MESSAGES.INVALID_DATE;
     }
 
-    setSession(chatId, { step: 'AWAITING_NAME', appointmentDate: text.trim() });
+    setSession(chatId, { step: 'AWAITING_NAME', appointmentDate: validDate });
     return MESSAGES.ASK_NAME;
   }
 
   // Step 4: Waiting for patient name — create booking
   if (session.step === 'AWAITING_NAME') {
+    const name = validateName(text);
+    if (!name) {
+      return 'নাম কমপক্ষে ২ অক্ষরের হতে হবে। আবার লিখুন:';
+    }
+
     const booking = await createBooking({
-      patientName: text.trim(),
+      patientName: name,
       patientPhone: String(chatId),
       scheduleId: session.selectedSchedule.schedule_id,
       appointmentDate: session.appointmentDate,

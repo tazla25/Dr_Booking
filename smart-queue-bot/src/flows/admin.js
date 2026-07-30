@@ -7,7 +7,13 @@ const {
   updateAppointmentStatus,
 } = require('../services/adminService');
 const { getSession, setSession } = require('../bot/session');
+const { validateAdminPin } = require('../utils/validators');
 const MESSAGES = require('../utils/messages');
+
+// Simple in-memory rate limiting for admin PIN attempts
+const loginAttempts = new Map();
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
  * Handle an admin message based on current session step.
@@ -22,8 +28,30 @@ async function handleAdminFlow(chatId, text, scheduleId) {
 
   // Step 1: Waiting for PIN
   if (session.step === 'ADMIN_AWAITING_PIN') {
-    const doctorId = await verifyAdminPin(text.trim());
-    if (!doctorId) return MESSAGES.ADMIN_INVALID_PIN;
+    // Rate limit check
+    const attempts = loginAttempts.get(chatId);
+    if (attempts && attempts.count >= MAX_ATTEMPTS) {
+      const elapsed = Date.now() - attempts.lastAttempt;
+      if (elapsed < LOCKOUT_MS) {
+        const remainMin = Math.ceil((LOCKOUT_MS - elapsed) / 60000);
+        return `🔒 অনেকবার ভুল PIN দিয়েছেন। ${remainMin} মিনিট পর আবার চেষ্টা করুন।`;
+      }
+      loginAttempts.delete(chatId);
+    }
+
+    const pin = validateAdminPin(text);
+    if (!pin) return MESSAGES.ADMIN_INVALID_PIN;
+
+    const doctorId = await verifyAdminPin(pin);
+    if (!doctorId) {
+      // Track failed attempt
+      const current = loginAttempts.get(chatId) || { count: 0, lastAttempt: 0 };
+      loginAttempts.set(chatId, { count: current.count + 1, lastAttempt: Date.now() });
+      return MESSAGES.ADMIN_INVALID_PIN;
+    }
+
+    // Reset attempts on success
+    loginAttempts.delete(chatId);
 
     const patients = await getTodaysPatients(scheduleId);
     setSession(chatId, {
@@ -69,6 +97,13 @@ async function handleAdminFlow(chatId, text, scheduleId) {
       );
       setSession(chatId, { patients: updated });
       return `✅ Token #${qNum} বাতিল হয়েছে।`;
+    }
+
+    // /refresh — reload patient list from database
+    if (text === '/refresh') {
+      const patients = await getTodaysPatients(session.currentScheduleId);
+      setSession(chatId, { patients });
+      return MESSAGES.ADMIN_DASHBOARD(patients);
     }
 
     // Any other text — show dashboard again
