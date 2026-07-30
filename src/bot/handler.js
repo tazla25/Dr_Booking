@@ -32,9 +32,26 @@ async function handleMessage(bot, msg) {
     }
 
     if (text === '/queue') {
-      return send(
-        `🔗 লাইভ ট্র্যাকার দেখতে এই লিংকে যান:\n${process.env.PUBLIC_URL || ''}/tracker.html`
-      );
+      // The issue reported is about the tracker link missing schedule parameters.
+      // If the user hasn't booked anything, send a generic tracker.
+      // If they have booked, we can try to find their booking, but
+      // for now, we will construct the URL if session has data.
+      let trackerUrl = `${process.env.PUBLIC_URL || ''}/tracker.html`;
+
+      // Attempt to look up the last booking for this user to get scheduleId and date
+      const { data: lastBooking } = await require('../database/supabase')
+        .from('appointments')
+        .select('schedule_id, appointment_date')
+        .eq('patient_phone', chatId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (lastBooking) {
+          trackerUrl += `?scheduleId=${lastBooking.schedule_id}&date=${lastBooking.appointment_date}`;
+      }
+
+      return send(`🔗 লাইভ ট্র্যাকার দেখতে এই লিংকে যান:\n${trackerUrl}`);
     }
 
     if (text === '/help') {
