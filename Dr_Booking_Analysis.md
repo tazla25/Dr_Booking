@@ -519,18 +519,18 @@ quadrantChart
 ## 🗓️ Recommended Implementation Roadmap
 
 ### Phase 0 — Critical Fixes (এই সপ্তাহে)
-- [ ] 🔴 Secret keys rotate করো ও `.env.example` fix করো
-- [ ] 🔴 Race condition fix করো (queue number generation)
-- [ ] 🟡 Basic input validation add করো
-- [ ] 🟡 Environment variable validation add করো
+- [x] 🔴 Secret keys rotate করো ও `.env.example` fix করো
+- [x] 🔴 Race condition fix করো (queue number generation)
+- [x] 🟡 Basic input validation add করো
+- [x] 🟡 Environment variable validation add করো
 
 ### Phase 1 — Stability (1-2 সপ্তাহ)
 - [ ] Session persistence (Redis বা Supabase)
 - [ ] Proper error handling ও logging
-- [ ] Rate limiting add করো
+- [x] Rate limiting add করো
 - [ ] Admin auth strengthen করো (OTP/stronger PIN)
-- [ ] `/cancel` command implement করো
-- [ ] CI/CD pipeline setup
+- [x] `/cancel` command implement করো
+- [x] CI/CD pipeline setup
 
 ### Phase 2 — Feature Expansion (3-4 সপ্তাহ)
 - [ ] Appointment reminders (cron-based)

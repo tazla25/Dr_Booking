@@ -14,7 +14,7 @@ const MESSAGES = require('../utils/messages');
 async function handleMessage(bot, msg) {
   const chatId = String(msg.chat.id);
   const text = (msg.text || '').trim();
-  const session = getSession(chatId);
+  const session = await getSession(chatId);
 
   const send = (reply) =>
     bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
@@ -22,12 +22,12 @@ async function handleMessage(bot, msg) {
   try {
     // ── Commands ──────────────────────────────────────────────
     if (text === '/start' || text === '/book') {
-      setSession(chatId, { step: 'AWAITING_PIN' });
+      await setSession(chatId, { step: 'AWAITING_PIN' });
       return send(MESSAGES.ASK_PIN);
     }
 
     if (text === '/admin') {
-      setSession(chatId, { step: 'ADMIN_AWAITING_PIN' });
+      await setSession(chatId, { step: 'ADMIN_AWAITING_PIN' });
       return send(MESSAGES.ADMIN_ASK_PIN);
     }
 
@@ -43,7 +43,7 @@ async function handleMessage(bot, msg) {
 
     // /cancel — reset current session
     if (text === '/cancel' && !session.step.startsWith('ADMIN')) {
-      clearSession(chatId);
+      await clearSession(chatId);
       return send('❌ বর্তমান কার্যক্রম বাতিল হয়েছে। /start দিয়ে আবার শুরু করুন।');
     }
 

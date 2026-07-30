@@ -24,7 +24,7 @@ const LOCKOUT_MS = 5 * 60 * 1000; // 5 minutes
  * @returns {Promise<string>} reply message
  */
 async function handleAdminFlow(chatId, text, scheduleId) {
-  const session = getSession(chatId);
+  const session = await getSession(chatId);
 
   // Step 1: Waiting for PIN
   if (session.step === 'ADMIN_AWAITING_PIN') {
@@ -54,7 +54,7 @@ async function handleAdminFlow(chatId, text, scheduleId) {
     loginAttempts.delete(chatId);
 
     const patients = await getTodaysPatients(scheduleId);
-    setSession(chatId, {
+    await setSession(chatId, {
       step: 'ADMIN_DASHBOARD',
       adminDoctorId: doctorId,
       currentScheduleId: scheduleId,
@@ -77,7 +77,7 @@ async function handleAdminFlow(chatId, text, scheduleId) {
       const updated = session.patients.map((p) =>
         p.queue_number === next.queue_number ? { ...p, status: 'Completed' } : p
       );
-      setSession(chatId, { patients: updated });
+      await setSession(chatId, { patients: updated });
       return MESSAGES.QUEUE_UPDATED(next.queue_number);
     }
 
@@ -95,14 +95,14 @@ async function handleAdminFlow(chatId, text, scheduleId) {
       const updated = session.patients.map((p) =>
         p.queue_number === qNum ? { ...p, status: 'Cancelled' } : p
       );
-      setSession(chatId, { patients: updated });
+      await setSession(chatId, { patients: updated });
       return `✅ Token #${qNum} বাতিল হয়েছে।`;
     }
 
     // /refresh — reload patient list from database
     if (text === '/refresh') {
       const patients = await getTodaysPatients(session.currentScheduleId);
-      setSession(chatId, { patients });
+      await setSession(chatId, { patients });
       return MESSAGES.ADMIN_DASHBOARD(patients);
     }
 
