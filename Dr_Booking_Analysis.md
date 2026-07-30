@@ -525,8 +525,8 @@ quadrantChart
 - [x] 🟡 Environment variable validation add করো
 
 ### Phase 1 — Stability (1-2 সপ্তাহ)
-- [ ] Session persistence (Redis বা Supabase)
-- [ ] Proper error handling ও logging
+- [x] Session persistence (Redis বা Supabase)
+- [x] Proper error handling ও logging
 - [x] Rate limiting add করো
 - [ ] Admin auth strengthen করো (OTP/stronger PIN)
 - [x] `/cancel` command implement করো

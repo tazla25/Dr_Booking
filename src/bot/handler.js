@@ -1,9 +1,9 @@
-// src/bot/handler.js
-// Routes all incoming Telegram messages to the correct flow.
 const { getSession, setSession, clearSession } = require('./session');
 const { handlePatientFlow } = require('../flows/patient');
 const { handleAdminFlow } = require('../flows/admin');
 const MESSAGES = require('../utils/messages');
+const logger = require('../utils/logger');
+const { AppointmentError } = require('../utils/errors');
 
 /**
  * Main message handler — called for every incoming Telegram message.
@@ -64,8 +64,13 @@ async function handleMessage(bot, msg) {
 
     return send(reply);
   } catch (err) {
-    console.error(`[handler] Error for chatId=${chatId}:`, err.message);
-    return send(MESSAGES.ERROR);
+    if (err instanceof AppointmentError) {
+      logger.warn({ chatId, code: err.code, message: err.message }, 'Appointment warning');
+      return send(err.userMessage || MESSAGES.ERROR);
+    } else {
+      logger.error({ err, chatId, text }, 'Error handling message');
+      return send(MESSAGES.ERROR);
+    }
   }
 }
 

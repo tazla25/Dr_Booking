@@ -3,6 +3,8 @@
 // Stores the conversation state for each user.
 
 const supabase = require('../database/supabase');
+const logger = require('../utils/logger');
+const { AppointmentError } = require('../utils/errors');
 
 async function getSession(chatId) {
   const { data, error } = await supabase
@@ -11,7 +13,11 @@ async function getSession(chatId) {
     .eq('chat_id', chatId)
     .single();
 
-  if (error || !data) {
+  if (error && error.code !== 'PGRST116') { // PGRST116 is "No rows found" which is normal for new sessions
+     logger.error({ err: error, chatId }, 'Error fetching session');
+  }
+
+  if (!data) {
     return { step: 'IDLE' };
   }
 
@@ -40,7 +46,8 @@ async function setSession(chatId, data) {
     }, { onConflict: 'chat_id' });
 
   if (error) {
-    console.error(`[session] setSession error for ${chatId}:`, error.message);
+    logger.error({ err: error, chatId, data }, 'Error setting session');
+    throw new AppointmentError('Failed to save session state', 'SESSION_SAVE_ERROR', 'দুঃখিত, একটি সমস্যা হয়েছে। আবার চেষ্টা করুন।');
   }
 }
 
@@ -54,7 +61,8 @@ async function clearSession(chatId) {
     }, { onConflict: 'chat_id' });
 
   if (error) {
-    console.error(`[session] clearSession error for ${chatId}:`, error.message);
+    logger.error({ err: error, chatId }, 'Error clearing session');
+    throw new AppointmentError('Failed to clear session state', 'SESSION_CLEAR_ERROR', 'দুঃখিত, একটি সমস্যা হয়েছে। আবার চেষ্টা করুন।');
   }
 }
 
