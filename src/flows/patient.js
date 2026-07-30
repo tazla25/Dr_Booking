@@ -15,7 +15,7 @@ const MESSAGES = require('../utils/messages');
  * @returns {Promise<string>} reply message
  */
 async function handlePatientFlow(chatId, text) {
-  const session = getSession(chatId);
+  const session = await getSession(chatId);
 
   // Step 1: Waiting for PIN code
   if (session.step === 'AWAITING_PIN') {
@@ -27,7 +27,7 @@ async function handlePatientFlow(chatId, text) {
     const schedules = await getDoctorsByPin(pin);
     if (!schedules.length) return MESSAGES.NO_DOCTORS;
 
-    setSession(chatId, {
+    await setSession(chatId, {
       step: 'AWAITING_DOCTOR_SELECTION',
       pinCode: pin,
       schedules,
@@ -44,7 +44,7 @@ async function handlePatientFlow(chatId, text) {
     }
 
     const selected = session.schedules[idx];
-    setSession(chatId, { step: 'AWAITING_DATE', selectedSchedule: selected });
+    await setSession(chatId, { step: 'AWAITING_DATE', selectedSchedule: selected });
     return MESSAGES.ASK_DATE;
   }
 
@@ -55,7 +55,7 @@ async function handlePatientFlow(chatId, text) {
       return MESSAGES.INVALID_DATE;
     }
 
-    setSession(chatId, { step: 'AWAITING_NAME', appointmentDate: validDate });
+    await setSession(chatId, { step: 'AWAITING_NAME', appointmentDate: validDate });
     return MESSAGES.ASK_NAME;
   }
 
@@ -73,7 +73,7 @@ async function handlePatientFlow(chatId, text) {
       appointmentDate: session.appointmentDate,
     });
 
-    clearSession(chatId);
+    await clearSession(chatId);
     return MESSAGES.BOOKING_CONFIRMED(
       booking.patient_name,
       booking.queue_number,

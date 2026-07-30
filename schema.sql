@@ -51,6 +51,14 @@ CREATE TABLE admin_access (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- ─── 5. Sessions ─────────────────────────────────────────────────────────────
+CREATE TABLE sessions (
+  chat_id TEXT PRIMARY KEY,
+  step TEXT NOT NULL DEFAULT 'IDLE',
+  session_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ─── Auto-update updated_at ──────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
@@ -62,6 +70,10 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER appointments_updated_at
   BEFORE UPDATE ON appointments
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER sessions_updated_at
+  BEFORE UPDATE ON sessions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- ─── Seed Data (for testing) ─────────────────────────────────────────────────
