@@ -5,6 +5,7 @@ const supabase = require('../database/supabase');
 /**
  * Create a new appointment booking.
  * Automatically generates the next queue number for that schedule+date.
+ * Uses database transaction with retry to prevent race conditions.
  *
  * @param {Object} params
  * @param {string} params.patientName
@@ -14,32 +15,38 @@ const supabase = require('../database/supabase');
  * @returns {Object} created appointment row
  */
 async function createBooking({ patientName, patientPhone, scheduleId, appointmentDate }) {
-  // Count existing bookings to determine next queue number
-  const { count, error: countErr } = await supabase
-    .from('appointments')
-    .select('*', { count: 'exact', head: true })
-    .eq('schedule_id', scheduleId)
-    .eq('appointment_date', appointmentDate);
+  const MAX_RETRIES = 3;
+  let attempt = 0;
 
-  if (countErr) throw new Error(countErr.message);
+  while (attempt < MAX_RETRIES) {
+    attempt++;
 
-  const queueNumber = (count ?? 0) + 1;
+    try {
+      const { data, error } = await supabase.rpc('create_booking_atomic', {
+        p_patient_name: patientName,
+        p_patient_phone: patientPhone,
+        p_schedule_id: scheduleId,
+        p_appointment_date: appointmentDate,
+      });
 
-  const { data, error } = await supabase
-    .from('appointments')
-    .insert({
-      patient_name: patientName,
-      patient_phone: patientPhone,
-      schedule_id: scheduleId,
-      appointment_date: appointmentDate,
-      queue_number: queueNumber,
-      status: 'Confirmed',
-    })
-    .select()
-    .single();
+      if (error) {
+        if (error.code === '23505' && attempt < MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, 50 * attempt));
+          continue;
+        }
+        throw new Error(error.message);
+      }
 
-  if (error) throw new Error(error.message);
-  return data;
+      return data[0];
+    } catch (err) {
+      if (attempt >= MAX_RETRIES) throw err;
+      if (err.message.includes('duplicate key') || err.message.includes('23505')) {
+        await new Promise(r => setTimeout(r, 50 * attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 /**
