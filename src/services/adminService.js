@@ -1,9 +1,12 @@
 // src/services/adminService.js
 // Admin PIN authentication, patient list, and status updates
 const supabase = require('../database/supabase');
+const bcrypt = require('bcrypt');
+
+const BCRYPT_ROUNDS = 10;
 
 /**
- * Verify a 4-digit admin PIN.
+ * Verify a 4-digit admin PIN against hashed value.
  * Returns the doctor_id if valid, null if not found.
  *
  * @param {string} pin - 4-digit PIN string
@@ -12,12 +15,24 @@ const supabase = require('../database/supabase');
 async function verifyAdminPin(pin) {
   const { data, error } = await supabase
     .from('admin_access')
-    .select('doctor_id, secret_pin')
-    .eq('secret_pin', pin)
+    .select('doctor_id, secret_pin_hash')
     .single();
 
   if (error || !data) return null;
+
+  const isValid = await bcrypt.compare(pin, data.secret_pin_hash);
+  if (!isValid) return null;
+
   return data.doctor_id;
+}
+
+/**
+ * Hash a new admin PIN for storage.
+ * @param {string} pin - plain text PIN
+ * @returns {string} hashed PIN
+ */
+async function hashAdminPin(pin) {
+  return bcrypt.hash(pin, BCRYPT_ROUNDS);
 }
 
 /**
@@ -57,4 +72,4 @@ async function updateAppointmentStatus(bookingId, status) {
   return true;
 }
 
-module.exports = { verifyAdminPin, getTodaysPatients, updateAppointmentStatus };
+module.exports = { verifyAdminPin, hashAdminPin, getTodaysPatients, updateAppointmentStatus };

@@ -47,7 +47,7 @@ CREATE INDEX idx_appointments_status ON appointments(status);
 CREATE TABLE admin_access (
   admin_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   doctor_id UUID REFERENCES doctors(doctor_id) ON DELETE CASCADE,
-  secret_pin TEXT NOT NULL,  -- Store hashed in production!
+  secret_pin_hash TEXT NOT NULL,  -- bcrypt hashed PIN
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -112,6 +112,20 @@ BEGIN
 END;
 $$;
 
+-- ─── Admin PIN Verification Function ───────────────────────────────────────────
+-- Note: bcrypt verification happens in application layer (Node.js)
+-- This function is a placeholder if you want to do it in SQL with pgcrypto
+CREATE OR REPLACE FUNCTION verify_admin_pin(p_pin_hash TEXT, p_input_pin TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  -- In production, use pgcrypto: RETURN p_pin_hash = crypt(p_input_pin, p_pin_hash);
+  -- For now, application layer handles bcrypt verification
+  RETURN FALSE;
+END;
+$$;
+
 -- ─── Seed Data (for testing) ─────────────────────────────────────────────────
 -- Step 1: Insert a doctor
 INSERT INTO doctors (full_name, specialization)
@@ -119,9 +133,13 @@ VALUES ('Dr. Arjun Sen', 'Optometry');
 
 -- Step 2: After inserting, copy the doctor_id UUID from the Supabase UI
 -- Then run the next two inserts replacing <doctor_uuid> with the real UUID:
-
+-- 
 -- INSERT INTO schedules (doctor_id, pin_code, day_of_week, start_time, end_time, clinic_name)
 -- VALUES ('<doctor_uuid>', 700001, 'Wednesday', '10:00', '14:00', 'Sen Eye Clinic');
-
--- INSERT INTO admin_access (doctor_id, secret_pin)
--- VALUES ('<doctor_uuid>', '1234');
+-- 
+-- For admin PIN, hash it first in Node.js:
+-- const bcrypt = require('bcrypt');
+-- const hash = await bcrypt.hash('1234', 10);
+-- Then insert:
+-- INSERT INTO admin_access (doctor_id, secret_pin_hash)
+-- VALUES ('<doctor_uuid>', '<bcrypt_hash_here>');
