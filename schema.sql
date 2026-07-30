@@ -76,6 +76,42 @@ CREATE TRIGGER sessions_updated_at
   BEFORE UPDATE ON sessions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+-- ─── Atomic Booking Function (prevents race conditions) ────────────────────────
+CREATE OR REPLACE FUNCTION create_booking_atomic(
+  p_patient_name TEXT,
+  p_patient_phone TEXT,
+  p_schedule_id UUID,
+  p_appointment_date DATE
+)
+RETURNS SETOF appointments
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_queue_number INTEGER;
+  v_booking appointments%ROWTYPE;
+BEGIN
+  -- Lock the relevant rows to prevent concurrent inserts from getting same queue number
+  -- This SELECT ... FOR UPDATE locks any existing appointments for this schedule+date
+  PERFORM 1 FROM appointments
+  WHERE schedule_id = p_schedule_id
+    AND appointment_date = p_appointment_date
+  FOR UPDATE;
+
+  -- Get the next queue number
+  SELECT COALESCE(MAX(queue_number), 0) + 1 INTO v_queue_number
+  FROM appointments
+  WHERE schedule_id = p_schedule_id
+    AND appointment_date = p_appointment_date;
+
+  -- Insert the new appointment
+  INSERT INTO appointments (patient_name, patient_phone, schedule_id, appointment_date, queue_number, status)
+  VALUES (p_patient_name, p_patient_phone, p_schedule_id, p_appointment_date, v_queue_number, 'Confirmed')
+  RETURNING * INTO v_booking;
+
+  RETURN NEXT v_booking;
+END;
+$$;
+
 -- ─── Seed Data (for testing) ─────────────────────────────────────────────────
 -- Step 1: Insert a doctor
 INSERT INTO doctors (full_name, specialization)
