@@ -63,11 +63,28 @@ async function handleAdminFlow(chatId, text, scheduleId, isCallback = false, cal
         return "⚠️ এই ডাক্তারের জন্য কোনো শিডিউল সেট করা নেই।";
     }
 
-    // Generate Magic Link
+    // Generate Magic Link via Dashboard API
     const baseUrl = process.env.PUBLIC_URL || 'http://localhost:3000';
-    const tokenObj = { doctor_id: adminData.doctor_id, schedule_id: actualScheduleId };
-    const tokenStr = Buffer.from(JSON.stringify(tokenObj)).toString('base64');
-    const magicLink = `${baseUrl}/admin?token=${encodeURIComponent(tokenStr)}`;
+    let magicLink;
+    try {
+      const response = await fetch(`${baseUrl}/api/auth/generate-magic-link`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.BOT_API_SECRET}`
+        },
+        body: JSON.stringify({ telegramChatId: String(chatId) })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to generate magic link');
+      }
+      magicLink = data.magicLink;
+    } catch (error) {
+      console.error('Error generating magic link:', error);
+      return '⚠️ ড্যাশবোর্ড লিঙ্ক তৈরি করতে সমস্যা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।';
+    }
 
     await clearSession(chatId); // Clear session after giving magic link to avoid stuck state
 
