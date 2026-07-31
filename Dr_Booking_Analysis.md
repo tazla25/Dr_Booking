@@ -544,7 +544,7 @@ quadrantChart
 - [ ] Analytics ও reporting
 - [ ] Multi-language support
 - [ ] TypeScript migration
-- [ ] Payment integration (bKash/Nagad)
+- [ ] Payment integration
 
 ### Phase 4 — Premium Features (2-3 মাস)
 - [ ] WhatsApp Cloud API integration
