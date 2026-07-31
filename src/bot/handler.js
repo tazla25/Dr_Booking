@@ -26,8 +26,9 @@ async function handleMessage(bot, msg) {
     bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
 
   try {
-    // ── Commands ──────────────────────────────────────────────
-    if (text === '/start' || text === '/book') {
+// ── Commands ──────────────────────────────────────────────
+    const lowerText = text.toLowerCase();
+    if (lowerText === '/start' || lowerText === '/book' || lowerText === 'hi' || lowerText === 'hello' || lowerText === 'হ্যালো') {
       await setSession(chatId, { step: 'AWAITING_PIN' });
       return send(MESSAGES.ASK_PIN);
     }

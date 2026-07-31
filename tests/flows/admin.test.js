@@ -23,7 +23,7 @@ const MOCK_PATIENTS = [
 describe('handleAdminFlow — ADMIN_AWAITING_PIN step', () => {
   it('shows dashboard with patient list on correct PIN', async () => {
     session.getSession.mockReturnValue({ step: 'ADMIN_AWAITING_PIN' });
-    adminService.verifyAdminPin.mockResolvedValue('doc-1');
+    adminService.verifyAdminPin.mockResolvedValue({ doctor_id: 'doc-1', schedule_id: 'sch-1' });
     adminService.getTodaysPatients.mockResolvedValue(MOCK_PATIENTS);
 
     const reply = await handleAdminFlow('999', '1234', 'sch-1');

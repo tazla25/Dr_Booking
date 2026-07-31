@@ -42,8 +42,9 @@ async function handleAdminFlow(chatId, text, scheduleId) {
     const pin = validateAdminPin(text);
     if (!pin) return MESSAGES.ADMIN_INVALID_PIN;
 
-    const doctorId = await verifyAdminPin(pin, chatId);
-    if (!doctorId) {
+
+    const adminData = await verifyAdminPin(pin, chatId);
+    if (!adminData) {
       // Track failed attempt
       const current = loginAttempts.get(chatId) || { count: 0, lastAttempt: 0 };
       loginAttempts.set(chatId, { count: current.count + 1, lastAttempt: Date.now() });
@@ -53,13 +54,19 @@ async function handleAdminFlow(chatId, text, scheduleId) {
     // Reset attempts on success
     loginAttempts.delete(chatId);
 
-    const patients = await getTodaysPatients(scheduleId);
+    const actualScheduleId = adminData.schedule_id;
+    if (!actualScheduleId) {
+        return "⚠️ এই ডাক্তারের জন্য কোনো শিডিউল সেট করা নেই।";
+    }
+
+    const patients = await getTodaysPatients(actualScheduleId);
     await setSession(chatId, {
       step: 'ADMIN_DASHBOARD',
-      adminDoctorId: doctorId,
-      currentScheduleId: scheduleId,
+      adminDoctorId: adminData.doctor_id,
+      currentScheduleId: actualScheduleId,
       patients,
     });
+
     return MESSAGES.ADMIN_DASHBOARD(patients);
   }
 

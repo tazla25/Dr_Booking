@@ -24,12 +24,12 @@ describe('verifyAdminPin', () => {
 
   it('returns doctor_id when PIN matches', async () => {
     supabase.single.mockResolvedValueOnce({
-      data: { doctor_id: 'doc-1', secret_pin: '1234' },
+      data: { doctor_id: 'doc-1', secret_pin: '1234', doctors: { schedules: [{ schedule_id: 'sch-1' }] } },
       error: null,
     });
 
     const result = await verifyAdminPin('1234', 'chat-1');
-    expect(result).toBe('doc-1');
+    expect(result).toEqual({ doctor_id: 'doc-1', schedule_id: 'sch-1' });
     expect(supabase.insert).not.toHaveBeenCalled();
   });
 
