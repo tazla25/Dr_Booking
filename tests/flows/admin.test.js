@@ -1,76 +1,43 @@
-// tests/flows/admin.test.js
+
+jest.mock('../../src/database/supabase', () => ({
+  from: jest.fn().mockReturnThis(),
+  select: jest.fn().mockReturnThis(),
+  eq: jest.fn().mockReturnThis(),
+  single: jest.fn().mockReturnThis(),
+}));
+jest.mock('../../src/services/adminService'); // Mock first before any requires
+jest.mock('../../src/bot/session');
+
 const { handleAdminFlow } = require('../../src/flows/admin');
-
-jest.mock('../../src/services/adminService', () => ({
-  verifyAdminPin: jest.fn(),
-  getTodaysPatients: jest.fn(),
-  updateAppointmentStatus: jest.fn(),
-}));
-jest.mock('../../src/bot/session', () => ({
-  getSession: jest.fn(),
-  setSession: jest.fn(),
-  clearSession: jest.fn(),
-}));
-
-const adminService = require('../../src/services/adminService');
 const session = require('../../src/bot/session');
+const adminService = require('../../src/services/adminService');
 
-const MOCK_PATIENTS = [
-  { booking_id: 'bk-1', queue_number: 1, patient_name: 'Rina', status: 'Confirmed' },
-  { booking_id: 'bk-2', queue_number: 2, patient_name: 'Sumon', status: 'Confirmed' },
-];
 
-describe('handleAdminFlow — ADMIN_AWAITING_PIN step', () => {
-  it('shows dashboard with patient list on correct PIN', async () => {
-    session.getSession.mockReturnValue({ step: 'ADMIN_AWAITING_PIN' });
-    adminService.verifyAdminPin.mockResolvedValue({ doctor_id: 'doc-1', schedule_id: 'sch-1' });
-    adminService.getTodaysPatients.mockResolvedValue(MOCK_PATIENTS);
-
-    const reply = await handleAdminFlow('999', '1234', 'sch-1');
-
-    expect(reply).toContain('Rina');
-    expect(reply).toContain('Sumon');
-    expect(session.setSession).toHaveBeenCalledWith(
-      '999',
-      expect.objectContaining({ step: 'ADMIN_DASHBOARD' })
-    );
+describe('handleAdminFlow', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
-  it('returns invalid PIN message on wrong PIN', async () => {
-    session.getSession.mockReturnValue({ step: 'ADMIN_AWAITING_PIN' });
-    adminService.verifyAdminPin.mockResolvedValue(null);
+  describe('ADMIN_AWAITING_PIN step', () => {
+    it('shows magic link on correct PIN', async () => {
+      session.getSession.mockResolvedValue({ step: 'ADMIN_AWAITING_PIN' });
+      adminService.verifyAdminPin.mockResolvedValue({
+        doctor_id: 'doc-1',
+        schedule_id: 'sch-1',
+      });
 
-    const reply = await handleAdminFlow('999', '0000', 'sch-1');
-    expect(reply).toContain('ভুল');
-  });
-});
+      const reply = await handleAdminFlow('999', '1234', 'sch-1');
 
-describe('handleAdminFlow — ADMIN_DASHBOARD step', () => {
-  it('/next marks first confirmed patient as Completed', async () => {
-    session.getSession.mockReturnValue({
-      step: 'ADMIN_DASHBOARD',
-      adminDoctorId: 'doc-1',
-      patients: MOCK_PATIENTS,
+      expect(reply.text || reply).toContain('লগইন সফল');
+      expect(session.clearSession).toHaveBeenCalledWith('999');
     });
-    adminService.updateAppointmentStatus.mockResolvedValue(true);
 
-    const reply = await handleAdminFlow('999', '/next', 'sch-1');
+    it('returns invalid PIN message on wrong PIN', async () => {
+      session.getSession.mockResolvedValue({ step: 'ADMIN_AWAITING_PIN' });
+      adminService.verifyAdminPin.mockResolvedValue(null);
 
-    expect(reply).toContain('1');
-    expect(adminService.updateAppointmentStatus).toHaveBeenCalledWith('bk-1', 'Completed');
-  });
-
-  it('/cancel <qNum> cancels a specific patient', async () => {
-    session.getSession.mockReturnValue({
-      step: 'ADMIN_DASHBOARD',
-      adminDoctorId: 'doc-1',
-      patients: MOCK_PATIENTS,
+      const reply = await handleAdminFlow('999', '0000', 'sch-1');
+      expect(reply.text || reply).toContain('ভুল');
     });
-    adminService.updateAppointmentStatus.mockResolvedValue(true);
-
-    const reply = await handleAdminFlow('999', '/cancel 2', 'sch-1');
-
-    expect(reply).toContain('2');
-    expect(adminService.updateAppointmentStatus).toHaveBeenCalledWith('bk-2', 'Cancelled');
   });
 });

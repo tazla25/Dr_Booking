@@ -8,8 +8,15 @@ const { handlePatientFlow } = require('../flows/patient');
 const { handleAdminFlow } = require('../flows/admin');
 const { cancelBookingByToken, rescheduleBookingByToken } = require('../services/bookingService');
 const { validateDate } = require('../utils/validators');
-const MESSAGES = require('../utils/messages');
+const { getMessage } = require('../utils/messages');
 
+/**
+ * Helper to get user's language from session
+ */
+async function getUserLang(chatId) {
+  const session = await getSession(chatId);
+  return session.lang || 'bn'; // Default to Bengali
+}
 
 /**
  * Main message handler — called for every incoming Telegram message.
@@ -21,33 +28,51 @@ async function handleMessage(bot, msg) {
   const chatId = String(msg.chat.id);
   const text = (msg.text || '').trim();
   const session = await getSession(chatId);
+  const lang = await getUserLang(chatId);
 
-  const send = (reply) =>
-    bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
+  const send = (reply, options = {}) => {
+    const opts = { parse_mode: 'Markdown', ...options };
+    return bot.sendMessage(chatId, reply, opts);
+  };
 
   try {
-// ── Commands ──────────────────────────────────────────────
+    // ── Commands ──────────────────────────────────────────────
     const lowerText = text.toLowerCase();
-    if (lowerText === '/start' || lowerText === '/book' || lowerText === 'hi' || lowerText === 'hello' || lowerText === 'হ্যালো') {
-      await setSession(chatId, { step: 'AWAITING_PIN' });
-      return send(MESSAGES.ASK_PIN);
+
+    // START / ONBOARDING
+    if (lowerText === '/start' || lowerText === 'hi' || lowerText === 'hello' || lowerText === 'হ্যালো') {
+      await clearSession(chatId);
+      await setSession(chatId, { step: 'AWAITING_LANG' });
+      return send(getMessage('en', 'CHOOSE_LANG'), {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '🇧🇩 বাংলা', callback_data: 'lang_bn' },
+              { text: '🇬🇧 English', callback_data: 'lang_en' },
+              { text: '🇮🇳 हिन्दी', callback_data: 'lang_hi' }
+            ]
+          ]
+        }
+      });
+    }
+
+    if (text === '/book') {
+        await setSession(chatId, { step: 'AWAITING_PIN' });
+        return send(getMessage(lang, 'ASK_PIN'));
     }
 
     if (text === '/admin') {
       await setSession(chatId, { step: 'ADMIN_AWAITING_PIN' });
-      return send(MESSAGES.ADMIN_ASK_PIN);
+      return send(getMessage(lang, 'ADMIN_ASK_PIN'));
     }
 
     if (text === '/queue') {
-      return send(
-        `🔗 লাইভ ট্র্যাকার লিংকটি আপনার বুকিং কনফার্মেশন মেসেজে দেওয়া আছে।\nঅনুগ্রহ করে বুকিং সম্পন্ন হওয়ার মেসেজটি চেক করুন।`
-      );
+      return send(getMessage(lang, 'STATUS_MSG'));
     }
 
     if (text === '/help') {
-      return send(MESSAGES.WELCOME);
+      return send(getMessage(lang, 'WELCOME'));
     }
-
 
     // /cancel <token> or /cancel
     if (text.startsWith('/cancel') && !session.step.startsWith('ADMIN')) {
@@ -56,11 +81,11 @@ async function handleMessage(bot, msg) {
         const token = parseInt(parts[1], 10);
         if (!isNaN(token)) {
            await cancelBookingByToken(token, chatId);
-           return send('✅ আপনার বুকিং (টোকেন #' + token + ') সফলভাবে বাতিল করা হয়েছে।');
+           return send(getMessage(lang, 'BOOKING_CANCELLED', token));
         }
       } else {
         await clearSession(chatId);
-        return send('❌ বর্তমান কার্যক্রম বাতিল হয়েছে। /start দিয়ে আবার শুরু করুন।');
+        return send(getMessage(lang, 'CANCEL_MSG'));
       }
     }
 
@@ -72,40 +97,115 @@ async function handleMessage(bot, msg) {
         const newDate = validateDate(parts[2]);
         if (!isNaN(token) && newDate) {
            await rescheduleBookingByToken(token, chatId, newDate);
-           return send('✅ আপনার বুকিং (টোকেন #' + token + ') সফলভাবে ' + newDate + ' তারিখে পরিবর্তন করা হয়েছে।');
+           return send(`✅ Booking (Token #${token}) rescheduled to ${newDate}.`);
         } else {
-           return send('❌ সঠিক ফরম্যাটে লিখুন: /reschedule <token> <YYYY-MM-DD>');
+           return send('❌ Invalid format: /reschedule <token> <YYYY-MM-DD>');
         }
       } else {
-        return send('❌ সঠিক ফরম্যাটে লিখুন: /reschedule <token> <YYYY-MM-DD>');
+        return send('❌ Invalid format: /reschedule <token> <YYYY-MM-DD>');
       }
     }
 
     // ── Flow routing ──────────────────────────────────────────
-
-    let reply;
+    let replyObj;
 
     if (session.step.startsWith('ADMIN')) {
-      reply = await handleAdminFlow(
-        chatId,
-        text,
-        session.currentScheduleId || ''
-      );
-    } else if (session.step !== 'IDLE') {
-      reply = await handlePatientFlow(chatId, text);
+      replyObj = await handleAdminFlow(chatId, text, session.currentScheduleId || '', false, null, lang);
+    } else if (session.step !== 'IDLE' && session.step !== 'AWAITING_LANG') {
+      replyObj = await handlePatientFlow(chatId, text, false, null, lang);
     } else {
-      reply = MESSAGES.WELCOME;
+      replyObj = { text: getMessage(lang, 'WELCOME') };
     }
 
-    return send(reply);
+    if (typeof replyObj === 'string') {
+        return send(replyObj);
+    } else if (replyObj) {
+        return send(replyObj.text, replyObj.options);
+    }
   } catch (err) {
     if (err.name === 'AppointmentError') {
       logger.error({ chatId, code: err.code, err: err.message }, 'AppointmentError occurred');
-      return send(err.userMessage || MESSAGES.ERROR);
+      return send(err.userMessage || getMessage(lang, 'ERROR'));
     }
     logger.error({ chatId, err: err.message }, '[handler] Unhandled error');
-    return send(MESSAGES.ERROR);
+    return send(getMessage(lang, 'ERROR'));
   }
 }
 
-module.exports = { handleMessage };
+/**
+ * Handle callback queries from Inline Keyboards
+ */
+async function handleCallbackQuery(bot, query) {
+  const chatId = String(query.message.chat.id);
+  const data = query.data;
+  const session = await getSession(chatId);
+
+  // Acknowledge the callback immediately
+  bot.answerCallbackQuery(query.id).catch(() => {});
+
+  const send = (reply, options = {}) => {
+    const opts = { parse_mode: 'Markdown', ...options };
+    return bot.sendMessage(chatId, reply, opts);
+  };
+
+  try {
+    // 1. Handle Language Selection
+    if (data.startsWith('lang_')) {
+      const lang = data.split('_')[1];
+      await setSession(chatId, { lang, step: 'MAIN_MENU' });
+
+      const welcomeText = getMessage(lang, 'WELCOME') + '\n\n' + getMessage(lang, 'MAIN_MENU');
+
+      return send(welcomeText, {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: getMessage(lang, 'BTN_BOOK'), callback_data: 'menu_book' }],
+            [{ text: getMessage(lang, 'BTN_STATUS'), callback_data: 'menu_status' }],
+            [{ text: getMessage(lang, 'BTN_CANCEL'), callback_data: 'menu_cancel' }]
+          ]
+        }
+      });
+    }
+
+    const lang = session.lang || 'bn';
+
+    // 2. Handle Main Menu Clicks
+    if (data === 'menu_book') {
+      await setSession(chatId, { step: 'AWAITING_PIN' });
+      return send(getMessage(lang, 'ASK_PIN'));
+    }
+
+    if (data === 'menu_status') {
+      return send(getMessage(lang, 'STATUS_MSG'));
+    }
+
+    if (data === 'menu_cancel') {
+      return send(getMessage(lang, 'CANCEL_PROMPT'));
+    }
+
+    // 3. Forward to flows
+    let replyObj;
+    if (session.step.startsWith('ADMIN')) {
+      replyObj = await handleAdminFlow(chatId, '', session.currentScheduleId || '', true, data, lang);
+    } else {
+      replyObj = await handlePatientFlow(chatId, '', true, data, lang);
+    }
+
+    if (typeof replyObj === 'string') {
+        return send(replyObj);
+    } else if (replyObj) {
+        return send(replyObj.text, replyObj.options);
+    }
+
+  } catch (err) {
+    const lang = session.lang || 'bn';
+    if (err.name === 'AppointmentError') {
+      logger.error({ chatId, code: err.code, err: err.message }, 'AppointmentError occurred');
+      return send(err.userMessage || getMessage(lang, 'ERROR'));
+    }
+    logger.error({ chatId, err: err.message }, '[handler] Callback query error');
+    return send(getMessage(lang, 'ERROR'));
+  }
+}
+
+module.exports = { handleMessage, handleCallbackQuery };

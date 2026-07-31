@@ -5,65 +5,198 @@ const { getDoctorsByPin } = require('../services/doctorService');
 const { createBooking } = require('../services/bookingService');
 const { getSession, setSession, clearSession } = require('../bot/session');
 const { validatePinCode, validateDate, validateName } = require('../utils/validators');
-const MESSAGES = require('../utils/messages');
+const { getMessage } = require('../utils/messages');
 
 /**
  * Handle a patient message based on current session step.
  *
  * @param {string} chatId
  * @param {string} text - raw message text from user
- * @returns {Promise<string>} reply message
+ * @param {boolean} isCallback - whether this is from a callback query
+ * @param {string} callbackData - the callback data string
+ * @param {string} lang - the user's language
+ * @returns {Promise<string|Object>} reply message or object with options
  */
-async function handlePatientFlow(chatId, text) {
+async function handlePatientFlow(chatId, text, isCallback = false, callbackData = null, lang = 'bn') {
   const session = await getSession(chatId);
+
+  // Helper to generate Back Button
+  const getBackButton = (callback_data) => {
+    return [[{ text: getMessage(lang, 'BTN_BACK'), callback_data }]];
+  };
 
   // Step 1: Waiting for PIN code
   if (session.step === 'AWAITING_PIN') {
+    if (isCallback && callbackData === 'back_main') {
+        await setSession(chatId, { step: 'MAIN_MENU' });
+        return {
+            text: getMessage(lang, 'MAIN_MENU'),
+            options: {
+                reply_markup: {
+                  inline_keyboard: [
+                    [{ text: getMessage(lang, 'BTN_BOOK'), callback_data: 'menu_book' }],
+                    [{ text: getMessage(lang, 'BTN_STATUS'), callback_data: 'menu_status' }],
+                    [{ text: getMessage(lang, 'BTN_CANCEL'), callback_data: 'menu_cancel' }]
+                  ]
+                }
+            }
+        };
+    }
+
+    // Must be text input for PIN
+    if (isCallback) return null;
+
     const pin = validatePinCode(text);
     if (pin === null) {
-      return MESSAGES.INVALID_PIN_FORMAT;
+      return getMessage(lang, 'INVALID_PIN_FORMAT');
     }
 
     const schedules = await getDoctorsByPin(pin);
-    if (!schedules.length) return MESSAGES.NO_DOCTORS;
+    if (!schedules.length) {
+      return {
+          text: getMessage(lang, 'NO_DOCTORS'),
+          options: {
+              reply_markup: {
+                  inline_keyboard: getBackButton('back_main')
+              }
+          }
+      };
+    }
 
     await setSession(chatId, {
       step: 'AWAITING_DOCTOR_SELECTION',
       pinCode: pin,
       schedules,
     });
-    return MESSAGES.SELECT_DOCTOR(schedules);
+
+    const inline_keyboard = schedules.map((s, idx) => [
+        { text: `${idx + 1}. ${s.doctors.full_name}`, callback_data: `doc_${idx}` }
+    ]);
+    inline_keyboard.push(...getBackButton('back_pin'));
+
+    return {
+        text: getMessage(lang, 'SELECT_DOCTOR', schedules),
+        options: {
+            reply_markup: { inline_keyboard }
+        }
+    };
   }
 
-  // Step 2: Waiting for doctor selection (number)
+  // Step 2: Waiting for doctor selection (inline buttons)
   if (session.step === 'AWAITING_DOCTOR_SELECTION') {
-    const idx = parseInt(text.trim(), 10) - 1;
+    if (isCallback && callbackData === 'back_pin') {
+        await setSession(chatId, { step: 'AWAITING_PIN' });
+        return {
+            text: getMessage(lang, 'ASK_PIN'),
+            options: {
+                reply_markup: {
+                    inline_keyboard: getBackButton('back_main')
+                }
+            }
+        };
+    }
+
+    let idx = -1;
+    if (isCallback && callbackData.startsWith('doc_')) {
+        idx = parseInt(callbackData.split('_')[1], 10);
+    } else if (!isCallback) {
+        idx = parseInt(text.trim(), 10) - 1;
+    }
 
     if (isNaN(idx) || idx < 0 || idx >= session.schedules.length) {
-      return MESSAGES.INVALID_SELECTION;
+      return getMessage(lang, 'INVALID_SELECTION');
     }
 
     const selected = session.schedules[idx];
     await setSession(chatId, { step: 'AWAITING_DATE', selectedSchedule: selected });
-    return MESSAGES.ASK_DATE;
+
+    // Generate dates (today + next 2 available days based on day_of_week)
+    // For simplicity, we just ask them to type or provide generic next 3 days
+    const nextDays = [];
+    for (let i = 0; i < 3; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() + i);
+        nextDays.push(d.toISOString().split('T')[0]);
+    }
+
+    const date_keyboard = nextDays.map(d => [
+        { text: d, callback_data: `date_${d}` }
+    ]);
+    date_keyboard.push(...getBackButton('back_doc'));
+
+    return {
+        text: getMessage(lang, 'ASK_DATE'),
+        options: {
+            reply_markup: { inline_keyboard: date_keyboard }
+        }
+    };
   }
 
   // Step 3: Waiting for appointment date
   if (session.step === 'AWAITING_DATE') {
-    const validDate = validateDate(text);
+    if (isCallback && callbackData === 'back_doc') {
+        await setSession(chatId, { step: 'AWAITING_DOCTOR_SELECTION' });
+        const inline_keyboard = session.schedules.map((s, idx) => [
+            { text: `${idx + 1}. ${s.doctors.full_name}`, callback_data: `doc_${idx}` }
+        ]);
+        inline_keyboard.push(...getBackButton('back_pin'));
+
+        return {
+            text: getMessage(lang, 'SELECT_DOCTOR', session.schedules),
+            options: {
+                reply_markup: { inline_keyboard }
+            }
+        };
+    }
+
+    let dateInput = text;
+    if (isCallback && callbackData.startsWith('date_')) {
+        dateInput = callbackData.split('_')[1];
+    }
+
+    const validDate = validateDate(dateInput);
     if (!validDate) {
-      return MESSAGES.INVALID_DATE;
+      return getMessage(lang, 'INVALID_DATE');
     }
 
     await setSession(chatId, { step: 'AWAITING_NAME', appointmentDate: validDate });
-    return MESSAGES.ASK_NAME;
+    return {
+        text: getMessage(lang, 'ASK_NAME'),
+        options: {
+            reply_markup: { inline_keyboard: getBackButton('back_date') }
+        }
+    };
   }
 
   // Step 4: Waiting for patient name — create booking
   if (session.step === 'AWAITING_NAME') {
+    if (isCallback && callbackData === 'back_date') {
+        await setSession(chatId, { step: 'AWAITING_DATE' });
+        const nextDays = [];
+        for (let i = 0; i < 3; i++) {
+            const d = new Date();
+            d.setDate(d.getDate() + i);
+            nextDays.push(d.toISOString().split('T')[0]);
+        }
+
+        const date_keyboard = nextDays.map(d => [
+            { text: d, callback_data: `date_${d}` }
+        ]);
+        date_keyboard.push(...getBackButton('back_doc'));
+
+        return {
+            text: getMessage(lang, 'ASK_DATE'),
+            options: {
+                reply_markup: { inline_keyboard: date_keyboard }
+            }
+        };
+    }
+
+    if (isCallback) return null; // Name must be typed
+
     const name = validateName(text);
     if (!name) {
-      return 'নাম কমপক্ষে ২ অক্ষরের হতে হবে। আবার লিখুন:';
+      return getMessage(lang, 'INVALID_NAME');
     }
 
     const booking = await createBooking({
@@ -74,7 +207,9 @@ async function handlePatientFlow(chatId, text) {
     });
 
     await clearSession(chatId);
-    return MESSAGES.BOOKING_CONFIRMED(
+    return getMessage(
+      lang,
+      'BOOKING_CONFIRMED',
       booking.patient_name,
       booking.queue_number,
       booking.appointment_date,
@@ -82,7 +217,7 @@ async function handlePatientFlow(chatId, text) {
     );
   }
 
-  return MESSAGES.ERROR;
+  return getMessage(lang, 'ERROR');
 }
 
 module.exports = { handlePatientFlow };

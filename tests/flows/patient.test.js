@@ -32,7 +32,7 @@ describe('handlePatientFlow — AWAITING_PIN step', () => {
 
     const reply = await handlePatientFlow('123', '700001');
 
-    expect(reply).toContain('Dr. Sen');
+    expect(reply.text || reply).toContain('Dr. Sen');
     expect(session.setSession).toHaveBeenCalledWith(
       '123',
       expect.objectContaining({ step: 'AWAITING_DOCTOR_SELECTION' })
@@ -44,7 +44,7 @@ describe('handlePatientFlow — AWAITING_PIN step', () => {
     doctorService.getDoctorsByPin.mockResolvedValue([]);
 
     const reply = await handlePatientFlow('123', '999999');
-    expect(reply).toContain('পাওয়া যায়নি');
+    expect(reply.text || reply).toContain('পাওয়া যায়নি');
   });
 
   it('returns invalid format message when PIN is not 6 digits', async () => {
