@@ -72,4 +72,47 @@ async function getQueueStatus(scheduleId, appointmentDate) {
   return { currentToken, pending };
 }
 
-module.exports = { createBooking, getQueueStatus };
+/**
+ * Cancel an appointment by token and user chatId.
+ *
+ * @param {number} queueNumber
+ * @param {string} chatId
+ * @returns {boolean} true on success
+ */
+async function cancelBookingByToken(queueNumber, chatId) {
+  const { data, error } = await supabase
+    .from('appointments')
+    .update({ status: 'Cancelled' })
+    .eq('queue_number', queueNumber)
+    .eq('patient_phone', String(chatId))
+    .eq('status', 'Confirmed')
+    .select();
+
+  if (error) throw new AppointmentError(error.message, 'DB_ERROR');
+  if (!data || data.length === 0) throw new AppointmentError('Appointment not found or already cancelled.', 'NOT_FOUND', '❌ আপনার দেওয়া টোকেনটি পাওয়া যায়নি অথবা ইতোমধ্যে বাতিল করা হয়েছে।');
+  return true;
+}
+
+/**
+ * Reschedule an appointment by token and user chatId.
+ *
+ * @param {number} queueNumber
+ * @param {string} chatId
+ * @param {string} newDate (YYYY-MM-DD)
+ * @returns {boolean} true on success
+ */
+async function rescheduleBookingByToken(queueNumber, chatId, newDate) {
+  const { data, error } = await supabase
+    .from('appointments')
+    .update({ appointment_date: newDate })
+    .eq('queue_number', queueNumber)
+    .eq('patient_phone', String(chatId))
+    .eq('status', 'Confirmed')
+    .select();
+
+  if (error) throw new AppointmentError(error.message, 'DB_ERROR');
+  if (!data || data.length === 0) throw new AppointmentError('Appointment not found or already cancelled.', 'NOT_FOUND', '❌ আপনার দেওয়া টোকেনটি পাওয়া যায়নি অথবা ইতোমধ্যে বাতিল করা হয়েছে।');
+  return true;
+}
+
+module.exports = { createBooking, getQueueStatus, cancelBookingByToken, rescheduleBookingByToken };

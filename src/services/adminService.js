@@ -35,10 +35,15 @@ async function verifyAdminPin(pin, chatId) {
  * @param {string} pin - The attempted PIN
  */
 async function logFailedLogin(chatId, pin) {
-  await supabase.from('failed_login_attempts').insert({
+  const { error } = await supabase.from('failed_login_attempts').insert({
     chat_id: String(chatId),
     attempted_pin: String(pin)
   });
+
+  if (error) {
+    const logger = require('../utils/logger');
+    logger.error({ chatId, err: error.message }, 'Failed to log login attempt');
+  }
 }
 
 /**
