@@ -1,0 +1,584 @@
+// /home/z/my-project/src/components/views/appointments-view.tsx
+'use client'
+
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useApp } from '../providers'
+import { api } from '@/lib/api-client'
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { Label } from '../ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { Skeleton } from '../ui/skeleton'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '../ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog'
+import { Search, CheckCircle2, XCircle, UserX, CalendarClock, Plus, ChevronLeft, ChevronRight, Filter } from 'lucide-react'
+import { toast } from 'sonner'
+import { z } from 'zod'
+
+interface Doctor {
+  id: string
+  fullName: string
+  specialization: string
+}
+
+interface Appointment {
+  id: string
+  patientName: string
+  patientPhone: string
+  queueNumber: number
+  status: string
+  appointmentDate: string
+  notes: string | null
+  doctor: { id: string; fullName: string; specialization: string }
+  schedule: { id: string; clinicName: string | null; startTime: string; endTime: string }
+}
+
+interface Schedule {
+  id: string
+  dayOfWeek: string
+  startTime: string
+  endTime: string
+  clinicName: string | null
+  doctor: { id: string; fullName: string }
+}
+
+const walkInSchema = z.object({
+  scheduleId: z.string().min(1),
+  patientName: z.string().trim().min(2).max(100),
+  patientPhone: z.string().trim().regex(/^\+?[0-9]{10,15}$/),
+  appointmentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  notes: z.string().max(500).optional(),
+})
+
+export function AppointmentsView() {
+  const { t, lang, user } = useApp()
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [doctors, setDoctors] = useState<Doctor[]>([])
+  const [schedules, setSchedules] = useState<Schedule[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(0)
+  const pageSize = 25
+
+  // Filters
+  const [q, setQ] = useState('')
+  const [doctorFilter, setDoctorFilter] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [dateFilter, setDateFilter] = useState<string>('all')
+
+  // Actions
+  const [rescheduleId, setRescheduleId] = useState<string | null>(null)
+  const [rescheduleDate, setRescheduleDate] = useState('')
+  const [cancelId, setCancelId] = useState<string | null>(null)
+  const [noShowId, setNoShowId] = useState<string | null>(null)
+
+  // Walk-in dialog
+  const [walkInOpen, setWalkInOpen] = useState(false)
+  const [walkIn, setWalkIn] = useState({
+    scheduleId: '',
+    patientName: '',
+    patientPhone: '',
+    appointmentDate: new Date().toISOString().split('T')[0],
+    notes: '',
+  })
+  const [savingWalkIn, setSavingWalkIn] = useState(false)
+
+  const fetchDoctors = useCallback(async () => {
+    try {
+      const data = await api<{ doctors: Doctor[] }>('/api/doctors')
+      setDoctors(data.doctors)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const fetchSchedules = useCallback(async () => {
+    try {
+      const data = await api<{ schedules: Schedule[] }>(
+        user?.doctorId ? `/api/schedules?doctorId=${user.doctorId}` : '/api/schedules'
+      )
+      setSchedules(data.schedules)
+    } catch {
+      // ignore
+    }
+  }, [user?.doctorId])
+
+  const fetchAppointments = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      params.set('limit', String(pageSize))
+      params.set('offset', String(page * pageSize))
+      if (q) params.set('q', q)
+      if (doctorFilter !== 'all') params.set('doctorId', doctorFilter)
+      if (statusFilter !== 'all') params.set('status', statusFilter)
+      if (dateFilter === 'today') {
+        params.set('date', new Date().toISOString().split('T')[0])
+      } else if (dateFilter !== 'all') {
+        params.set('date', dateFilter)
+      }
+
+      const data = await api<{ appointments: Appointment[]; total: number }>(
+        `/api/appointments?${params.toString()}`
+      )
+      setAppointments(data.appointments)
+      setTotal(data.total)
+    } catch (e) {
+      toast.error(t('error'))
+    } finally {
+      setLoading(false)
+    }
+  }, [q, doctorFilter, statusFilter, dateFilter, page, pageSize, t])
+
+  useEffect(() => {
+    fetchDoctors()
+    fetchSchedules()
+  }, [fetchDoctors, fetchSchedules])
+
+  useEffect(() => {
+    const handler = setTimeout(fetchAppointments, 200)
+    return () => clearTimeout(handler)
+  }, [fetchAppointments])
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+  const updateStatus = async (id: string, status: string) => {
+    try {
+      await api(`/api/appointments/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      })
+      toast.success(
+        status === 'Completed' ? t('appointmentCompleted')
+        : status === 'Cancelled' ? t('appointmentCancelled')
+        : t('appointmentNoShow')
+      )
+      fetchAppointments()
+    } catch {
+      toast.error(t('error'))
+    }
+  }
+
+  const doReschedule = async () => {
+    if (!rescheduleId || !rescheduleDate) return
+    try {
+      await api(`/api/appointments/${rescheduleId}/reschedule`, {
+        method: 'PATCH',
+        body: JSON.stringify({ newDate: rescheduleDate, appointmentId: rescheduleId }),
+      })
+      toast.success(t('appointmentRescheduled'))
+      setRescheduleId(null)
+      setRescheduleDate('')
+      fetchAppointments()
+    } catch {
+      toast.error(t('error'))
+    }
+  }
+
+  const submitWalkIn = async () => {
+    setSavingWalkIn(true)
+    try {
+      const parsed = walkInSchema.parse(walkIn)
+      await api('/api/appointments/walk-in', {
+        method: 'POST',
+        body: JSON.stringify(parsed),
+      })
+      toast.success(t('walkInAdded'))
+      setWalkInOpen(false)
+      setWalkIn({
+        scheduleId: '',
+        patientName: '',
+        patientPhone: '',
+        appointmentDate: new Date().toISOString().split('T')[0],
+        notes: '',
+      })
+      fetchAppointments()
+    } catch (e) {
+      const err = e as Error
+      toast.error(err.message || t('error'))
+    } finally {
+      setSavingWalkIn(false)
+    }
+  }
+
+  const statusLabel = (s: string) => {
+    const map: Record<string, { bn: string; en: string }> = {
+      Pending: { bn: 'অপেক্ষমাণ', en: 'Pending' },
+      Confirmed: { bn: 'নিশ্চিত', en: 'Confirmed' },
+      Completed: { bn: 'সম্পন্ন', en: 'Completed' },
+      Cancelled: { bn: 'বাতিল', en: 'Cancelled' },
+      NoShow: { bn: 'অনুপস্থিত', en: 'No-show' },
+    }
+    return map[s]?.[lang] || s
+  }
+
+  const statusClass = (s: string) => {
+    const map: Record<string, string> = {
+      Pending: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400',
+      Confirmed: 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400',
+      Completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+      Cancelled: 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400',
+      NoShow: 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400',
+    }
+    return map[s] || map.Confirmed
+  }
+
+  const filteredSchedules = useMemo(() => {
+    return schedules
+  }, [schedules])
+
+  return (
+    <div className="space-y-5 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{t('allAppointments')}</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {loading ? t('loadingAppointments') : `${t('showing')} ${appointments.length} ${t('of')} ${total} ${t('total')}`}
+          </p>
+        </div>
+        <Dialog open={walkInOpen} onOpenChange={setWalkInOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2 self-start">
+              <Plus className="w-4 h-4" />
+              {t('addWalkIn')}
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{t('addWalkIn')}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label>{t('selectDoctor')} / {t('schedules')}</Label>
+                <Select
+                  value={walkIn.scheduleId}
+                  onValueChange={(v) => setWalkIn({ ...walkIn, scheduleId: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t('selectSchedule')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredSchedules.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.doctor.fullName} · {s.dayOfWeek} {s.startTime} · {s.clinicName || 'Clinic'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>{t('patient')} {t('fullName')}</Label>
+                  <Input
+                    value={walkIn.patientName}
+                    onChange={(e) => setWalkIn({ ...walkIn, patientName: e.target.value })}
+                    placeholder="Arijit Ghosh"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t('phone')}</Label>
+                  <Input
+                    value={walkIn.patientPhone}
+                    onChange={(e) => setWalkIn({ ...walkIn, patientPhone: e.target.value })}
+                    placeholder="+8801712345678"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>{t('date')}</Label>
+                <Input
+                  type="date"
+                  value={walkIn.appointmentDate}
+                  onChange={(e) => setWalkIn({ ...walkIn, appointmentDate: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Notes</Label>
+                <Input
+                  value={walkIn.notes}
+                  onChange={(e) => setWalkIn({ ...walkIn, notes: e.target.value })}
+                  placeholder="Follow-up visit (optional)"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setWalkInOpen(false)}>
+                {t('cancelBtn')}
+              </Button>
+              <Button onClick={submitWalkIn} disabled={savingWalkIn}>
+                {savingWalkIn ? t('saving') : t('save')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Filter className="w-4 h-4" />
+            <span>{t('filterByDoctor')}</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder={t('searchByNamePhone')}
+                value={q}
+                onChange={(e) => { setQ(e.target.value); setPage(0) }}
+                className="pl-10"
+              />
+            </div>
+            <Select value={doctorFilter} onValueChange={(v) => { setDoctorFilter(v); setPage(0) }}>
+              <SelectTrigger>
+                <SelectValue placeholder={t('allDoctors')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('allDoctors')}</SelectItem>
+                {doctors.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.fullName} · {d.specialization}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0) }}>
+              <SelectTrigger>
+                <SelectValue placeholder={t('allStatuses')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('allStatuses')}</SelectItem>
+                <SelectItem value="Confirmed">{t('statusConfirmed')}</SelectItem>
+                <SelectItem value="Completed">{t('statusCompleted')}</SelectItem>
+                <SelectItem value="Cancelled">{t('statusCancelled')}</SelectItem>
+                <SelectItem value="NoShow">{t('statusNoShow')}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={dateFilter} onValueChange={(v) => { setDateFilter(v); setPage(0) }}>
+              <SelectTrigger>
+                <SelectValue placeholder={t('allDates')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('allDates')}</SelectItem>
+                <SelectItem value="today">{t('today')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Table */}
+      <Card>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="p-6 space-y-2">
+              {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
+            </div>
+          ) : appointments.length === 0 ? (
+            <div className="p-12 text-center">
+              <CalendarClock className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+              <h3 className="text-lg font-semibold mb-1">{t('noResults')}</h3>
+              <p className="text-muted-foreground text-sm">{t('noResultsDesc')}</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-muted-foreground">
+                  <tr>
+                    <th className="px-3 sm:px-4 py-3 text-left font-medium">{t('queue')}</th>
+                    <th className="px-3 sm:px-4 py-3 text-left font-medium">{t('patient')}</th>
+                    <th className="px-3 sm:px-4 py-3 text-left font-medium hidden md:table-cell">{t('phone')}</th>
+                    <th className="px-3 sm:px-4 py-3 text-left font-medium hidden lg:table-cell">{t('doctor')}</th>
+                    <th className="px-3 sm:px-4 py-3 text-left font-medium">{t('date')}</th>
+                    <th className="px-3 sm:px-4 py-3 text-left font-medium">{t('status')}</th>
+                    <th className="px-3 sm:px-4 py-3 text-right font-medium">{t('actions')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {appointments.map((a) => (
+                    <tr key={a.id} className="hover:bg-accent/30 transition-colors">
+                      <td className="px-3 sm:px-4 py-3">
+                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary/15 text-primary font-bold text-xs">
+                          #{a.queueNumber}
+                        </span>
+                      </td>
+                      <td className="px-3 sm:px-4 py-3">
+                        <p className="font-medium text-foreground">{a.patientName}</p>
+                        {a.notes && (
+                          <p className="text-xs text-muted-foreground truncate max-w-[160px]">{a.notes}</p>
+                        )}
+                      </td>
+                      <td className="px-3 sm:px-4 py-3 hidden md:table-cell text-muted-foreground">
+                        {a.patientPhone}
+                      </td>
+                      <td className="px-3 sm:px-4 py-3 hidden lg:table-cell">
+                        <p className="text-foreground">{a.doctor.fullName}</p>
+                        <p className="text-xs text-muted-foreground">{a.doctor.specialization}</p>
+                      </td>
+                      <td className="px-3 sm:px-4 py-3 text-muted-foreground whitespace-nowrap">
+                        {new Date(a.appointmentDate).toLocaleDateString(lang === 'bn' ? 'bn-BD' : 'en-US', { day: '2-digit', month: 'short' })}
+                      </td>
+                      <td className="px-3 sm:px-4 py-3">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusClass(a.status)}`}>
+                          {statusLabel(a.status)}
+                        </span>
+                      </td>
+                      <td className="px-3 sm:px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          {a.status === 'Confirmed' && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                onClick={() => updateStatus(a.id, 'Completed')}
+                                title={t('markCompleted')}
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 text-zinc-600 hover:text-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                                onClick={() => setNoShowId(a.id)}
+                                title={t('markNoShow')}
+                              >
+                                <UserX className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                                onClick={() => setCancelId(a.id)}
+                                title={t('cancel')}
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 text-sky-600 hover:text-sky-700 hover:bg-sky-50 dark:hover:bg-sky-950/30"
+                                onClick={() => {
+                                  setRescheduleId(a.id)
+                                  setRescheduleDate(a.appointmentDate)
+                                }}
+                                title={t('reschedule')}
+                              >
+                                <CalendarClock className="w-4 h-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Pagination */}
+      {total > pageSize && (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            {t('showing')} {page * pageSize + 1}–{Math.min((page + 1) * pageSize, total)} {t('of')} {total}
+          </p>
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={page === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <span className="px-3 py-2 text-sm text-muted-foreground">
+              {page + 1} / {totalPages}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={page + 1 >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel confirmation */}
+      <AlertDialog open={!!cancelId} onOpenChange={(o) => !o && setCancelId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('cancel')}?</AlertDialogTitle>
+            <AlertDialogDescription>{t('confirmCancel')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('cancelBtn')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (cancelId) updateStatus(cancelId, 'Cancelled')
+                setCancelId(null)
+              }}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {t('confirmBtn')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* No-show confirmation */}
+      <AlertDialog open={!!noShowId} onOpenChange={(o) => !o && setNoShowId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('markNoShow')}?</AlertDialogTitle>
+            <AlertDialogDescription>{t('confirmNoShow')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('cancelBtn')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (noShowId) updateStatus(noShowId, 'NoShow')
+                setNoShowId(null)
+              }}
+            >
+              {t('confirmBtn')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reschedule dialog */}
+      <Dialog open={!!rescheduleId} onOpenChange={(o) => !o && setRescheduleId(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('reschedule')}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Label>{t('rescheduleTo')}</Label>
+            <Input
+              type="date"
+              value={rescheduleDate}
+              onChange={(e) => setRescheduleDate(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRescheduleId(null)}>
+              {t('cancelBtn')}
+            </Button>
+            <Button onClick={doReschedule} disabled={!rescheduleDate}>
+              {t('confirmBtn')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}

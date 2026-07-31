@@ -1,0 +1,163 @@
+// Dr_Booking — Reform Edition
+// Reformed schema addressing analysis issues:
+//  - Race-condition safe queue numbers (UNIQUE on schedule+date+queue)
+//  - Persistent admin users with hashed passwords (replaces weak 4-digit PIN)
+//  - Failed login attempts tracking (rate-limit / brute-force protection)
+//  - Persistent bot sessions (replaces in-memory Map)
+//  - Audit log for admin actions
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Doctor {
+  id             String     @id @default(cuid())
+  fullName       String
+  specialization String
+  phone          String?
+  email          String?
+  fee            Int        @default(0)
+  rating         Float      @default(0)
+  isActive       Boolean    @default(true)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  schedules      Schedule[]
+  adminUsers     AdminUser[]
+  appointments   Appointment[] @relation("DoctorAppointments")
+
+  @@map("doctors")
+}
+
+model Schedule {
+  id            String        @id @default(cuid())
+  doctorId      String
+  doctor        Doctor        @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  pinCode       Int
+  dayOfWeek     String        // e.g. 'Monday', 'Tuesday'
+  startTime     String        // 'HH:mm' 24h
+  endTime       String        // 'HH:mm' 24h
+  clinicName    String?
+  clinicAddress String?
+  avgMinutesPerPatient Int    @default(10)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  appointments  Appointment[]
+
+  @@index([pinCode])
+  @@index([doctorId])
+  @@map("schedules")
+}
+
+model Appointment {
+  id              String     @id @default(cuid())
+  scheduleId      String
+  schedule        Schedule   @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  doctorId        String
+  doctor          Doctor     @relation("DoctorAppointments", fields: [doctorId], references: [id], onDelete: Cascade)
+  patientName     String
+  patientPhone    String
+  appointmentDate String     // 'YYYY-MM-DD'
+  queueNumber     Int
+  status          String     @default("Confirmed") // Pending | Confirmed | Completed | Cancelled | NoShow
+  token           String     @unique @default(cuid())
+  notes           String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  // Race-condition protection: queue numbers must be unique per schedule+date
+  @@unique([scheduleId, appointmentDate, queueNumber])
+  @@index([scheduleId, appointmentDate])
+  @@index([status])
+  @@index([doctorId, appointmentDate])
+  @@map("appointments")
+}
+
+model AdminUser {
+  id              String   @id @default(cuid())
+  doctorId        String?
+  doctor          Doctor?  @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+
+  // Bot-first identity: at least one of these must be set (enforced at app level).
+  // Email is no longer required — kept optional for legacy/audit purposes.
+  email           String?  @unique
+  telegramChatId  String?  @unique
+  whatsappNumber  String?  @unique
+
+  name            String
+  // Password auth is disabled. Field kept for backward compatibility / future re-enable.
+  passwordHash    String?
+  role            String   @default("compounder") // admin | compounder
+  isActive        Boolean  @default(true)
+  lastLoginAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  failedLogins    FailedLogin[]
+  auditLogs       AuditLog[]
+  magicLinks      MagicLink[]
+
+  @@map("admin_users")
+}
+
+// Bot-driven Magic Link tokens — short-lived, single-use, hash-stored.
+model MagicLink {
+  id              String    @id @default(cuid())
+  tokenHash       String    @unique          // SHA-256 of the raw token
+  adminUserId     String
+  adminUser       AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  expiresAt       DateTime                    // Default: 2 hours from creation
+  usedAt          DateTime?                   // Set when the link is consumed (single-use)
+  ipAddress       String?                     // IP that consumed the link
+  userAgent       String?                     // Browser UA at consumption time
+  createdAt       DateTime   @default(now())
+
+  @@index([adminUserId])
+  @@index([expiresAt])
+  @@map("magic_links")
+}
+
+model FailedLogin {
+  id           Int      @id @default(autoincrement())
+  email        String
+  ipAddress    String?
+  attemptedAt  DateTime @default(now())
+  adminUserId  String?
+  adminUser    AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@index([attemptedAt])
+  @@map("failed_logins")
+}
+
+model AuditLog {
+  id           Int      @id @default(autoincrement())
+  adminUserId  String?
+  adminUser    AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: SetNull)
+  action       String
+  target       String?
+  detail       String?
+  ipAddress    String?
+  createdAt    DateTime @default(now())
+
+  @@index([adminUserId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// Persistent bot sessions (replaces in-memory Map)
+model BotSession {
+  chatId        String   @id
+  step          String   @default("IDLE")
+  sessionData   String   @default("{}") // JSON string
+  lang          String   @default("bn")
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  @@map("bot_sessions")
+}
