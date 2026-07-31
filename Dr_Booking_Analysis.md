@@ -533,11 +533,11 @@ quadrantChart
 - [x] CI/CD pipeline setup
 
 ### Phase 2 — Feature Expansion (3-4 সপ্তাহ)
-- [ ] Appointment reminders (cron-based)
-- [ ] Tracker page redesign (PWA, dark mode, sound)
+- [x] Appointment reminders (cron-based)
+- [x] Tracker page redesign (PWA, dark mode, sound)
 
-- [ ] Bot platform abstraction layer
-- [ ] Booking cancellation ও reschedule
+- [x] Bot platform abstraction layer
+- [x] Booking cancellation ও reschedule
 
 ### Phase 3 — Scale (1-2 মাস)
 - [ ] Admin web dashboard (React/Next.js)
