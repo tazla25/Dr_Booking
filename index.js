@@ -13,11 +13,13 @@ for (const envVar of requiredEnvVars) {
 
 const app = require('./src/app');
 const { createBot, registerWebhook } = require('./src/bot/index');
+const { initReminderJob } = require('./src/jobs/reminderJob');
 
 const PORT = process.env.PORT || 3000;
 
 const bot = createBot();
 registerWebhook(bot, app);
+initReminderJob(bot);
 
 const server = app.listen(PORT, () => {
   console.log(`🚀 Smart Queue Bot running on port ${PORT}`);

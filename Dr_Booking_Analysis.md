@@ -525,7 +525,7 @@ quadrantChart
 - [x] 🟡 Environment variable validation add করো
 
 ### Phase 1 — Stability (1-2 সপ্তাহ)
-- [ ] Session persistence (Redis বা Supabase)
+- [x] Session persistence (Redis বা Supabase)
 - [x] Proper error handling ও logging
 - [x] Rate limiting add করো
 - [x] Admin auth strengthen করো (OTP/stronger PIN)
@@ -535,7 +535,7 @@ quadrantChart
 ### Phase 2 — Feature Expansion (3-4 সপ্তাহ)
 - [ ] Appointment reminders (cron-based)
 - [ ] Tracker page redesign (PWA, dark mode, sound)
-- [ ] WhatsApp Cloud API integration
+
 - [ ] Bot platform abstraction layer
 - [ ] Booking cancellation ও reschedule
 
@@ -547,6 +547,7 @@ quadrantChart
 - [ ] Payment integration (bKash/Nagad)
 
 ### Phase 4 — Premium Features (2-3 মাস)
+- [ ] WhatsApp Cloud API integration
 - [ ] AI-predicted wait time
 - [ ] Doctor rating system
 - [ ] Digital PDF invoices

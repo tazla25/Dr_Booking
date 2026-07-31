@@ -2,10 +2,14 @@ const { AppointmentError } = require('../utils/errors');
 const logger = require('../utils/logger');
 // src/bot/handler.js
 // Routes all incoming Telegram messages to the correct flow.
+
 const { getSession, setSession, clearSession } = require('./session');
 const { handlePatientFlow } = require('../flows/patient');
 const { handleAdminFlow } = require('../flows/admin');
+const { cancelBookingByToken, rescheduleBookingByToken } = require('../services/bookingService');
+const { validateDate } = require('../utils/validators');
 const MESSAGES = require('../utils/messages');
+
 
 /**
  * Main message handler — called for every incoming Telegram message.
@@ -43,13 +47,41 @@ async function handleMessage(bot, msg) {
       return send(MESSAGES.WELCOME);
     }
 
-    // /cancel — reset current session
-    if (text === '/cancel' && !session.step.startsWith('ADMIN')) {
-      await clearSession(chatId);
-      return send('❌ বর্তমান কার্যক্রম বাতিল হয়েছে। /start দিয়ে আবার শুরু করুন।');
+
+    // /cancel <token> or /cancel
+    if (text.startsWith('/cancel') && !session.step.startsWith('ADMIN')) {
+      const parts = text.split(' ');
+      if (parts.length > 1) {
+        const token = parseInt(parts[1], 10);
+        if (!isNaN(token)) {
+           await cancelBookingByToken(token, chatId);
+           return send('✅ আপনার বুকিং (টোকেন #' + token + ') সফলভাবে বাতিল করা হয়েছে।');
+        }
+      } else {
+        await clearSession(chatId);
+        return send('❌ বর্তমান কার্যক্রম বাতিল হয়েছে। /start দিয়ে আবার শুরু করুন।');
+      }
+    }
+
+    // /reschedule <token> <new_date>
+    if (text.startsWith('/reschedule') && !session.step.startsWith('ADMIN')) {
+      const parts = text.split(' ');
+      if (parts.length === 3) {
+        const token = parseInt(parts[1], 10);
+        const newDate = validateDate(parts[2]);
+        if (!isNaN(token) && newDate) {
+           await rescheduleBookingByToken(token, chatId, newDate);
+           return send('✅ আপনার বুকিং (টোকেন #' + token + ') সফলভাবে ' + newDate + ' তারিখে পরিবর্তন করা হয়েছে।');
+        } else {
+           return send('❌ সঠিক ফরম্যাটে লিখুন: /reschedule <token> <YYYY-MM-DD>');
+        }
+      } else {
+        return send('❌ সঠিক ফরম্যাটে লিখুন: /reschedule <token> <YYYY-MM-DD>');
+      }
     }
 
     // ── Flow routing ──────────────────────────────────────────
+
     let reply;
 
     if (session.step.startsWith('ADMIN')) {

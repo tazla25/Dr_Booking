@@ -1,5 +1,5 @@
 // tests/services/bookingService.test.js
-const { createBooking, getQueueStatus } = require('../../src/services/bookingService');
+const { createBooking, getQueueStatus, cancelBookingByToken, rescheduleBookingByToken } = require('../../src/services/bookingService');
 
 jest.mock('../../src/database/supabase', () => {
   const mock = {
