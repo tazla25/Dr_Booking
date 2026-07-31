@@ -5,17 +5,17 @@ const supabase = require('../database/supabase');
 
 /**
  * Verify a 4-digit admin PIN.
- * Returns the doctor_id if valid, null if not found.
+ * Returns the doctor_id and schedule_id if valid, null if not found.
  *
  * @param {string} pin - 4-digit PIN string
  * @param {string} chatId - User's chat ID for tracking attempts
- * @returns {string|null} doctor_id or null
+ * @returns {Object|null} { doctor_id, schedule_id } or null
  */
 async function verifyAdminPin(pin, chatId) {
-  // First, verify the PIN
+  // First, verify the PIN and join with schedules to get schedule_id
   const { data, error } = await supabase
     .from('admin_access')
-    .select('doctor_id, secret_pin')
+    .select('doctor_id, secret_pin, doctors!inner(doctor_id, schedules(schedule_id))')
     .eq('secret_pin', pin)
     .single();
 
@@ -25,7 +25,14 @@ async function verifyAdminPin(pin, chatId) {
     }
     return null;
   }
-  return data.doctor_id;
+
+  const scheduleId = data.doctors?.schedules?.[0]?.schedule_id;
+  if (!scheduleId) {
+      // If doctor has no schedule, still return doctor_id but schedule_id will be undefined
+      return { doctor_id: data.doctor_id };
+  }
+
+  return { doctor_id: data.doctor_id, schedule_id: scheduleId };
 }
 
 /**
