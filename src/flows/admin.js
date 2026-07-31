@@ -6,9 +6,9 @@ const {
   getTodaysPatients,
   updateAppointmentStatus,
 } = require('../services/adminService');
-const { getSession, setSession } = require('../bot/session');
+const { getSession, setSession, clearSession } = require('../bot/session');
 const { validateAdminPin } = require('../utils/validators');
-const MESSAGES = require('../utils/messages');
+const { getMessage } = require('../utils/messages');
 
 // Simple in-memory rate limiting for admin PIN attempts
 const loginAttempts = new Map();
@@ -21,13 +21,18 @@ const LOCKOUT_MS = 5 * 60 * 1000; // 5 minutes
  * @param {string} chatId
  * @param {string} text - raw message text from compounder
  * @param {string} scheduleId - the schedule to manage (from session)
- * @returns {Promise<string>} reply message
+ * @param {boolean} isCallback - whether this is from a callback query
+ * @param {string} callbackData - the callback data string
+ * @param {string} lang - the user's language
+ * @returns {Promise<string|Object>} reply message or object with options
  */
-async function handleAdminFlow(chatId, text, scheduleId) {
+async function handleAdminFlow(chatId, text, scheduleId, isCallback = false, callbackData = null, lang = 'bn') {
   const session = await getSession(chatId);
 
   // Step 1: Waiting for PIN
   if (session.step === 'ADMIN_AWAITING_PIN') {
+    if (isCallback) return null; // Must type PIN
+
     // Rate limit check
     const attempts = loginAttempts.get(chatId);
     if (attempts && attempts.count >= MAX_ATTEMPTS) {
@@ -40,15 +45,14 @@ async function handleAdminFlow(chatId, text, scheduleId) {
     }
 
     const pin = validateAdminPin(text);
-    if (!pin) return MESSAGES.ADMIN_INVALID_PIN;
-
+    if (!pin) return getMessage(lang, 'ADMIN_INVALID_PIN');
 
     const adminData = await verifyAdminPin(pin, chatId);
     if (!adminData) {
       // Track failed attempt
       const current = loginAttempts.get(chatId) || { count: 0, lastAttempt: 0 };
       loginAttempts.set(chatId, { count: current.count + 1, lastAttempt: Date.now() });
-      return MESSAGES.ADMIN_INVALID_PIN;
+      return getMessage(lang, 'ADMIN_INVALID_PIN');
     }
 
     // Reset attempts on success
@@ -59,65 +63,27 @@ async function handleAdminFlow(chatId, text, scheduleId) {
         return "⚠️ এই ডাক্তারের জন্য কোনো শিডিউল সেট করা নেই।";
     }
 
-    const patients = await getTodaysPatients(actualScheduleId);
-    await setSession(chatId, {
-      step: 'ADMIN_DASHBOARD',
-      adminDoctorId: adminData.doctor_id,
-      currentScheduleId: actualScheduleId,
-      patients,
-    });
+    // Generate Magic Link
+    const baseUrl = process.env.PUBLIC_URL || 'http://localhost:3000';
+    const tokenObj = { doctor_id: adminData.doctor_id, schedule_id: actualScheduleId };
+    const tokenStr = Buffer.from(JSON.stringify(tokenObj)).toString('base64');
+    const magicLink = `${baseUrl}/admin?token=${encodeURIComponent(tokenStr)}`;
 
-    return MESSAGES.ADMIN_DASHBOARD(patients);
+    await clearSession(chatId); // Clear session after giving magic link to avoid stuck state
+
+    return {
+        text: '✅ *লগইন সফল!*\n\nড্যাশবোর্ড ওপেন করতে নিচের বাটনে ক্লিক করুন:',
+        options: {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '🖥️ Open Dashboard', url: magicLink }]
+                ]
+            }
+        }
+    };
   }
 
-  // Step 2: Admin dashboard commands
-  if (session.step === 'ADMIN_DASHBOARD') {
-
-    // /next — mark the next pending patient as Completed
-    if (text === '/next') {
-      const pending = session.patients.filter((p) => p.status === 'Confirmed');
-      if (!pending.length) return MESSAGES.ALL_DONE;
-
-      const next = pending[0];
-      await updateAppointmentStatus(next.booking_id, 'Completed');
-
-      const updated = session.patients.map((p) =>
-        p.queue_number === next.queue_number ? { ...p, status: 'Completed' } : p
-      );
-      await setSession(chatId, { patients: updated });
-      return MESSAGES.QUEUE_UPDATED(next.queue_number);
-    }
-
-    // /cancel <queue_number> — cancel a specific patient
-    if (text.startsWith('/cancel')) {
-      const qNumStr = text.split(' ')[1];
-      if (!qNumStr) return 'দয়া করে টোকেন নম্বর দিন (যেমন: /cancel 5)';
-      const qNum = parseInt(qNumStr, 10);
-      if (isNaN(qNum)) return 'অবৈধ টোকেন নম্বর।';
-      const target = session.patients.find((p) => p.queue_number === qNum);
-
-      if (!target) return `Token #${qNum} পাওয়া যায়নি।`;
-
-      await updateAppointmentStatus(target.booking_id, 'Cancelled');
-      const updated = session.patients.map((p) =>
-        p.queue_number === qNum ? { ...p, status: 'Cancelled' } : p
-      );
-      await setSession(chatId, { patients: updated });
-      return `✅ Token #${qNum} বাতিল হয়েছে।`;
-    }
-
-    // /refresh — reload patient list from database
-    if (text === '/refresh') {
-      const patients = await getTodaysPatients(session.currentScheduleId);
-      await setSession(chatId, { patients });
-      return MESSAGES.ADMIN_DASHBOARD(patients);
-    }
-
-    // Any other text — show dashboard again
-    return MESSAGES.ADMIN_DASHBOARD(session.patients);
-  }
-
-  return MESSAGES.ERROR;
+  return getMessage(lang, 'ERROR');
 }
 
 module.exports = { handleAdminFlow };

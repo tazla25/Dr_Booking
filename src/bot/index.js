@@ -1,7 +1,7 @@
 // src/bot/index.js
 // Telegram bot init and webhook registration.
 const TelegramBot = require('node-telegram-bot-api');
-const { handleMessage } = require('./handler');
+const { handleMessage, handleCallbackQuery } = require('./handler');
 
 /**
  * Create a Telegram bot instance (webhook mode — no polling).
@@ -25,6 +25,7 @@ function registerWebhook(bot, app) {
   });
 
   bot.on('message', (msg) => handleMessage(bot, msg));
+  bot.on('callback_query', (query) => handleCallbackQuery(bot, query));
 }
 
 module.exports = { createBot, registerWebhook };
