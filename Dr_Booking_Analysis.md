@@ -540,9 +540,11 @@ quadrantChart
 - [x] Booking cancellation ও reschedule
 
 ### Phase 3 — Scale (1-2 মাস)
-- [ ] Admin web dashboard (React/Next.js)
+- [x] Admin web dashboard (React/Next.js)
 - [ ] Analytics ও reporting
-- [ ] Multi-language support
+- [ ] Multi-language support (বাংলা, English, Hindi on first use)
+- [ ] Interactive Bot UI (HP Gas style buttons & Back button)
+- [ ] Bot-First Admin Access (Magic Link from bot to web dashboard)
 - [ ] TypeScript migration
 - [ ] Payment integration
 
