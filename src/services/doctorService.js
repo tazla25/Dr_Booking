@@ -1,3 +1,4 @@
+const { AppointmentError } = require('../utils/errors');
 // src/services/doctorService.js
 // Search doctors by PIN code and get schedules
 const supabase = require('../database/supabase');
@@ -12,7 +13,7 @@ async function getDoctorsByPin(pinCode) {
     .select('*, doctors(*)')
     .eq('pin_code', pinCode);
 
-  if (error) throw new Error(error.message);
+  if (error) throw new AppointmentError(error.message, 'DB_ERROR');
   return data || [];
 }
 
@@ -25,7 +26,7 @@ async function getSchedulesForDoctor(doctorId) {
     .select('*')
     .eq('doctor_id', doctorId);
 
-  if (error) throw new Error(error.message);
+  if (error) throw new AppointmentError(error.message, 'DB_ERROR');
   return data || [];
 }
 

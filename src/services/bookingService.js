@@ -1,3 +1,4 @@
+const { AppointmentError } = require('../utils/errors');
 // src/services/bookingService.js
 // Create bookings and get live queue status
 const supabase = require('../database/supabase');
@@ -21,7 +22,7 @@ async function createBooking({ patientName, patientPhone, scheduleId, appointmen
     .eq('schedule_id', scheduleId)
     .eq('appointment_date', appointmentDate);
 
-  if (countErr) throw new Error(countErr.message);
+  if (countErr) throw new AppointmentError(countErr.message, 'DB_ERROR');
 
   const queueNumber = (count ?? 0) + 1;
 
@@ -38,7 +39,7 @@ async function createBooking({ patientName, patientPhone, scheduleId, appointmen
     .select()
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) throw new AppointmentError(error.message, 'DB_ERROR');
   return data;
 }
 
@@ -58,7 +59,7 @@ async function getQueueStatus(scheduleId, appointmentDate) {
     .eq('appointment_date', appointmentDate)
     .order('queue_number', { ascending: true });
 
-  if (error) throw new Error(error.message);
+  if (error) throw new AppointmentError(error.message, 'DB_ERROR');
 
   const rows = data || [];
   const completed = rows.filter((r) => r.status === 'Completed');

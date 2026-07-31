@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 // src/bot/session.js
 // Supabase-backed session state machine keyed by chatId.
 // Stores the conversation state for each user.
@@ -40,7 +41,7 @@ async function setSession(chatId, data) {
     }, { onConflict: 'chat_id' });
 
   if (error) {
-    console.error(`[session] setSession error for ${chatId}:`, error.message);
+    logger.error(`[session] setSession error for ${chatId}:`, error.message);
   }
 }
 
@@ -54,7 +55,7 @@ async function clearSession(chatId) {
     }, { onConflict: 'chat_id' });
 
   if (error) {
-    console.error(`[session] clearSession error for ${chatId}:`, error.message);
+    logger.error(`[session] clearSession error for ${chatId}:`, error.message);
   }
 }
 

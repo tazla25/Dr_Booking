@@ -1,3 +1,4 @@
+const logger = require('./utils/logger');
 // src/app.js
 // Express app — exports app without calling .listen()
 // root index.js calls app.listen()
@@ -54,7 +55,7 @@ app.get('/api/queue/:scheduleId/:date', async (req, res) => {
     const status = await getQueueStatus(scheduleId, date);
     res.json(status);
   } catch (err) {
-    console.error('[API] Queue status error:', err.message);
+    logger.error('[API] Queue status error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

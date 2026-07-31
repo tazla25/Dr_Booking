@@ -42,7 +42,7 @@ async function handleAdminFlow(chatId, text, scheduleId) {
     const pin = validateAdminPin(text);
     if (!pin) return MESSAGES.ADMIN_INVALID_PIN;
 
-    const doctorId = await verifyAdminPin(pin);
+    const doctorId = await verifyAdminPin(pin, chatId);
     if (!doctorId) {
       // Track failed attempt
       const current = loginAttempts.get(chatId) || { count: 0, lastAttempt: 0 };
