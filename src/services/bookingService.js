@@ -1,7 +1,5 @@
 const { AppointmentError } = require('../utils/errors');
-// src/services/bookingService.js
-// Create bookings and get live queue status
-const supabase = require('../database/supabase');
+const prisma = require('../database/prisma');
 
 /**
  * Create a new appointment booking.
@@ -15,32 +13,50 @@ const supabase = require('../database/supabase');
  * @returns {Object} created appointment row
  */
 async function createBooking({ patientName, patientPhone, scheduleId, appointmentDate }) {
-  // Count existing bookings to determine next queue number
-  const { count, error: countErr } = await supabase
-    .from('appointments')
-    .select('*', { count: 'exact', head: true })
-    .eq('schedule_id', scheduleId)
-    .eq('appointment_date', appointmentDate);
+  try {
+    // We need the doctorId for the appointment, so let's get the schedule first
+    const schedule = await prisma.schedule.findUnique({
+      where: { id: scheduleId }
+    });
 
-  if (countErr) throw new AppointmentError(countErr.message, 'DB_ERROR');
+    if (!schedule) {
+      throw new Error("Schedule not found");
+    }
 
-  const queueNumber = (count ?? 0) + 1;
+    // Count existing bookings to determine next queue number
+    const count = await prisma.appointment.count({
+      where: {
+        scheduleId: scheduleId,
+        appointmentDate: appointmentDate
+      }
+    });
 
-  const { data, error } = await supabase
-    .from('appointments')
-    .insert({
-      patient_name: patientName,
-      patient_phone: patientPhone,
-      schedule_id: scheduleId,
-      appointment_date: appointmentDate,
-      queue_number: queueNumber,
-      status: 'Confirmed',
-    })
-    .select()
-    .single();
+    const queueNumber = count + 1;
 
-  if (error) throw new AppointmentError(error.message, 'DB_ERROR');
-  return data;
+    const data = await prisma.appointment.create({
+      data: {
+        patientName: patientName,
+        patientPhone: patientPhone,
+        scheduleId: scheduleId,
+        doctorId: schedule.doctorId,
+        appointmentDate: appointmentDate,
+        queueNumber: queueNumber,
+        status: 'Confirmed',
+      }
+    });
+
+    // return mapped to expected format
+    return {
+      ...data,
+      patient_name: data.patientName,
+      patient_phone: data.patientPhone,
+      schedule_id: data.scheduleId,
+      appointment_date: data.appointmentDate,
+      queue_number: data.queueNumber
+    };
+  } catch (error) {
+    throw new AppointmentError(error.message, 'DB_ERROR');
+  }
 }
 
 /**
@@ -52,24 +68,38 @@ async function createBooking({ patientName, patientPhone, scheduleId, appointmen
  * @returns {{ currentToken: number, pending: Array }}
  */
 async function getQueueStatus(scheduleId, appointmentDate) {
-  const { data, error } = await supabase
-    .from('appointments')
-    .select('queue_number, status, patient_name')
-    .eq('schedule_id', scheduleId)
-    .eq('appointment_date', appointmentDate)
-    .order('queue_number', { ascending: true });
+  try {
+    const rows = await prisma.appointment.findMany({
+      where: {
+        scheduleId: scheduleId,
+        appointmentDate: appointmentDate
+      },
+      select: {
+        queueNumber: true,
+        status: true,
+        patientName: true
+      },
+      orderBy: { queueNumber: 'asc' }
+    });
 
-  if (error) throw new AppointmentError(error.message, 'DB_ERROR');
+    const completed = rows.filter((r) => r.status === 'Completed');
+    const pending = rows.filter(
+      (r) => r.status !== 'Completed' && r.status !== 'Cancelled'
+    );
+    const currentToken =
+      completed.length > 0 ? Math.max(...completed.map((r) => r.queueNumber)) : 0;
 
-  const rows = data || [];
-  const completed = rows.filter((r) => r.status === 'Completed');
-  const pending = rows.filter(
-    (r) => r.status !== 'Completed' && r.status !== 'Cancelled'
-  );
-  const currentToken =
-    completed.length > 0 ? Math.max(...completed.map((r) => r.queue_number)) : 0;
+    // Map pending items for backward compatibility
+    const mappedPending = pending.map(p => ({
+      queue_number: p.queueNumber,
+      status: p.status,
+      patient_name: p.patientName
+    }));
 
-  return { currentToken, pending };
+    return { currentToken, pending: mappedPending };
+  } catch (error) {
+    throw new AppointmentError(error.message, 'DB_ERROR');
+  }
 }
 
 /**
@@ -80,17 +110,30 @@ async function getQueueStatus(scheduleId, appointmentDate) {
  * @returns {boolean} true on success
  */
 async function cancelBookingByToken(queueNumber, chatId) {
-  const { data, error } = await supabase
-    .from('appointments')
-    .update({ status: 'Cancelled' })
-    .eq('queue_number', queueNumber)
-    .eq('patient_phone', String(chatId))
-    .eq('status', 'Confirmed')
-    .select();
+  try {
+    // Find the appointment first
+    const appointment = await prisma.appointment.findFirst({
+      where: {
+        queueNumber: queueNumber,
+        patientPhone: String(chatId),
+        status: 'Confirmed'
+      }
+    });
 
-  if (error) throw new AppointmentError(error.message, 'DB_ERROR');
-  if (!data || data.length === 0) throw new AppointmentError('Appointment not found or already cancelled.', 'NOT_FOUND', '❌ আপনার দেওয়া টোকেনটি পাওয়া যায়নি অথবা ইতোমধ্যে বাতিল করা হয়েছে।');
-  return true;
+    if (!appointment) {
+      throw new AppointmentError('Appointment not found or already cancelled.', 'NOT_FOUND', '❌ আপনার দেওয়া টোকেনটি পাওয়া যায়নি অথবা ইতোমধ্যে বাতিল করা হয়েছে।');
+    }
+
+    await prisma.appointment.update({
+      where: { id: appointment.id },
+      data: { status: 'Cancelled' }
+    });
+
+    return true;
+  } catch (error) {
+    if (error instanceof AppointmentError) throw error;
+    throw new AppointmentError(error.message, 'DB_ERROR');
+  }
 }
 
 /**
@@ -102,17 +145,30 @@ async function cancelBookingByToken(queueNumber, chatId) {
  * @returns {boolean} true on success
  */
 async function rescheduleBookingByToken(queueNumber, chatId, newDate) {
-  const { data, error } = await supabase
-    .from('appointments')
-    .update({ appointment_date: newDate })
-    .eq('queue_number', queueNumber)
-    .eq('patient_phone', String(chatId))
-    .eq('status', 'Confirmed')
-    .select();
+  try {
+    // Find the appointment first
+    const appointment = await prisma.appointment.findFirst({
+      where: {
+        queueNumber: queueNumber,
+        patientPhone: String(chatId),
+        status: 'Confirmed'
+      }
+    });
 
-  if (error) throw new AppointmentError(error.message, 'DB_ERROR');
-  if (!data || data.length === 0) throw new AppointmentError('Appointment not found or already cancelled.', 'NOT_FOUND', '❌ আপনার দেওয়া টোকেনটি পাওয়া যায়নি অথবা ইতোমধ্যে বাতিল করা হয়েছে।');
-  return true;
+    if (!appointment) {
+      throw new AppointmentError('Appointment not found or already cancelled.', 'NOT_FOUND', '❌ আপনার দেওয়া টোকেনটি পাওয়া যায়নি অথবা ইতোমধ্যে বাতিল করা হয়েছে।');
+    }
+
+    await prisma.appointment.update({
+      where: { id: appointment.id },
+      data: { appointmentDate: newDate }
+    });
+
+    return true;
+  } catch (error) {
+    if (error instanceof AppointmentError) throw error;
+    throw new AppointmentError(error.message, 'DB_ERROR');
+  }
 }
 
 module.exports = { createBooking, getQueueStatus, cancelBookingByToken, rescheduleBookingByToken };

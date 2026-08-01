@@ -1,98 +1,90 @@
 // tests/services/bookingService.test.js
+const { AppointmentError } = require('../../src/utils/errors');
 const { createBooking, getQueueStatus, cancelBookingByToken, rescheduleBookingByToken } = require('../../src/services/bookingService');
 
-jest.mock('../../src/database/supabase', () => {
-  const mock = {
-    from: jest.fn().mockReturnThis(),
-    select: jest.fn().mockReturnThis(),
-    insert: jest.fn().mockReturnThis(),
-    update: jest.fn().mockReturnThis(),
-    eq: jest.fn().mockReturnThis(),
-    order: jest.fn().mockReturnThis(),
-    single: jest.fn(),
-  };
-  return mock;
-});
+jest.mock('../../src/database/prisma', () => ({
+  schedule: {
+    findUnique: jest.fn()
+  },
+  appointment: {
+    count: jest.fn(),
+    create: jest.fn(),
+    findMany: jest.fn(),
+    findFirst: jest.fn(),
+    update: jest.fn()
+  }
+}));
 
-const supabase = require('../../src/database/supabase');
+const prisma = require('../../src/database/prisma');
 
-describe('createBooking', () => {
-  it('creates booking and returns queue number 1 when no prior bookings', async () => {
-    // First call: count query, ends in eq()
-    supabase.eq
-      .mockReturnValueOnce(supabase) // first eq
-      .mockResolvedValueOnce({ count: 0, error: null }); // second eq
+describe('bookingService', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
 
-    // Second call: insert result
-    supabase.single
-      .mockResolvedValueOnce({
-        data: {
-          booking_id: 'bk-1',
-          patient_name: 'Rahul Das',
-          patient_phone: '9876543210',
-          queue_number: 1,
-          status: 'Confirmed',
-          appointment_date: '2026-07-10',
-        },
-        error: null,
+  describe('createBooking', () => {
+    it('creates booking and returns queue number 1 when no prior bookings', async () => {
+      prisma.schedule.findUnique.mockResolvedValueOnce({ id: 'sch-1', doctorId: 'doc-1' });
+      prisma.appointment.count.mockResolvedValueOnce(0);
+      prisma.appointment.create.mockResolvedValueOnce({
+        patientName: 'Rina',
+        patientPhone: '017',
+        scheduleId: 'sch-1',
+        appointmentDate: '2023-10-10',
+        queueNumber: 1
       });
 
-    const result = await createBooking({
-      patientName: 'Rahul Das',
-      patientPhone: '9876543210',
-      scheduleId: 'sch-1',
-      appointmentDate: '2026-07-10',
-    });
-
-    expect(result.queue_number).toBe(1);
-    expect(result.patient_name).toBe('Rahul Das');
-    expect(result.status).toBe('Confirmed');
-  });
-
-  it('throws when insert fails', async () => {
-    supabase.eq
-      .mockReturnValueOnce(supabase)
-      .mockResolvedValueOnce({ count: 0, error: null });
-
-    supabase.single
-      .mockResolvedValueOnce({ data: null, error: { message: 'Insert failed' } });
-
-    await expect(
-      createBooking({
-        patientName: 'Test',
-        patientPhone: '123',
+      const result = await createBooking({
+        patientName: 'Rina',
+        patientPhone: '017',
         scheduleId: 'sch-1',
-        appointmentDate: '2026-07-10',
-      })
-    ).rejects.toThrow('Insert failed');
-  });
-});
+        appointmentDate: '2023-10-10',
+      });
 
-describe('getQueueStatus', () => {
-  it('returns currentToken=2 and 1 pending patient', async () => {
-    supabase.order.mockResolvedValueOnce({
-      data: [
-        { queue_number: 1, status: 'Completed', patient_name: 'Alice' },
-        { queue_number: 2, status: 'Completed', patient_name: 'Bob' },
-        { queue_number: 3, status: 'Confirmed', patient_name: 'Carol' },
-      ],
-      error: null,
+      expect(result.queue_number).toBe(1);
+      expect(prisma.appointment.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ queueNumber: 1 })
+      });
     });
 
-    const result = await getQueueStatus('sch-1', '2026-07-10');
-    expect(result.currentToken).toBe(2);
-    expect(result.pending).toHaveLength(1);
-    expect(result.pending[0].queue_number).toBe(3);
+    it('throws when insert fails', async () => {
+      prisma.schedule.findUnique.mockResolvedValueOnce({ id: 'sch-1', doctorId: 'doc-1' });
+      prisma.appointment.count.mockResolvedValueOnce(0);
+      prisma.appointment.create.mockRejectedValueOnce(new Error('Insert failed'));
+
+      await expect(
+        createBooking({
+          patientName: 'Rina',
+          patientPhone: '017',
+          scheduleId: 'sch-1',
+          appointmentDate: '2023-10-10',
+        })
+      ).rejects.toThrow('Insert failed');
+    });
   });
 
-  it('returns currentToken=0 when no completed patients', async () => {
-    supabase.order.mockResolvedValueOnce({
-      data: [{ queue_number: 1, status: 'Confirmed', patient_name: 'Alice' }],
-      error: null,
+  describe('getQueueStatus', () => {
+    it('returns currentToken=2 and 1 pending patient', async () => {
+      prisma.appointment.findMany.mockResolvedValueOnce([
+        { queueNumber: 1, status: 'Completed', patientName: 'A' },
+        { queueNumber: 2, status: 'Completed', patientName: 'B' },
+        { queueNumber: 3, status: 'Confirmed', patientName: 'C' },
+      ]);
+
+      const result = await getQueueStatus('sch-1', '2023-10-10');
+      expect(result.currentToken).toBe(2);
+      expect(result.pending).toHaveLength(1);
+      expect(result.pending[0].queue_number).toBe(3);
     });
 
-    const result = await getQueueStatus('sch-1', '2026-07-10');
-    expect(result.currentToken).toBe(0);
-    expect(result.pending).toHaveLength(1);
+    it('returns currentToken=0 when no completed patients', async () => {
+      prisma.appointment.findMany.mockResolvedValueOnce([
+        { queueNumber: 1, status: 'Confirmed', patientName: 'A' },
+      ]);
+
+      const result = await getQueueStatus('sch-1', '2023-10-10');
+      expect(result.currentToken).toBe(0);
+      expect(result.pending).toHaveLength(1);
+    });
   });
 });
