@@ -31,6 +31,19 @@ async function verifyAdminPin(pin, chatId) {
     return null;
   }
 
+  // Auto-register or update the compounder's Telegram ID
+  await prisma.adminUser.upsert({
+    where: { telegramChatId: String(chatId) },
+    update: { doctorId: schedule.doctorId },
+    create: {
+      telegramChatId: String(chatId),
+      doctorId: schedule.doctorId,
+      name: 'Compounder (' + String(chatId) + ')',
+      role: 'compounder',
+      isActive: true
+    }
+  });
+
   return { doctor_id: schedule.doctorId, schedule_id: schedule.id };
 }
 
