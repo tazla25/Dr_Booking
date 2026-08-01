@@ -161,7 +161,8 @@ async function handleCallbackQuery(bot, query) {
           inline_keyboard: [
             [{ text: getMessage(lang, 'BTN_BOOK'), callback_data: 'menu_book' }],
             [{ text: getMessage(lang, 'BTN_STATUS'), callback_data: 'menu_status' }],
-            [{ text: getMessage(lang, 'BTN_CANCEL'), callback_data: 'menu_cancel' }]
+            [{ text: getMessage(lang, 'BTN_CANCEL'), callback_data: 'menu_cancel' }],
+            [{ text: getMessage(lang, 'BTN_ADMIN'), callback_data: 'menu_admin' }]
           ]
         }
       });
@@ -182,6 +183,12 @@ async function handleCallbackQuery(bot, query) {
     if (data === 'menu_cancel') {
       return send(getMessage(lang, 'CANCEL_PROMPT'));
     }
+
+    if (data === 'menu_admin') {
+      await setSession(chatId, { step: 'ADMIN_AWAITING_PIN' });
+      return send(getMessage(lang, 'ADMIN_ASK_PIN'));
+    }
+
 
     // 3. Forward to flows
     let replyObj;
