@@ -7,7 +7,7 @@ jest.mock('../../src/database/prisma', () => ({
     findUnique: jest.fn()
   },
   appointment: {
-    count: jest.fn(),
+    aggregate: jest.fn(),
     create: jest.fn(),
     findMany: jest.fn(),
     findFirst: jest.fn(),
@@ -25,7 +25,7 @@ describe('bookingService', () => {
   describe('createBooking', () => {
     it('creates booking and returns queue number 1 when no prior bookings', async () => {
       prisma.schedule.findUnique.mockResolvedValueOnce({ id: 'sch-1', doctorId: 'doc-1' });
-      prisma.appointment.count.mockResolvedValueOnce(0);
+      prisma.appointment.aggregate.mockResolvedValueOnce({ _max: { queueNumber: null } });
       prisma.appointment.create.mockResolvedValueOnce({
         patientName: 'Rina',
         patientPhone: '017',
@@ -49,7 +49,7 @@ describe('bookingService', () => {
 
     it('throws when insert fails', async () => {
       prisma.schedule.findUnique.mockResolvedValueOnce({ id: 'sch-1', doctorId: 'doc-1' });
-      prisma.appointment.count.mockResolvedValueOnce(0);
+      prisma.appointment.aggregate.mockResolvedValueOnce({ _max: { queueNumber: null } });
       prisma.appointment.create.mockRejectedValueOnce(new Error('Insert failed'));
 
       await expect(

@@ -1,20 +1,10 @@
 node_modules/
-.next/
-dashboard/.next/
-dashboard/node_modules/
 .env
-node_modules
-.next
-dashboard/.next
-dashboard/node_modules
-dashboard/.next
-dashboard/node_modules
-dashboard/dist
-node_modules
-.next
-dist
-dashboard/.next/*
+coverage/
+.next/
+dist/
 
 # Dashboard Next.js
-dashboard/.next
-dashboard/node_modules
+dashboard/.next/
+dashboard/node_modules/
+dashboard/dist/

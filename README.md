@@ -9,34 +9,42 @@
 
 ```
 smart-queue-bot/
+├── dashboard/              ← Next.js web dashboard app
+├── prisma/
+│   ├── schema.prisma       ← Prisma ORM database schema (8 models)
+│   └── seed.js             ← Database seed script
 ├── src/
+│   ├── app.js              ← Express app with health + queue API routes
 │   ├── bot/
-│   │   ├── index.js        ← Telegram bot init & webhook registration
 │   │   ├── handler.js      ← Routes messages to patient/admin flows
-│   │   └── session.js      ← In-memory session state machine
-│   ├── flows/
-│   │   ├── patient.js      ← Patient booking conversation flow
-│   │   └── admin.js        ← Compounder/admin conversation flow
-│   ├── services/
-│   │   ├── doctorService.js  ← Search doctors by PIN code
-│   │   ├── bookingService.js ← Create bookings, generate queue numbers
-│   │   └── adminService.js   ← Auth PIN, patient list, status updates
+│   │   ├── index.js        ← Telegram bot init & webhook registration
+│   │   └── session.js      ← Bot session management
 │   ├── database/
-│   │   └── supabase.js     ← Single Supabase client export
-│   ├── utils/
-│   │   └── messages.js     ← All bot reply strings (Bengali, i18n-ready)
-│   └── app.js              ← Express app with health + queue API routes
+│   │   └── prisma.js       ← Prisma client initialization
+│   ├── flows/
+│   │   ├── admin.js        ← Compounder/admin conversation flow
+│   │   └── patient.js      ← Patient booking conversation flow
+│   ├── jobs/
+│   │   └── reminderJob.js  ← Automated appointment reminder job
+│   ├── services/
+│   │   ├── adminService.js   ← Auth PIN, patient list, status updates
+│   │   ├── bookingService.js ← Create bookings, generate queue numbers
+│   │   └── doctorService.js  ← Search doctors by PIN code
+│   └── utils/
+│       ├── errors.js       ← Custom error definitions
+│       ├── logger.js       ← Logging helper
+│       ├── messages.js     ← All bot reply strings (Bengali, i18n-ready)
+│       └── validators.js   ← Input validation helpers
 ├── public/
 │   └── tracker.html        ← Live queue tracker (auto-refreshes every 15s)
 ├── tests/
-│   ├── services/
-│   │   ├── doctorService.test.js
-│   │   ├── bookingService.test.js
-│   │   └── adminService.test.js
-│   └── flows/
-│       ├── patient.test.js
-│       └── admin.test.js
-├── schema.sql              ← Run this in Supabase SQL Editor to create tables
+│   ├── flows/
+│   │   ├── admin.test.js
+│   │   └── patient.test.js
+│   └── services/
+│       ├── adminService.test.js
+│       ├── bookingService.test.js
+│       └── doctorService.test.js
 ├── .env.example            ← Copy to .env and fill in real values
 ├── index.js                ← Root entry point
 └── package.json
@@ -54,10 +62,9 @@ npm install
 
 ### 2. Set up Supabase
 
-1. Create a free project at [supabase.com](https://supabase.com)
-2. Go to **SQL Editor** → paste and run the entire `schema.sql` file
-3. After creating the `doctors` table, insert a doctor and copy its UUID
-4. Complete the seed inserts in `schema.sql` with the real UUID
+- Create a free project at [supabase.com](https://supabase.com)
+- Go to **Settings** > **Database** > **Connection string (URI)** — copy the PostgreSQL connection string
+- This will be your `DATABASE_URL`
 
 ### 3. Get a Telegram bot token
 
@@ -74,20 +81,29 @@ cp .env.example .env
 
 `.env`:
 ```
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your-anon-key
+DATABASE_URL=postgresql://postgres:your-password@db.your-project-id.supabase.co:5432/postgres
 TELEGRAM_BOT_TOKEN=your-bot-token
 PORT=3000
 PUBLIC_URL=https://your-app.onrender.com
+DASHBOARD_URL=https://your-dashboard.vercel.app
+BOT_API_SECRET=your-shared-secret-here
 ```
 
-### 5. Run tests
+### 5. Push database schema
+
+```bash
+npx prisma db push
+npx prisma generate
+npm run db:seed
+```
+
+### 6. Run tests
 
 ```bash
 npm test
 ```
 
-### 6. Start locally
+### 7. Start locally
 
 ```bash
 npm run dev
@@ -100,12 +116,16 @@ npm run dev
 
 ## 🗄️ Database Tables
 
-| Table | Purpose |
+| Table / Model | Purpose |
 |---|---|
-| `doctors` | Doctor name and specialization |
-| `schedules` | Doctor schedules by PIN code and day |
-| `appointments` | Patient bookings with queue numbers |
-| `admin_access` | Compounder PIN codes per doctor |
+| `Doctor` (`doctors`) | Doctor name, specialization, consultation fee, rating, and active status |
+| `Schedule` (`schedules`) | Doctor schedules by PIN code, day of week, and clinic timings |
+| `Appointment` (`appointments`) | Patient bookings with race-condition safe queue numbers |
+| `AdminUser` (`admin_users`) | Admin and compounder user accounts and roles |
+| `MagicLink` (`magic_links`) | Short-lived single-use magic link authentication tokens |
+| `FailedLogin` (`failed_logins`) | Audit log for failed login attempts (brute-force protection) |
+| `AuditLog` (`audit_logs`) | Audit logging for administrative and system actions |
+| `BotSession` (`bot_sessions`) | Persistent state storage for Telegram bot session conversations |
 
 ---
 
@@ -140,9 +160,17 @@ npm run dev
 4. Settings:
    - **Build Command:** `npm install`
    - **Start Command:** `node index.js`
-5. Add all `.env` variables in Render's Environment tab
+5. Add all `.env` variables in Render's Environment tab, setting `DATABASE_URL`, `BOT_API_SECRET`, and `DASHBOARD_URL`
 6. Set `PUBLIC_URL` to your Render app URL (e.g. `https://smart-queue-bot.onrender.com`)
 7. Deploy!
+
+---
+
+## ☁️ Deploy Dashboard to Vercel
+
+- The `dashboard/` directory is a separate Next.js app deployed to Vercel
+- Set `DATABASE_URL`, `BOT_API_SECRET`, and `MAGIC_LINK_BASE_URL` env vars on Vercel
+- Set the Root Directory to `dashboard` in Vercel project settings
 
 ---
 

@@ -6,7 +6,7 @@ const translations = {
     WELCOME: '👋 নমস্কার! আমি *Smart Queue Bot*।',
     CHOOSE_LANG: 'দয়া করে আপনার ভাষা নির্বাচন করুন / Please select your language / कृपया अपनी भाषा चुनें:',
     MAIN_MENU: 'আপনি কি করতে চান? নিচের বাটনগুলো থেকে বেছে নিন:',
-    ASK_PIN: '📍 আপনার এলাকার *PIN Code* টাইপ করুন (৬ ডিজিট):',
+    ASK_PIN: '📍 আপনার এলাকার *PIN Code* টাইপ করুন (৪-৬ ডিজিট):',
     NO_DOCTORS: '😔 এই PIN কোডে কোনো ডাক্তার পাওয়া যায়নি।\n\nঅন্য PIN কোড দিয়ে চেষ্টা করুন।',
     SELECT_DOCTOR: (schedules) => {
       const list = schedules
@@ -31,7 +31,7 @@ const translations = {
     QUEUE_UPDATED: (token) => `✅ Token #${token} — *Completed* হিসেবে আপডেট হয়েছে।`,
     ALL_DONE: `✅ আজকের সব রোগী সম্পন্ন হয়েছে।`,
     ERROR: '⚠️ কিছু একটা সমস্যা হয়েছে। /start দিয়ে আবার শুরু করুন।',
-    INVALID_PIN_FORMAT: 'PIN Code ৬ ডিজিটের হতে হবে। আবার চেষ্টা করুন:',
+    INVALID_PIN_FORMAT: 'PIN Code ৪-৬ ডিজিটের হতে হবে। আবার চেষ্টা করুন:',
     INVALID_SELECTION: 'সঠিক সংখ্যা বা বাটন চাপুন। আবার চেষ্টা করুন:',
     INVALID_DATE: 'সঠিক তারিখ দিন (YYYY-MM-DD ফরম্যাট, আজ বা ভবিষ্যতের তারিখ):',
     INVALID_NAME: 'নাম কমপক্ষে ২ অক্ষরের হতে হবে। আবার লিখুন:',
@@ -43,13 +43,15 @@ const translations = {
     STATUS_MSG: '🔗 আপনার বুকিং কনফার্মেশন মেসেজে দেওয়া লিংকটি চেক করুন।',
     CANCEL_MSG: '❌ বর্তমান কার্যক্রম বাতিল হয়েছে। /start দিয়ে আবার শুরু করুন।',
     CANCEL_PROMPT: 'আপনার টোকেন নম্বর দিন (যেমন: /cancel 5) অথবা পূর্ববর্তী মেনুতে ফিরে যান:',
-    BOOKING_CANCELLED: (token) => `✅ আপনার বুকিং (টোকেন #${token}) সফলভাবে বাতিল করা হয়েছে।`
+    BOOKING_CANCELLED: (token) => `✅ আপনার বুকিং (টোকেন #${token}) সফলভাবে বাতিল করা হয়েছে।`,
+    REMINDER: (clinicStr, queueNumber) =>
+      `⏰ *রিমাইন্ডার:*\nআপনার অ্যাপয়েন্টমেন্ট${clinicStr} ১ ঘণ্টার মধ্যে শুরু হবে।\n\nটোকেন: *#${queueNumber}*\nলাইভ ট্র্যাকার দেখতে /queue চাপুন।`
   },
   en: {
     WELCOME: '👋 Hello! I am *Smart Queue Bot*.',
     CHOOSE_LANG: 'Please select your language:',
     MAIN_MENU: 'What would you like to do? Choose from the buttons below:',
-    ASK_PIN: '📍 Please type your area *PIN Code* (6 digits):',
+    ASK_PIN: '📍 Please type your area *PIN Code* (4-6 digits):',
     NO_DOCTORS: '😔 No doctors found in this PIN code.\n\nPlease try a different PIN code.',
     SELECT_DOCTOR: (schedules) => {
       const list = schedules
@@ -74,7 +76,7 @@ const translations = {
     QUEUE_UPDATED: (token) => `✅ Token #${token} — Updated as *Completed*.`,
     ALL_DONE: `✅ All patients completed today.`,
     ERROR: '⚠️ Something went wrong. Type /start to begin again.',
-    INVALID_PIN_FORMAT: 'PIN Code must be 6 digits. Try again:',
+    INVALID_PIN_FORMAT: 'PIN Code must be 4-6 digits. Try again:',
     INVALID_SELECTION: 'Invalid selection. Try again:',
     INVALID_DATE: 'Provide a valid date (YYYY-MM-DD format, today or future):',
     INVALID_NAME: 'Name must be at least 2 characters. Try again:',
@@ -86,13 +88,15 @@ const translations = {
     STATUS_MSG: '🔗 Please check the tracker link provided in your booking confirmation message.',
     CANCEL_MSG: '❌ Current process cancelled. Type /start to begin again.',
     CANCEL_PROMPT: 'Please enter your token number (e.g., /cancel 5) or go back:',
-    BOOKING_CANCELLED: (token) => `✅ Your booking (Token #${token}) has been successfully cancelled.`
+    BOOKING_CANCELLED: (token) => `✅ Your booking (Token #${token}) has been successfully cancelled.`,
+    REMINDER: (clinicStr, queueNumber) =>
+      `⏰ *Reminder:*\nYour appointment${clinicStr} starts within 1 hour.\n\nToken: *#${queueNumber}*\nType /queue to see live tracker.`
   },
   hi: {
     WELCOME: '👋 नमस्ते! मैं *Smart Queue Bot* हूँ।',
     CHOOSE_LANG: 'कृपया अपनी भाषा चुनें:',
     MAIN_MENU: 'आप क्या करना चाहेंगे? नीचे दिए गए बटन से चुनें:',
-    ASK_PIN: '📍 कृपया अपने क्षेत्र का *PIN Code* दर्ज करें (6 अंक):',
+    ASK_PIN: '📍 कृपया अपने क्षेत्र का *PIN Code* दर्ज करें (4-6 अंक):',
     NO_DOCTORS: '😔 इस PIN कोड में कोई डॉक्टर नहीं मिला।\n\nकृपया कोई अन्य PIN कोड आज़माएँ।',
     SELECT_DOCTOR: (schedules) => {
       const list = schedules
@@ -117,7 +121,7 @@ const translations = {
     QUEUE_UPDATED: (token) => `✅ टोकन #${token} — *Completed* के रूप में अपडेट किया गया।`,
     ALL_DONE: `✅ आज के सभी मरीज संपन्न हुए।`,
     ERROR: '⚠️ कुछ गलत हो गया। फिर से शुरू करने के लिए /start टाइप करें।',
-    INVALID_PIN_FORMAT: 'PIN Code 6 अंकों का होना चाहिए। पुनः प्रयास करें:',
+    INVALID_PIN_FORMAT: 'PIN Code 4-6 अंकों का होना चाहिए। पुनः प्रयास करें:',
     INVALID_SELECTION: 'अमान्य चयन। पुनः प्रयास करें:',
     INVALID_DATE: 'एक मान्य तारीख दें (YYYY-MM-DD प्रारूप, आज या भविष्य):',
     INVALID_NAME: 'नाम कम से कम 2 अक्षरों का होना चाहिए। पुनः प्रयास करें:',
@@ -129,7 +133,9 @@ const translations = {
     STATUS_MSG: '🔗 कृपया अपने बुकिंग पुष्टिकरण संदेश में दिए गए ट्रैकर लिंक की जाँच करें।',
     CANCEL_MSG: '❌ वर्तमान प्रक्रिया रद्द कर दी गई। फिर से शुरू करने के लिए /start टाइप करें।',
     CANCEL_PROMPT: 'कृपया अपना टोकन नंबर दर्ज करें (जैसे: /cancel 5) या वापस जाएं:',
-    BOOKING_CANCELLED: (token) => `✅ आपकी बुकिंग (टोकन #${token}) सफलतापूर्वक रद्द कर दी गई है।`
+    BOOKING_CANCELLED: (token) => `✅ आपकी बुकिंग (टोकन #${token}) सफलतापूर्वक रद्द कर दी गई है।`,
+    REMINDER: (clinicStr, queueNumber) =>
+      `⏰ *रिमाइंडर:*\nआपका अपॉइंटमेंट${clinicStr} 1 घंटे में शुरू होगा।\n\nটোকেন: *#${queueNumber}*\nलाइव ट्रैकर देखने के लिए /queue टाइप करें।`
   }
 };
 

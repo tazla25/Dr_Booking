@@ -13,49 +13,58 @@ const prisma = require('../database/prisma');
  * @returns {Object} created appointment row
  */
 async function createBooking({ patientName, patientPhone, scheduleId, appointmentDate }) {
-  try {
-    // We need the doctorId for the appointment, so let's get the schedule first
-    const schedule = await prisma.schedule.findUnique({
-      where: { id: scheduleId }
-    });
+  // We need the doctorId for the appointment, so let's get the schedule first
+  const schedule = await prisma.schedule.findUnique({
+    where: { id: scheduleId }
+  });
 
-    if (!schedule) {
-      throw new Error("Schedule not found");
+  if (!schedule) {
+    throw new AppointmentError('Schedule not found', 'NOT_FOUND');
+  }
+
+  // Race-condition safe queue number assignment with retry
+  let attempts = 0;
+  while (attempts < 3) {
+    try {
+      const maxRow = await prisma.appointment.aggregate({
+        _max: { queueNumber: true },
+        where: {
+          scheduleId: scheduleId,
+          appointmentDate: appointmentDate
+        }
+      });
+
+      const queueNumber = (maxRow._max.queueNumber ?? 0) + 1;
+
+      const data = await prisma.appointment.create({
+        data: {
+          patientName: patientName,
+          patientPhone: patientPhone,
+          scheduleId: scheduleId,
+          doctorId: schedule.doctorId,
+          appointmentDate: appointmentDate,
+          queueNumber: queueNumber,
+          status: 'Confirmed',
+        }
+      });
+
+      // return mapped to expected format
+      return {
+        ...data,
+        patient_name: data.patientName,
+        patient_phone: data.patientPhone,
+        schedule_id: data.scheduleId,
+        appointment_date: data.appointmentDate,
+        queue_number: data.queueNumber
+      };
+    } catch (error) {
+      attempts++;
+      // If it's a unique constraint violation, retry
+      if (error.code === 'P2002' && attempts < 3) {
+        continue;
+      }
+      throw new AppointmentError(error.message, 'DB_ERROR');
     }
-
-    // Count existing bookings to determine next queue number
-    const count = await prisma.appointment.count({
-      where: {
-        scheduleId: scheduleId,
-        appointmentDate: appointmentDate
-      }
-    });
-
-    const queueNumber = count + 1;
-
-    const data = await prisma.appointment.create({
-      data: {
-        patientName: patientName,
-        patientPhone: patientPhone,
-        scheduleId: scheduleId,
-        doctorId: schedule.doctorId,
-        appointmentDate: appointmentDate,
-        queueNumber: queueNumber,
-        status: 'Confirmed',
-      }
-    });
-
-    // return mapped to expected format
-    return {
-      ...data,
-      patient_name: data.patientName,
-      patient_phone: data.patientPhone,
-      schedule_id: data.scheduleId,
-      appointment_date: data.appointmentDate,
-      queue_number: data.queueNumber
-    };
-  } catch (error) {
-    throw new AppointmentError(error.message, 'DB_ERROR');
   }
 }
 
@@ -111,17 +120,20 @@ async function getQueueStatus(scheduleId, appointmentDate) {
  */
 async function cancelBookingByToken(queueNumber, chatId) {
   try {
-    // Find the appointment first
+    const today = new Date().toISOString().split('T')[0];
+
+    // Find the appointment — scoped to today's bookings for this patient
     const appointment = await prisma.appointment.findFirst({
       where: {
         queueNumber: queueNumber,
         patientPhone: String(chatId),
-        status: 'Confirmed'
+        status: 'Confirmed',
+        appointmentDate: today
       }
     });
 
     if (!appointment) {
-      throw new AppointmentError('Appointment not found or already cancelled.', 'NOT_FOUND', '❌ আপনার দেওয়া টোকেনটি পাওয়া যায়নি অথবা ইতোমধ্যে বাতিল করা হয়েছে।');
+      throw new AppointmentError('Appointment not found or already cancelled.', 'NOT_FOUND', '❌ আপনার দেওয়া টোকেনটি পাওয়া যায়নি অথবা ইতোমধ্যে বাতিল করা হয়েছে।');
     }
 
     await prisma.appointment.update({

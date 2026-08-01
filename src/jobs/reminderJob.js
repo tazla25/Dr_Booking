@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const prisma = require('../database/prisma');
 const logger = require('../utils/logger');
+const { getMessage } = require('../utils/messages');
 
 function initReminderJob(bot) {
   // Run every 10 minutes
@@ -28,6 +29,13 @@ function initReminderJob(bot) {
       const currentTimeInMinutes = currentHour * 60 + currentMinute;
 
       for (const apt of data) {
+        // Get user's language preference
+        let lang = 'bn';
+        try {
+          const session = await prisma.botSession.findUnique({ where: { chatId: String(apt.patientPhone) } });
+          if (session && session.lang) lang = session.lang;
+        } catch (e) { /* ignore - default to bn */ }
+
         const startTimeStr = apt.schedule.startTime; // e.g. '10:00'
         if (!startTimeStr) continue;
 
@@ -39,7 +47,7 @@ function initReminderJob(bot) {
 
         if (diff > 0 && diff <= 60) {
           const clinicStr = apt.schedule.clinicName ? ` (${apt.schedule.clinicName})` : '';
-          const message = `⏰ *রিমাইন্ডার:*\nআপনার অ্যাপয়েন্টমেন্ট${clinicStr} ১ ঘণ্টার মধ্যে শুরু হবে।\n\nটোকেন: *#${apt.queueNumber}*\nলাইভ ট্র্যাকার দেখতে /queue চাপুন।`;
+          const message = getMessage(lang, 'REMINDER', clinicStr, apt.queueNumber);
 
           try {
              await bot.sendMessage(apt.patientPhone, message, { parse_mode: 'Markdown' });

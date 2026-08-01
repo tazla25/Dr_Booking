@@ -2,12 +2,20 @@
 require('dotenv').config();
 
 // ── Validate required environment variables ──────────────────────────
-const requiredEnvVars = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'TELEGRAM_BOT_TOKEN'];
+const requiredEnvVars = ['DATABASE_URL', 'TELEGRAM_BOT_TOKEN'];
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
     console.error(`❌ Missing required environment variable: ${envVar}`);
     console.error('   Copy .env.example to .env and fill in real values.');
     process.exit(1);
+  }
+}
+
+// Warn about optional but recommended vars
+const recommendedEnvVars = ['DASHBOARD_URL', 'BOT_API_SECRET', 'PUBLIC_URL'];
+for (const envVar of recommendedEnvVars) {
+  if (!process.env[envVar]) {
+    console.warn(`⚠️  Missing recommended environment variable: ${envVar}`);
   }
 }
 
