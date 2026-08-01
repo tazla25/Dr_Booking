@@ -8,9 +8,9 @@
  */
 function validatePinCode(input) {
   const trimmed = (input || '').trim();
-  if (!/^\d{6}$/.test(trimmed)) return null;
+  if (!/^\d{4,6}$/.test(trimmed)) return null;
   const pin = parseInt(trimmed, 10);
-  if (pin < 100000 || pin > 999999) return null;
+  if (pin < 1000 || pin > 999999) return null;
   return pin;
 }
 
