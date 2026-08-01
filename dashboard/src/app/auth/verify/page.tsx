@@ -58,7 +58,7 @@ function VerifyInner() {
           setStatus('success')
           toast.success(`Welcome, ${data.user.name}`)
           // Small delay so the user sees the success state
-          setTimeout(() => router.push('/?view=dashboard'), 800)
+          setTimeout(() => window.location.href = '/?view=dashboard', 800)
         } else {
           setStatus('error')
           setErrorMsg(data.message || 'Verification failed.')
@@ -133,7 +133,7 @@ function VerifyInner() {
                   <Button
                     className="w-full gap-2"
                     onClick={() => {
-                      window.location.href = 'https://t.me/DrBookingBot'
+                      window.location.href = 'https://t.me/Ax_erax_bot'
                     }}
                   >
                     <MessageCircle className="w-4 h-4" />

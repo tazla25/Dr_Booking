@@ -180,7 +180,7 @@ export function BotAccessRequiredView() {
             <Button
               className="w-full gap-2 h-11"
               onClick={() => {
-                window.location.href = 'https://t.me/DrBookingBot'
+                window.location.href = 'https://t.me/Ax_erax_bot'
               }}
             >
               <MessageCircle className="w-4 h-4" />
