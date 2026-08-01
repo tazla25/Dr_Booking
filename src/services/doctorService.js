@@ -1,33 +1,57 @@
 const { AppointmentError } = require('../utils/errors');
-// src/services/doctorService.js
-// Search doctors by PIN code and get schedules
-const supabase = require('../database/supabase');
+const prisma = require('../database/prisma');
 
 /**
  * Get all doctor schedules for a given PIN code.
  * Returns array of schedule rows joined with doctor info.
  */
 async function getDoctorsByPin(pinCode) {
-  const { data, error } = await supabase
-    .from('schedules')
-    .select('*, doctors(*)')
-    .eq('pin_code', pinCode);
+  const pinNumber = parseInt(pinCode, 10);
+  if (isNaN(pinNumber)) return [];
 
-  if (error) throw new AppointmentError(error.message, 'DB_ERROR');
-  return data || [];
+  try {
+    const schedules = await prisma.schedule.findMany({
+      where: { pinCode: pinNumber },
+      include: { doctor: true }
+    });
+
+    // map fields for backward compatibility
+    return schedules.map(schedule => ({
+      ...schedule,
+      pin_code: schedule.pinCode,
+      doctor_id: schedule.doctorId,
+      doctors: {
+        ...schedule.doctor,
+        doctor_id: schedule.doctor.id,
+        full_name: schedule.doctor.fullName
+      }
+    }));
+  } catch (error) {
+    throw new AppointmentError(error.message, 'DB_ERROR');
+  }
 }
 
 /**
  * Get all schedules for a specific doctor.
  */
 async function getSchedulesForDoctor(doctorId) {
-  const { data, error } = await supabase
-    .from('schedules')
-    .select('*')
-    .eq('doctor_id', doctorId);
+  try {
+    const schedules = await prisma.schedule.findMany({
+      where: { doctorId: doctorId }
+    });
 
-  if (error) throw new AppointmentError(error.message, 'DB_ERROR');
-  return data || [];
+    // map fields for backward compatibility
+    return schedules.map(schedule => ({
+      ...schedule,
+      pin_code: schedule.pinCode,
+      doctor_id: schedule.doctorId,
+      day_of_week: schedule.dayOfWeek,
+      start_time: schedule.startTime,
+      end_time: schedule.endTime
+    }));
+  } catch (error) {
+    throw new AppointmentError(error.message, 'DB_ERROR');
+  }
 }
 
 module.exports = { getDoctorsByPin, getSchedulesForDoctor };

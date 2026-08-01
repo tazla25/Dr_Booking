@@ -1,7 +1,5 @@
 const { AppointmentError } = require('../utils/errors');
-// src/services/adminService.js
-// Admin PIN authentication, patient list, and status updates
-const supabase = require('../database/supabase');
+const prisma = require('../database/prisma');
 
 /**
  * Verify a 4-digit admin PIN.
@@ -12,27 +10,28 @@ const supabase = require('../database/supabase');
  * @returns {Object|null} { doctor_id, schedule_id } or null
  */
 async function verifyAdminPin(pin, chatId) {
-  // First, verify the PIN and join with schedules to get schedule_id
-  const { data, error } = await supabase
-    .from('admin_access')
-    .select('doctor_id, secret_pin, doctors!inner(doctor_id, schedules(schedule_id))')
-    .eq('secret_pin', pin)
-    .single();
-
-  if (error || !data) {
+  const pinNumber = parseInt(pin, 10);
+  if (isNaN(pinNumber)) {
     if (chatId) {
       await logFailedLogin(chatId, pin);
     }
     return null;
   }
 
-  const scheduleId = data.doctors?.schedules?.[0]?.schedule_id;
-  if (!scheduleId) {
-      // If doctor has no schedule, still return doctor_id but schedule_id will be undefined
-      return { doctor_id: data.doctor_id };
+  // Find a Schedule with matching pinCode. We assume pin is unique to a schedule/doctor in this old paradigm.
+  const schedule = await prisma.schedule.findFirst({
+    where: { pinCode: pinNumber },
+    include: { doctor: true }
+  });
+
+  if (!schedule) {
+    if (chatId) {
+      await logFailedLogin(chatId, pin);
+    }
+    return null;
   }
 
-  return { doctor_id: data.doctor_id, schedule_id: scheduleId };
+  return { doctor_id: schedule.doctorId, schedule_id: schedule.id };
 }
 
 /**
@@ -42,12 +41,14 @@ async function verifyAdminPin(pin, chatId) {
  * @param {string} pin - The attempted PIN
  */
 async function logFailedLogin(chatId, pin) {
-  const { error } = await supabase.from('failed_login_attempts').insert({
-    chat_id: String(chatId),
-    attempted_pin: String(pin)
-  });
-
-  if (error) {
+  try {
+    await prisma.failedLogin.create({
+      data: {
+        email: `bot-chat-${chatId}`, // fallback email for tracking
+        ipAddress: pin // using ipAddress to store the attempted pin since the new schema doesn't have attempted_pin
+      }
+    });
+  } catch (error) {
     const logger = require('../utils/logger');
     logger.error({ chatId, err: error.message }, 'Failed to log login attempt');
   }
@@ -62,15 +63,31 @@ async function logFailedLogin(chatId, pin) {
 async function getTodaysPatients(scheduleId) {
   const today = new Date().toISOString().split('T')[0];
 
-  const { data, error } = await supabase
-    .from('appointments')
-    .select('booking_id, patient_name, queue_number, status')
-    .eq('schedule_id', scheduleId)
-    .eq('appointment_date', today)
-    .order('queue_number', { ascending: true });
+  try {
+    const appointments = await prisma.appointment.findMany({
+      where: {
+        scheduleId: scheduleId,
+        appointmentDate: today
+      },
+      orderBy: { queueNumber: 'asc' },
+      select: {
+        id: true,
+        patientName: true,
+        queueNumber: true,
+        status: true
+      }
+    });
 
-  if (error) throw new AppointmentError(error.message, 'DB_ERROR');
-  return data || [];
+    // map fields back to what the bot expects
+    return appointments.map(app => ({
+      booking_id: app.id,
+      patient_name: app.patientName,
+      queue_number: app.queueNumber,
+      status: app.status
+    }));
+  } catch (error) {
+    throw new AppointmentError(error.message, 'DB_ERROR');
+  }
 }
 
 /**
@@ -81,13 +98,15 @@ async function getTodaysPatients(scheduleId) {
  * @returns {boolean} true on success
  */
 async function updateAppointmentStatus(bookingId, status) {
-  const { error } = await supabase
-    .from('appointments')
-    .update({ status })
-    .eq('booking_id', bookingId);
-
-  if (error) throw new AppointmentError(error.message, 'DB_ERROR');
-  return true;
+  try {
+    await prisma.appointment.update({
+      where: { id: bookingId },
+      data: { status }
+    });
+    return true;
+  } catch (error) {
+    throw new AppointmentError(error.message, 'DB_ERROR');
+  }
 }
 
 module.exports = { verifyAdminPin, getTodaysPatients, updateAppointmentStatus };

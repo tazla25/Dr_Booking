@@ -1,5 +1,5 @@
 
-jest.mock('../../src/database/supabase', () => ({
+jest.mock('../../src/database/prisma', () => ({
   from: jest.fn().mockReturnThis(),
   select: jest.fn().mockReturnThis(),
   eq: jest.fn().mockReturnThis(),
