@@ -1,5 +1,5 @@
 const cron = require('node-cron');
-const supabase = require('../database/supabase');
+const prisma = require('../database/prisma');
 const logger = require('../utils/logger');
 
 function initReminderJob(bot) {
@@ -10,26 +10,15 @@ function initReminderJob(bot) {
     try {
       const today = new Date().toISOString().split('T')[0];
 
-      const { data, error } = await supabase
-        .from('appointments')
-        .select(`
-          booking_id,
-          patient_phone,
-          queue_number,
-          appointment_date,
-          status,
-          schedules!inner (
-            start_time,
-            clinic_name
-          )
-        `)
-        .eq('appointment_date', today)
-        .eq('status', 'Confirmed');
-
-      if (error) {
-        logger.error({ err: error.message }, 'Failed to fetch appointments for reminders');
-        return;
-      }
+      const data = await prisma.appointment.findMany({
+        where: {
+          appointmentDate: today,
+          status: 'Confirmed'
+        },
+        include: {
+          schedule: true
+        }
+      });
 
       if (!data || data.length === 0) return;
 
@@ -39,7 +28,7 @@ function initReminderJob(bot) {
       const currentTimeInMinutes = currentHour * 60 + currentMinute;
 
       for (const apt of data) {
-        const startTimeStr = apt.schedules.start_time; // e.g. '10:00'
+        const startTimeStr = apt.schedule.startTime; // e.g. '10:00'
         if (!startTimeStr) continue;
 
         const [startHour, startMin] = startTimeStr.split(':').map(Number);
@@ -49,15 +38,15 @@ function initReminderJob(bot) {
         const diff = startTimeInMinutes - currentTimeInMinutes;
 
         if (diff > 0 && diff <= 60) {
-          const clinicStr = apt.schedules.clinic_name ? ` (${apt.schedules.clinic_name})` : '';
-          const message = `⏰ *রিমাইন্ডার:*\nআপনার অ্যাপয়েন্টমেন্ট${clinicStr} ১ ঘণ্টার মধ্যে শুরু হবে।\n\nটোকেন: *#${apt.queue_number}*\nলাইভ ট্র্যাকার দেখতে /queue চাপুন।`;
+          const clinicStr = apt.schedule.clinicName ? ` (${apt.schedule.clinicName})` : '';
+          const message = `⏰ *রিমাইন্ডার:*\nআপনার অ্যাপয়েন্টমেন্ট${clinicStr} ১ ঘণ্টার মধ্যে শুরু হবে।\n\nটোকেন: *#${apt.queueNumber}*\nলাইভ ট্র্যাকার দেখতে /queue চাপুন।`;
 
           try {
-             await bot.sendMessage(apt.patient_phone, message, { parse_mode: 'Markdown' });
-             logger.info({ chatId: apt.patient_phone, bookingId: apt.booking_id }, 'Sent reminder');
+             await bot.sendMessage(apt.patientPhone, message, { parse_mode: 'Markdown' });
+             logger.info({ chatId: apt.patientPhone, appointmentId: apt.id }, 'Sent reminder');
              // For a real production app, add a 'reminder_sent' boolean column.
           } catch (sendErr) {
-             logger.error({ chatId: apt.patient_phone, err: sendErr.message }, 'Failed to send reminder via Telegram');
+             logger.error({ chatId: apt.patientPhone, err: sendErr.message }, 'Failed to send reminder via Telegram');
           }
         }
       }
