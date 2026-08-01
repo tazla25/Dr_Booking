@@ -54,84 +54,91 @@ const bodySchema = z
   )
 
 export async function POST(req: NextRequest) {
-  // 1. Authenticate the bot
-  const authHeader = req.headers.get('authorization')
-  if (!validateBotSecret(authHeader)) {
-    return Response.json(
-      { error: 'unauthorized', message: 'Missing or invalid BOT_API_SECRET' },
-      { status: 401 }
-    )
-  }
-
-  // 2. Parse the request body
-  let parsed
   try {
-    parsed = bodySchema.parse(await req.json())
-  } catch (e) {
-    return Response.json(
-      { error: 'invalid_input', details: (e as Error).message },
-      { status: 400 }
-    )
-  }
+    // 1. Authenticate the bot
+    const authHeader = req.headers.get('authorization')
+    if (!validateBotSecret(authHeader)) {
+      return Response.json(
+        { error: 'unauthorized', message: 'Missing or invalid BOT_API_SECRET' },
+        { status: 401 }
+      )
+    }
 
-  // 3. Look up the AdminUser by telegramChatId OR whatsappNumber
-  const where = parsed.telegramChatId
-    ? { telegramChatId: parsed.telegramChatId }
-    : { whatsappNumber: parsed.whatsappNumber }
+    // 2. Parse the request body
+    let parsed
+    try {
+      parsed = bodySchema.parse(await req.json())
+    } catch (e) {
+      return Response.json(
+        { error: 'invalid_input', details: (e as Error).message },
+        { status: 400 }
+      )
+    }
 
-  const user = await db.adminUser.findUnique({ where, include: { doctor: true } })
+    // 3. Look up the AdminUser by telegramChatId OR whatsappNumber
+    const where = parsed.telegramChatId
+      ? { telegramChatId: parsed.telegramChatId }
+      : { whatsappNumber: parsed.whatsappNumber }
 
-  if (!user) {
-    return Response.json(
-      {
-        error: 'user_not_found',
-        message:
-          'No admin user is linked to this Telegram chat ID / WhatsApp number. The bot should run onboarding first.',
+    const user = await db.adminUser.findUnique({ where, include: { doctor: true } })
+
+    if (!user) {
+      return Response.json(
+        {
+          error: 'user_not_found',
+          message:
+            'No admin user is linked to this Telegram chat ID / WhatsApp number. The bot should run onboarding first.',
+        },
+        { status: 404 }
+      )
+    }
+
+    if (!user.isActive) {
+      return Response.json(
+        { error: 'account_disabled', message: 'This account has been deactivated.' },
+        { status: 423 }
+      )
+    }
+
+    // 4. Create the magic link (raw token + hashed DB record)
+    const { rawToken, record } = await createMagicLink(user.id)
+    const magicLink = buildMagicLinkUrl(rawToken)
+
+    // 5. Audit the generation (without exposing the token)
+    await db.auditLog.create({
+      data: {
+        adminUserId: user.id,
+        action: 'magic_link_generated',
+        detail: `Magic link generated for ${user.name} (${user.role})`,
+        ipAddress: req.headers.get('x-forwarded-for')?.split(',')[0].trim(),
       },
-      { status: 404 }
-    )
-  }
+    })
 
-  if (!user.isActive) {
+    // 6. Clean up expired unused tokens for this user (housekeeping)
+    await db.magicLink.deleteMany({
+      where: {
+        adminUserId: user.id,
+        usedAt: null,
+        expiresAt: { lt: new Date() },
+      },
+    })
+
+    return Response.json({
+      magicLink,
+      expiresAt: record.expiresAt,
+      user: {
+        id: user.id,
+        name: user.name,
+        role: user.role,
+        doctor: user.doctor
+          ? { id: user.doctor.id, fullName: user.doctor.fullName }
+          : null,
+      },
+    })
+  } catch (error: any) {
     return Response.json(
-      { error: 'account_disabled', message: 'This account has been deactivated.' },
-      { status: 423 }
+      { error: 'internal_error', message: error.message, stack: error.stack },
+      { status: 500 }
     )
   }
-
-  // 4. Create the magic link (raw token + hashed DB record)
-  const { rawToken, record } = await createMagicLink(user.id)
-  const magicLink = buildMagicLinkUrl(rawToken)
-
-  // 5. Audit the generation (without exposing the token)
-  await db.auditLog.create({
-    data: {
-      adminUserId: user.id,
-      action: 'magic_link_generated',
-      detail: `Magic link generated for ${user.name} (${user.role})`,
-      ipAddress: req.headers.get('x-forwarded-for')?.split(',')[0].trim(),
-    },
-  })
-
-  // 6. Clean up expired unused tokens for this user (housekeeping)
-  await db.magicLink.deleteMany({
-    where: {
-      adminUserId: user.id,
-      usedAt: null,
-      expiresAt: { lt: new Date() },
-    },
-  })
-
-  return Response.json({
-    magicLink,
-    expiresAt: record.expiresAt,
-    user: {
-      id: user.id,
-      name: user.name,
-      role: user.role,
-      doctor: user.doctor
-        ? { id: user.doctor.id, fullName: user.doctor.fullName }
-        : null,
-    },
-  })
 }
