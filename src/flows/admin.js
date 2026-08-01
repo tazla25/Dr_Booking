@@ -64,7 +64,7 @@ async function handleAdminFlow(chatId, text, scheduleId, isCallback = false, cal
     }
 
     // Generate Magic Link via Dashboard API
-    const baseUrl = process.env.PUBLIC_URL || 'http://localhost:3000';
+    const baseUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
     let magicLink;
     try {
       const response = await fetch(`${baseUrl}/api/auth/generate-magic-link`, {
