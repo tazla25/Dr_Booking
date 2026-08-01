@@ -15,6 +15,9 @@ jest.mock('../../src/database/prisma', () => ({
   appointment: {
     findMany: jest.fn(),
     update: jest.fn()
+  },
+  adminUser: {
+    upsert: jest.fn()
   }
 }));
 
