@@ -45,7 +45,8 @@ app.get('/api/queue/:scheduleId/:date', async (req, res) => {
     const { scheduleId, date } = req.params;
 
     // Basic input validation
-    if (!/^[a-f0-9-]{36}$/i.test(scheduleId)) {
+    // Prisma uses CUIDs (25 chars, [a-z0-9]) by default; also allow UUIDs
+    if (!/^[a-z0-9]{20,30}$/i.test(scheduleId) && !/^[a-f0-9-]{36}$/i.test(scheduleId)) {
       return res.status(400).json({ error: 'Invalid scheduleId format' });
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {

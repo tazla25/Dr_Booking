@@ -26,6 +26,8 @@ describe('handleAdminFlow', () => {
         schedule_id: 'sch-1',
       });
 
+      adminService.getTodaysPatients.mockResolvedValue([]);
+
       // Mock fetch
       global.fetch = jest.fn(() =>
         Promise.resolve({
@@ -38,7 +40,7 @@ describe('handleAdminFlow', () => {
 
       expect(reply.text || reply).toContain('লগইন সফল');
       expect(reply.options.reply_markup.inline_keyboard[0][0].url).toBe('http://localhost:3000/auth/verify?token=123');
-      expect(session.clearSession).toHaveBeenCalledWith('999');
+      expect(session.setSession).toHaveBeenCalledWith('999', { step: 'ADMIN_DASHBOARD', currentScheduleId: 'sch-1' });
       expect(global.fetch).toHaveBeenCalledTimes(1);
     });
 

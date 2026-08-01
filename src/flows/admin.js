@@ -86,18 +86,65 @@ async function handleAdminFlow(chatId, text, scheduleId, isCallback = false, cal
       return '⚠️ ড্যাশবোর্ড লিঙ্ক তৈরি করতে সমস্যা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।';
     }
 
-    await clearSession(chatId); // Clear session after giving magic link to avoid stuck state
+    // Set session to ADMIN_DASHBOARD instead of clearing
+    await setSession(chatId, { step: 'ADMIN_DASHBOARD', currentScheduleId: actualScheduleId });
+    
+    const patients = await getTodaysPatients(actualScheduleId);
+    const dashboardMsg = getMessage(lang, 'ADMIN_DASHBOARD', patients);
 
     return {
-        text: '✅ *লগইন সফল!*\n\nড্যাশবোর্ড ওপেন করতে নিচের বাটনে ক্লিক করুন:',
+        text: `✅ *লগইন সফল!*\n\nড্যাশবোর্ড ওপেন করতে নিচের বাটনে ক্লিক করুন:\n\n${dashboardMsg}`,
         options: {
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: '🖥️ Open Dashboard', url: magicLink }]
+                    [{ text: '🖥️ Open Web Dashboard', url: magicLink }]
                 ]
             }
         }
     };
+  }
+
+  // Step 2: Admin Dashboard actions
+  if (session.step === 'ADMIN_DASHBOARD') {
+    if (text === '/refresh') {
+      const patients = await getTodaysPatients(scheduleId);
+      return getMessage(lang, 'ADMIN_DASHBOARD', patients);
+    }
+    
+    if (text === '/next') {
+      const patients = await getTodaysPatients(scheduleId);
+      const pendingPatients = patients.filter(p => p.status === 'Confirmed' || p.status === 'Pending');
+      if (pendingPatients.length === 0) {
+        return getMessage(lang, 'ALL_DONE');
+      }
+      
+      const nextPatient = pendingPatients[0];
+      await updateAppointmentStatus(nextPatient.booking_id, 'Completed');
+      const updatedPatients = await getTodaysPatients(scheduleId);
+      return `${getMessage(lang, 'QUEUE_UPDATED', nextPatient.queue_number)}\n\n${getMessage(lang, 'ADMIN_DASHBOARD', updatedPatients)}`;
+    }
+    
+    if (text.startsWith('/cancel')) {
+      const parts = text.split(' ');
+      if (parts.length > 1) {
+        const token = parseInt(parts[1], 10);
+        if (!isNaN(token)) {
+          const patients = await getTodaysPatients(scheduleId);
+          const pToCancel = patients.find(p => p.queue_number === token);
+          if (pToCancel) {
+            await updateAppointmentStatus(pToCancel.booking_id, 'Cancelled');
+            const updatedPatients = await getTodaysPatients(scheduleId);
+            return `✅ Token #${token} Cancelled.\n\n${getMessage(lang, 'ADMIN_DASHBOARD', updatedPatients)}`;
+          } else {
+             return `❌ Token #${token} not found.\n\n${getMessage(lang, 'ADMIN_DASHBOARD', patients)}`;
+          }
+        }
+      }
+    }
+    
+    // Fallback
+    const patients = await getTodaysPatients(scheduleId);
+    return getMessage(lang, 'ADMIN_DASHBOARD', patients);
   }
 
   return getMessage(lang, 'ERROR');
