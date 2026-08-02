@@ -21,6 +21,7 @@ model Doctor {
   specialization String
   phone          String?
   email          String?
+  timezone       String   @default("Asia/Dhaka")
   fee            Int      @default(0)
   rating         Float    @default(0)
   isActive       Boolean  @default(true)
@@ -162,3 +163,31 @@ model BotSession {
 
   @@map("bot_sessions")
 }
+
+model Session {
+  id          String    @id @default(cuid())
+  adminUserId String
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  @@index([adminUserId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model RateLimitEntry {
+  id        String   @id @default(cuid())
+  ip        String
+  endpoint  String
+  hits      Int      @default(1)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@unique([ip, endpoint])
+  @@map("rate_limits")
+}
+
