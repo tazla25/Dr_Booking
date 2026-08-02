@@ -12,7 +12,7 @@ const translations = {
       const list = schedules
         .map(
           (s, i) =>
-            `${i + 1}. 🩺 *${s.doctors.full_name}* (${s.doctors.specialization})\n   📅 ${s.day_of_week} | 🕙 ${s.start_time}–${s.end_time}`
+            `${i + 1}. 🩺 *${s.doctor.fullName}* (${s.doctor.specialization})\n   📅 ${s.dayOfWeek} | 🕙 ${s.startTime}–${s.endTime}`
         )
         .join('\n\n');
       return `✅ এই এলাকায় পাওয়া ডাক্তারগণ:\n\n${list}\n\nনিচের বাটন থেকে ডাক্তার বেছে নিন:`;
@@ -20,12 +20,12 @@ const translations = {
     ASK_DATE: '📅 কোন তারিখে অ্যাপয়েন্টমেন্ট চান?\n\nনিচের তারিখগুলো থেকে বেছে নিন অথবা (YYYY-MM-DD) ফরম্যাটে লিখে দিন:',
     ASK_NAME: '👤 আপনার পুরো নাম লিখুন:',
     BOOKING_CONFIRMED: (name, queueNumber, date, scheduleId) =>
-      `✅ *বুকিং সম্পন্ন!*\n\n👤 নাম: ${name}\n📅 তারিখ: ${date}\n🔢 আপনার টোকেন: *${queueNumber}*\n\nলাইভ স্ট্যাটাস দেখতে লিংকে ক্লিক করুন:\n${process.env.DASHBOARD_URL || ''}/?view=tracker&scheduleId=${scheduleId}&date=${date}`,
+      `✅ *বুকিং সম্পন্ন!*\n\n👤 নাম: ${name}\n📅 তারিখ: ${date}\n🔢 আপনার টোকেন: *${queueNumber}*\n\n[লাইভ স্ট্যাটাস দেখতে এখানে ক্লিক করুন](${process.env.DASHBOARD_URL || ''}/?view=tracker&scheduleId=${scheduleId}&date=${date})`,
     ADMIN_ASK_PIN: '🔒 আপনার সিক্রেট PIN দিন:',
     ADMIN_INVALID_PIN: '❌ ভুল PIN। আবার চেষ্টা করুন।',
     ADMIN_DASHBOARD: (patients) => {
         if (!patients.length) return `📋 আজকে কোনো রোগী নেই।`;
-        const list = patients.map((p) => `#${p.queue_number} ${p.patient_name} — _${p.status}_`).join('\n');
+        const list = patients.map((p) => `#${p.queueNumber} ${p.patientName} — _${p.status}_`).join('\n');
         return `📋 *আজকের রোগী তালিকা:*\n\n${list}\n\n➡️ /next — পরবর্তী রোগী সম্পন্ন\n❌ /cancel <token> — বাতিল করুন\n🔄 /refresh — তালিকা রিফ্রেশ`;
     },
     QUEUE_UPDATED: (token) => `✅ Token #${token} — *Completed* হিসেবে আপডেট হয়েছে।`,
@@ -58,7 +58,7 @@ const translations = {
       const list = schedules
         .map(
           (s, i) =>
-            `${i + 1}. 🩺 *${s.doctors.full_name}* (${s.doctors.specialization})\n   📅 ${s.day_of_week} | 🕙 ${s.start_time}–${s.end_time}`
+            `${i + 1}. 🩺 *${s.doctor.fullName}* (${s.doctor.specialization})\n   📅 ${s.dayOfWeek} | 🕙 ${s.startTime}–${s.endTime}`
         )
         .join('\n\n');
       return `✅ Doctors available in this area:\n\n${list}\n\nChoose a doctor from the buttons below:`;
@@ -66,12 +66,12 @@ const translations = {
     ASK_DATE: '📅 Which date do you want the appointment for?\n\nChoose from the dates below or type in (YYYY-MM-DD) format:',
     ASK_NAME: '👤 Please type your full name:',
     BOOKING_CONFIRMED: (name, queueNumber, date, scheduleId) =>
-      `✅ *Booking Confirmed!*\n\n👤 Name: ${name}\n📅 Date: ${date}\n🔢 Your Token: *${queueNumber}*\n\nClick the link to see live status:\n${process.env.DASHBOARD_URL || ''}/?view=tracker&scheduleId=${scheduleId}&date=${date}`,
+      `✅ *Booking Confirmed!*\n\n👤 Name: ${name}\n📅 Date: ${date}\n🔢 Your Token: *${queueNumber}*\n\n[Click here to see live status](${process.env.DASHBOARD_URL || ''}/?view=tracker&scheduleId=${scheduleId}&date=${date})`,
     ADMIN_ASK_PIN: '🔒 Enter your secret PIN:',
     ADMIN_INVALID_PIN: '❌ Invalid PIN. Try again.',
     ADMIN_DASHBOARD: (patients) => {
         if (!patients.length) return `📋 No patients today.`;
-        const list = patients.map((p) => `#${p.queue_number} ${p.patient_name} — _${p.status}_`).join('\n');
+        const list = patients.map((p) => `#${p.queueNumber} ${p.patientName} — _${p.status}_`).join('\n');
         return `📋 *Today's Patient List:*\n\n${list}\n\n➡️ /next — Next patient completed\n❌ /cancel <token> — Cancel\n🔄 /refresh — Refresh list`;
     },
     QUEUE_UPDATED: (token) => `✅ Token #${token} — Updated as *Completed*.`,
@@ -104,7 +104,7 @@ const translations = {
       const list = schedules
         .map(
           (s, i) =>
-            `${i + 1}. 🩺 *${s.doctors.full_name}* (${s.doctors.specialization})\n   📅 ${s.day_of_week} | 🕙 ${s.start_time}–${s.end_time}`
+            `${i + 1}. 🩺 *${s.doctor.fullName}* (${s.doctor.specialization})\n   📅 ${s.dayOfWeek} | 🕙 ${s.startTime}–${s.endTime}`
         )
         .join('\n\n');
       return `✅ इस क्षेत्र में उपलब्ध डॉक्टर:\n\n${list}\n\nनीचे दिए गए बटन से डॉक्टर चुनें:`;
@@ -112,12 +112,12 @@ const translations = {
     ASK_DATE: '📅 आप किस तारीख के लिए अपॉइंटमेंट चाहते हैं?\n\nनीचे दी गई तारीखों में से चुनें या (YYYY-MM-DD) प्रारूप में टाइप करें:',
     ASK_NAME: '👤 कृपया अपना पूरा नाम टाइप करें:',
     BOOKING_CONFIRMED: (name, queueNumber, date, scheduleId) =>
-      `✅ *बुकिंग पक्की हो गई!*\n\n👤 नाम: ${name}\n📅 तारीख: ${date}\n🔢 आपका टोकन: *${queueNumber}*\n\nलाइव स्थिति देखने के लिए लिंक पर क्लिक करें:\n${process.env.DASHBOARD_URL || ''}/?view=tracker&scheduleId=${scheduleId}&date=${date}`,
+      `✅ *बुकिंग पक्की हो गई!*\n\n👤 नाम: ${name}\n📅 तारीख: ${date}\n🔢 आपका टोकन: *${queueNumber}*\n\n[लाइव स्थिति देखने के लिए यहां क्लिक करें](${process.env.DASHBOARD_URL || ''}/?view=tracker&scheduleId=${scheduleId}&date=${date})`,
     ADMIN_ASK_PIN: '🔒 अपना गुप्त पिन दर्ज करें:',
     ADMIN_INVALID_PIN: '❌ अमान्य पिन। पुनः प्रयास करें।',
     ADMIN_DASHBOARD: (patients) => {
         if (!patients.length) return `📋 आज कोई मरीज नहीं है।`;
-        const list = patients.map((p) => `#${p.queue_number} ${p.patient_name} — _${p.status}_`).join('\n');
+        const list = patients.map((p) => `#${p.queueNumber} ${p.patientName} — _${p.status}_`).join('\n');
         return `📋 *आज की मरीज सूची:*\n\n${list}\n\n➡️ /next — अगला मरीज संपन्न\n❌ /cancel <token> — रद्द करें\n🔄 /refresh — सूची ताज़ा करें`;
     },
     QUEUE_UPDATED: (token) => `✅ टोकन #${token} — *Completed* के रूप में अपडेट किया गया।`,

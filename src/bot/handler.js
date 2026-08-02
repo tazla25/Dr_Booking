@@ -25,7 +25,9 @@ async function handleMessage(bot, msg) {
 
   const send = (reply, options = {}) => {
     const opts = { parse_mode: 'Markdown', ...options };
-    return bot.sendMessage(chatId, reply, opts);
+    return bot.sendMessage(chatId, reply, opts).catch(err => {
+        logger.error({ chatId, err: err.message }, '[handler] Failed to send message');
+    });
   };
 
   try {
@@ -155,7 +157,9 @@ async function handleCallbackQuery(bot, query) {
 
   const send = (reply, options = {}) => {
     const opts = { parse_mode: 'Markdown', ...options };
-    return bot.sendMessage(chatId, reply, opts);
+    return bot.sendMessage(chatId, reply, opts).catch(err => {
+        logger.error({ chatId, err: err.message }, '[handler] Failed to send callback message');
+    });
   };
 
   try {
