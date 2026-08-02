@@ -45,7 +45,8 @@ const translations = {
     CANCEL_PROMPT: 'আপনার টোকেন নম্বর দিন (যেমন: /cancel 5) অথবা পূর্ববর্তী মেনুতে ফিরে যান:',
     BOOKING_CANCELLED: (token) => `✅ আপনার বুকিং (টোকেন #${token}) সফলভাবে বাতিল করা হয়েছে।`,
     REMINDER: (clinicStr, queueNumber) =>
-      `⏰ *রিমাইন্ডার:*\nআপনার অ্যাপয়েন্টমেন্ট${clinicStr} ১ ঘণ্টার মধ্যে শুরু হবে।\n\nটোকেন: *#${queueNumber}*\nলাইভ ট্র্যাকার দেখতে /queue চাপুন।`
+      `⏰ *রিমাইন্ডার:*\nআপনার অ্যাপয়েন্টমেন্ট${clinicStr} ১ ঘণ্টার মধ্যে শুরু হবে।\n\nটোকেন: *#${queueNumber}*\nলাইভ ট্র্যাকার দেখতে /queue চাপুন।`,
+    LOCKOUT: (remainMin) => `🔒 অনেকবার ভুল PIN দিয়েছেন। ${remainMin} মিনিট পর আবার চেষ্টা করুন।`
   },
   en: {
     WELCOME: '👋 Hello! I am *Smart Queue Bot*.',
@@ -90,7 +91,8 @@ const translations = {
     CANCEL_PROMPT: 'Please enter your token number (e.g., /cancel 5) or go back:',
     BOOKING_CANCELLED: (token) => `✅ Your booking (Token #${token}) has been successfully cancelled.`,
     REMINDER: (clinicStr, queueNumber) =>
-      `⏰ *Reminder:*\nYour appointment${clinicStr} starts within 1 hour.\n\nToken: *#${queueNumber}*\nType /queue to see live tracker.`
+      `⏰ *Reminder:*\nYour appointment${clinicStr} starts within 1 hour.\n\nToken: *#${queueNumber}*\nType /queue to see live tracker.`,
+    LOCKOUT: (remainMin) => `🔒 Too many failed attempts. Please try again in ${remainMin} minute(s).`
   },
   hi: {
     WELCOME: '👋 नमस्ते! मैं *Smart Queue Bot* हूँ।',
@@ -135,7 +137,8 @@ const translations = {
     CANCEL_PROMPT: 'कृपया अपना टोकन नंबर दर्ज करें (जैसे: /cancel 5) या वापस जाएं:',
     BOOKING_CANCELLED: (token) => `✅ आपकी बुकिंग (टोकन #${token}) सफलतापूर्वक रद्द कर दी गई है।`,
     REMINDER: (clinicStr, queueNumber) =>
-      `⏰ *रिमाइंडर:*\nआपका अपॉइंटमेंट${clinicStr} 1 घंटे में शुरू होगा।\n\nটোকেন: *#${queueNumber}*\nलाइव ट्रैकर देखने के लिए /queue टाइप करें।`
+      `⏰ *रिमाइंडर:*\nआपका अपॉइंटमेंट${clinicStr} 1 घंटे में शुरू होगा।\n\nটোকেন: *#${queueNumber}*\nलाइव ट्रैकर देखने के लिए /queue टाइप करें।`,
+    LOCKOUT: (remainMin) => `🔒 बहुत अधिक गलत प्रयास। कृपया ${remainMin} मिनट बाद पुनः प्रयास करें।`
   }
 };
 

@@ -14,6 +14,15 @@ import { db } from './db'
 export const SESSION_COOKIE = 'drb_session'
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
 
+// HMAC key derived from BOT_API_SECRET for session token signing
+function getSessionSecret(): string {
+  return process.env.BOT_API_SECRET || 'dev-session-secret-change-me'
+}
+
+function hmacToken(token: string): string {
+  return crypto.createHmac('sha256', getSessionSecret()).update(token).digest('hex')
+}
+
 export const MAX_FAILED_ATTEMPTS = 5
 export const LOCKOUT_MINUTES = 15
 
@@ -44,6 +53,14 @@ export async function createSessionForUser(
   })
 
   const token = crypto.randomBytes(32).toString('hex')
+  const tokenHash = hmacToken(token)
+
+  // Store the session token hash in passwordHash (field is unused since password auth was removed)
+  await db.adminUser.update({
+    where: { id: user.id },
+    data: { passwordHash: tokenHash },
+  })
+
   const cookieStore = await cookies()
   cookieStore.set(SESSION_COOKIE, `${user.id}:${token}`, {
     httpOnly: true,
@@ -63,8 +80,12 @@ export async function getCurrentUser() {
   const raw = cookieStore.get(SESSION_COOKIE)?.value
   if (!raw) return null
 
-  const [userId] = raw.split(':')
-  if (!userId) return null
+  const separatorIdx = raw.indexOf(':')
+  if (separatorIdx === -1) return null
+
+  const userId = raw.substring(0, separatorIdx)
+  const token = raw.substring(separatorIdx + 1)
+  if (!userId || !token) return null
 
   const user = await db.adminUser.findUnique({
     where: { id: userId },
@@ -72,6 +93,14 @@ export async function getCurrentUser() {
   })
 
   if (!user || !user.isActive) return null
+
+  // Verify the session token matches the stored hash
+  if (!user.passwordHash) return null
+  const expectedHash = hmacToken(token)
+  if (!crypto.timingSafeEqual(Buffer.from(user.passwordHash), Buffer.from(expectedHash))) {
+    return null
+  }
+
   return user
 }
 

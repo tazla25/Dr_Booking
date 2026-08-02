@@ -25,8 +25,11 @@ const { initReminderJob } = require('./src/jobs/reminderJob');
 
 const PORT = process.env.PORT || 3000;
 
+const crypto = require('crypto');
+const webhookSecret = process.env.WEBHOOK_SECRET || process.env.BOT_API_SECRET || crypto.createHash('sha256').update(process.env.TELEGRAM_BOT_TOKEN).digest('hex');
+
 const bot = createBot();
-registerWebhook(bot, app);
+registerWebhook(bot, app, webhookSecret);
 initReminderJob(bot);
 
 const server = app.listen(PORT, () => {
@@ -34,7 +37,7 @@ const server = app.listen(PORT, () => {
 
   if (process.env.PUBLIC_URL) {
     bot
-      .setWebHook(`${process.env.PUBLIC_URL}/webhook`)
+      .setWebHook(`${process.env.PUBLIC_URL}/webhook`, { secret_token: webhookSecret })
       .then(() => console.log(`✅ Webhook set: ${process.env.PUBLIC_URL}/webhook`))
       .catch((err) => console.error('❌ Webhook error:', err.message));
   }

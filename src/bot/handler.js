@@ -10,13 +10,6 @@ const { cancelBookingByToken, rescheduleBookingByToken } = require('../services/
 const { validateDate } = require('../utils/validators');
 const { getMessage } = require('../utils/messages');
 
-/**
- * Helper to get user's language from session
- */
-async function getUserLang(chatId) {
-  const session = await getSession(chatId);
-  return session.lang || 'bn'; // Default to Bengali
-}
 
 /**
  * Main message handler — called for every incoming Telegram message.
@@ -28,7 +21,7 @@ async function handleMessage(bot, msg) {
   const chatId = String(msg.chat.id);
   const text = (msg.text || '').trim();
   const session = await getSession(chatId);
-  const lang = await getUserLang(chatId);
+  const lang = session.lang || 'bn';
 
   const send = (reply, options = {}) => {
     const opts = { parse_mode: 'Markdown', ...options };

@@ -9,6 +9,7 @@ const {
 const { getSession, setSession, clearSession } = require('../bot/session');
 const { validateAdminPin } = require('../utils/validators');
 const { getMessage } = require('../utils/messages');
+const logger = require('../utils/logger');
 
 // Simple in-memory rate limiting for admin PIN attempts
 const loginAttempts = new Map();
@@ -39,7 +40,7 @@ async function handleAdminFlow(chatId, text, scheduleId, isCallback = false, cal
       const elapsed = Date.now() - attempts.lastAttempt;
       if (elapsed < LOCKOUT_MS) {
         const remainMin = Math.ceil((LOCKOUT_MS - elapsed) / 60000);
-        return `🔒 অনেকবার ভুল PIN দিয়েছেন। ${remainMin} মিনিট পর আবার চেষ্টা করুন।`;
+        return getMessage(lang, 'LOCKOUT', remainMin);
       }
       loginAttempts.delete(chatId);
     }
@@ -82,7 +83,7 @@ async function handleAdminFlow(chatId, text, scheduleId, isCallback = false, cal
       }
       magicLink = data.magicLink;
     } catch (error) {
-      console.error('Error generating magic link:', error);
+      logger.error({ err: error.message }, 'Error generating magic link');
       return '⚠️ ড্যাশবোর্ড লিঙ্ক তৈরি করতে সমস্যা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।';
     }
 

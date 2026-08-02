@@ -35,6 +35,16 @@ function rateLimiter(req, res, next) {
 
 app.use('/api', rateLimiter);
 
+// Clean up stale rate limit entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, record] of requestCounts) {
+    if (now - record.start > RATE_LIMIT_WINDOW * 2) {
+      requestCounts.delete(ip);
+    }
+  }
+}, 5 * 60 * 1000);
+
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 

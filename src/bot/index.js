@@ -18,8 +18,11 @@ function createBot() {
  * @param {TelegramBot} bot
  * @param {Express} app
  */
-function registerWebhook(bot, app) {
+function registerWebhook(bot, app, secretToken) {
   app.post('/webhook', (req, res) => {
+    if (secretToken && req.headers['x-telegram-bot-api-secret-token'] !== secretToken) {
+      return res.status(403).send('Forbidden');
+    }
     bot.processUpdate(req.body);
     res.sendStatus(200);
   });

@@ -14,7 +14,8 @@ function initReminderJob(bot) {
       const data = await prisma.appointment.findMany({
         where: {
           appointmentDate: today,
-          status: 'Confirmed'
+          status: 'Confirmed',
+          reminderSent: false
         },
         include: {
           schedule: true
@@ -52,7 +53,11 @@ function initReminderJob(bot) {
           try {
              await bot.sendMessage(apt.patientPhone, message, { parse_mode: 'Markdown' });
              logger.info({ chatId: apt.patientPhone, appointmentId: apt.id }, 'Sent reminder');
-             // For a real production app, add a 'reminder_sent' boolean column.
+             
+             await prisma.appointment.update({
+               where: { id: apt.id },
+               data: { reminderSent: true }
+             });
           } catch (sendErr) {
              logger.error({ chatId: apt.patientPhone, err: sendErr.message }, 'Failed to send reminder via Telegram');
           }

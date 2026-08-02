@@ -47,11 +47,11 @@ describe('handlePatientFlow — AWAITING_PIN step', () => {
     expect(reply.text || reply).toContain('পাওয়া যায়নি');
   });
 
-  it('returns invalid format message when PIN is not 6 digits', async () => {
+  it('returns invalid format message when PIN is not 4-6 digits', async () => {
     session.getSession.mockReturnValue({ step: 'AWAITING_PIN' });
 
     const reply = await handlePatientFlow('123', '123');
-    expect(reply).toContain('৬ ডিজিট');
+    expect(reply).toContain('ডিজিট');
   });
 });
 
