@@ -34,6 +34,22 @@ async function handleMessage(bot, msg) {
 
     // START / ONBOARDING
     if (lowerText === '/start' || lowerText === 'hi' || lowerText === 'hello' || lowerText === 'হ্যালো') {
+      if (session && session.lang) {
+        await setSession(chatId, { step: 'MAIN_MENU' });
+        const welcomeText = getMessage(session.lang, 'WELCOME') + '\n\n' + getMessage(session.lang, 'MAIN_MENU');
+        return send(welcomeText, {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: getMessage(session.lang, 'BTN_BOOK'), callback_data: 'menu_book' }],
+              [{ text: getMessage(session.lang, 'BTN_STATUS'), callback_data: 'menu_status' }],
+              [{ text: getMessage(session.lang, 'BTN_CANCEL'), callback_data: 'menu_cancel' }],
+              [{ text: getMessage(session.lang, 'BTN_ADMIN'), callback_data: 'menu_admin' }],
+              [{ text: '🌐 Change Language', callback_data: 'change_lang' }]
+            ]
+          }
+        });
+      }
+
       await clearSession(chatId);
       await setSession(chatId, { step: 'AWAITING_LANG' });
       return send(getMessage('en', 'CHOOSE_LANG'), {
@@ -144,6 +160,21 @@ async function handleCallbackQuery(bot, query) {
 
   try {
     // 1. Handle Language Selection
+    if (data === 'change_lang') {
+      await setSession(chatId, { step: 'AWAITING_LANG' });
+      return send(getMessage('en', 'CHOOSE_LANG'), {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '🇧🇩 বাংলা', callback_data: 'lang_bn' },
+              { text: '🇬🇧 English', callback_data: 'lang_en' },
+              { text: '🇮🇳 हिन्दी', callback_data: 'lang_hi' }
+            ]
+          ]
+        }
+      });
+    }
+
     if (data.startsWith('lang_')) {
       const lang = data.split('_')[1];
       await setSession(chatId, { lang, step: 'MAIN_MENU' });
@@ -156,7 +187,8 @@ async function handleCallbackQuery(bot, query) {
             [{ text: getMessage(lang, 'BTN_BOOK'), callback_data: 'menu_book' }],
             [{ text: getMessage(lang, 'BTN_STATUS'), callback_data: 'menu_status' }],
             [{ text: getMessage(lang, 'BTN_CANCEL'), callback_data: 'menu_cancel' }],
-            [{ text: getMessage(lang, 'BTN_ADMIN'), callback_data: 'menu_admin' }]
+            [{ text: getMessage(lang, 'BTN_ADMIN'), callback_data: 'menu_admin' }],
+            [{ text: '🌐 Change Language', callback_data: 'change_lang' }]
           ]
         }
       });

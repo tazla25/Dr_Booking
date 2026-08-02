@@ -67,26 +67,6 @@ app.use('/api', rateLimiter);
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
-// Live queue API — used by tracker.html
-// GET /api/queue/:scheduleId/:date
-app.get('/api/queue/:scheduleId/:date', async (req, res) => {
-  try {
-    const { scheduleId, date } = req.params;
 
-    // Basic input validation
-    if (!/^[a-z0-9]{20,30}$/i.test(scheduleId) && !/^[a-f0-9-]{36}$/i.test(scheduleId)) {
-      return res.status(400).json({ error: 'Invalid scheduleId format' });
-    }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' });
-    }
-
-    const status = await getQueueStatus(scheduleId, date);
-    res.json(status);
-  } catch (err) {
-    logger.error('[API] Queue status error:', err.message);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 module.exports = app;

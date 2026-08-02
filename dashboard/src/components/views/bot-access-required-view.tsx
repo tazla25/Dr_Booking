@@ -58,10 +58,9 @@ const DEMO_USERS = [
 ]
 
 export function BotAccessRequiredView() {
-  if (
-    process.env.NODE_ENV === 'production' &&
-    DEMO_BOT_SECRET === 'dev-bot-secret-change-in-production'
-  ) {
+  const IS_DEFAULT_SECRET = DEMO_BOT_SECRET === 'dev-bot-secret-change-in-production'
+
+  if (process.env.NODE_ENV === 'production' && IS_DEFAULT_SECRET) {
     throw new Error('FATAL: Default dev secret is not allowed in production')
   }
 
@@ -205,30 +204,36 @@ export function BotAccessRequiredView() {
                     Simulate the bot generating a magic link for a seeded user.
                   </p>
                 </div>
-                <div className="space-y-2">
-                  {DEMO_USERS.map((u) => (
-                    <Button
-                      key={u.telegramChatId}
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-between gap-2"
-                      disabled={generating !== null}
-                      onClick={() => generateLinkFor(u.telegramChatId, u.label)}
-                    >
-                      <span className="text-left">
-                        <span className="block text-xs font-medium">{u.label}</span>
-                        <span className="block text-[10px] text-muted-foreground">
-                          telegramChatId: {u.telegramChatId}
+                {IS_DEFAULT_SECRET ? (
+                  <div className="p-3 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-400 text-xs rounded-md border border-amber-200 dark:border-amber-800">
+                    The Dev Panel is disabled because you are using the default demo secret. Please configure <code>NEXT_PUBLIC_DEV_BOT_SECRET</code> to enable it.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {DEMO_USERS.map((u) => (
+                      <Button
+                        key={u.telegramChatId}
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-between gap-2"
+                        disabled={generating !== null}
+                        onClick={() => generateLinkFor(u.telegramChatId, u.label)}
+                      >
+                        <span className="text-left">
+                          <span className="block text-xs font-medium">{u.label}</span>
+                          <span className="block text-[10px] text-muted-foreground">
+                            telegramChatId: {u.telegramChatId}
+                          </span>
                         </span>
-                      </span>
-                      {generating === u.label ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <ArrowRight className="w-4 h-4" />
-                      )}
-                    </Button>
-                  ))}
-                </div>
+                        {generating === u.label ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <ArrowRight className="w-4 h-4" />
+                        )}
+                      </Button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

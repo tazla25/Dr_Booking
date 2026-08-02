@@ -291,7 +291,8 @@
 
     async function refresh() {
       try {
-        const res = await fetch(`/api/queue/${encodeURIComponent(scheduleId)}/${date}`);
+        const DASHBOARD_URL = window.DASHBOARD_URL || '';
+        const res = await fetch(`${DASHBOARD_URL}/api/queue/${encodeURIComponent(scheduleId)}/${date}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 

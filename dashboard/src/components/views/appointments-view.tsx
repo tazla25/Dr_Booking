@@ -58,10 +58,10 @@ export function AppointmentsView() {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [page, setPage] = useState(0)
-  const [cursors, setCursors] = useState<(string | undefined)[]>([undefined])
-  const [nextCursor, setNextCursor] = useState<string | null>(null)
-  const pageSize = 25
+  const [cursor, setCursor] = useState<string | null>(null)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const pageSize = 50
 
   // Filters
   const [q, setQ] = useState('')
@@ -106,12 +106,13 @@ export function AppointmentsView() {
     }
   }, [user?.doctorId])
 
-  const fetchAppointments = useCallback(async () => {
-    setLoading(true)
+  const fetchAppointments = useCallback(async (currentCursor: string | null = null, append = false) => {
+    if (append) setLoadingMore(true)
+    else setLoading(true)
     try {
       const params = new URLSearchParams()
       params.set('limit', String(pageSize))
-      if (cursors[page]) params.set('cursor', cursors[page]!)
+      if (currentCursor) params.set('cursor', currentCursor)
       
       if (q) params.set('q', q)
       if (doctorFilter !== 'all') params.set('doctorId', doctorFilter)
@@ -125,23 +126,22 @@ export function AppointmentsView() {
       const data = await api<{ appointments: Appointment[]; total: number; nextCursor: string | null }>(
         `/api/appointments?${params.toString()}`
       )
-      setAppointments(data.appointments)
-      setTotal(data.total)
-      setNextCursor(data.nextCursor)
       
-      if (data.nextCursor) {
-        setCursors((prev) => {
-          const newCursors = [...prev]
-          newCursors[page + 1] = data.nextCursor!
-          return newCursors
-        })
+      if (append) {
+        setAppointments(prev => [...prev, ...data.appointments])
+      } else {
+        setAppointments(data.appointments)
       }
+      setTotal(data.total)
+      setCursor(data.nextCursor)
+      setHasMore(data.appointments.length === pageSize && !!data.nextCursor)
     } catch (e) {
       toast.error(t('error'))
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
-  }, [q, doctorFilter, statusFilter, dateFilter, page, pageSize, t])
+  }, [q, doctorFilter, statusFilter, dateFilter, pageSize, t])
 
   useEffect(() => {
     fetchDoctors()
@@ -149,11 +149,9 @@ export function AppointmentsView() {
   }, [fetchDoctors, fetchSchedules])
 
   useEffect(() => {
-    const handler = setTimeout(fetchAppointments, 200)
+    const handler = setTimeout(() => fetchAppointments(null, false), 200)
     return () => clearTimeout(handler)
   }, [fetchAppointments])
-
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   const updateStatus = async (id: string, status: string) => {
     try {
@@ -340,11 +338,11 @@ export function AppointmentsView() {
               <Input
                 placeholder={t('searchByNamePhone')}
                 value={q}
-                onChange={(e) => { setQ(e.target.value); setPage(0); setCursors([undefined]) }}
+                onChange={(e) => { setQ(e.target.value) }}
                 className="pl-10"
               />
             </div>
-            <Select value={doctorFilter} onValueChange={(v) => { setDoctorFilter(v); setPage(0); setCursors([undefined]) }}>
+            <Select value={doctorFilter} onValueChange={(v) => { setDoctorFilter(v) }}>
               <SelectTrigger>
                 <SelectValue placeholder={t('allDoctors')} />
               </SelectTrigger>
@@ -357,7 +355,7 @@ export function AppointmentsView() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0); setCursors([undefined]) }}>
+            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v) }}>
               <SelectTrigger>
                 <SelectValue placeholder={t('allStatuses')} />
               </SelectTrigger>
@@ -369,7 +367,7 @@ export function AppointmentsView() {
                 <SelectItem value="NoShow">{t('statusNoShow')}</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={dateFilter} onValueChange={(v) => { setDateFilter(v); setPage(0); setCursors([undefined]) }}>
+            <Select value={dateFilter} onValueChange={(v) => { setDateFilter(v) }}>
               <SelectTrigger>
                 <SelectValue placeholder={t('allDates')} />
               </SelectTrigger>
@@ -495,32 +493,15 @@ export function AppointmentsView() {
       </Card>
 
       {/* Pagination */}
-      {total > pageSize && (
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-muted-foreground">
-            {t('showing')} {page * pageSize + 1}–{Math.min((page + 1) * pageSize, total)} {t('of')} {total}
-          </p>
-          <div className="flex gap-1">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={page === 0}
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <span className="px-3 py-2 text-sm text-muted-foreground">
-              {page + 1} / {totalPages}
-            </span>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={page + 1 >= totalPages || !nextCursor}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
+      {hasMore && (
+        <div className="flex justify-center py-4">
+          <Button
+            variant="outline"
+            onClick={() => fetchAppointments(cursor, true)}
+            disabled={loadingMore}
+          >
+            {loadingMore ? 'Loading...' : 'Load more'}
+          </Button>
         </div>
       )}
 

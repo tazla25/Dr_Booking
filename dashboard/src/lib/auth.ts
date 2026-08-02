@@ -57,7 +57,7 @@ export async function createSessionForUser(
 
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000) // 30 min sliding window
 
-  const session = await (db as any).session.create({
+  const session = await db.session.create({
     data: {
       adminUserId: user.id,
       tokenHash,
@@ -93,7 +93,7 @@ export async function getCurrentUser() {
   const token = raw.substring(separatorIdx + 1)
   if (!sessionId || !token) return null
 
-  const session = await (db as any).session.findUnique({
+  const session = await db.session.findUnique({
     where: { id: sessionId },
     include: { adminUser: { include: { doctor: true } } },
   })
@@ -108,7 +108,9 @@ export async function getCurrentUser() {
     return null
   }
 
-  if (session.expiresAt < new Date()) {
+  const IDLE_TIMEOUT_MS = 30 * 60 * 1000
+  if (Date.now() - (session.expiresAt.getTime() - IDLE_TIMEOUT_MS) > IDLE_TIMEOUT_MS) {
+    await db.session.delete({ where: { id: session.id } })
     return null
   }
 
@@ -125,9 +127,9 @@ export async function getCurrentUser() {
   }
 
   // 4. Update session
-  await (db as any).session.update({
+  await db.session.update({
     where: { id: session.id },
-    data: { expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
+    data: { expiresAt: new Date(Date.now() + IDLE_TIMEOUT_MS) },
   })
 
   return user
@@ -142,8 +144,10 @@ export async function logout() {
       const sessionId = raw.substring(0, separatorIdx)
       if (sessionId) {
         try {
-          await (db as any).session.deleteMany({ where: { id: sessionId } }).catch(() => {})
-        } catch (e) {  }
+          await db.session.deleteMany({ where: { id: sessionId } })
+        } catch (e) {
+          console.error('Failed to delete session on logout:', e)
+        }
       }
     }
   }
