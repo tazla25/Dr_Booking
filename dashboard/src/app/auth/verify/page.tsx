@@ -133,7 +133,7 @@ function VerifyInner() {
                   <Button
                     className="w-full gap-2"
                     onClick={() => {
-                      window.location.href = 'https://t.me/Ax_erax_bot'
+                      window.location.href = process.env.NEXT_PUBLIC_BOT_URL || 'https://t.me/Ax_erax_bot'
                     }}
                   >
                     <MessageCircle className="w-4 h-4" />

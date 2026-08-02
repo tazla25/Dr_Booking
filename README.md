@@ -174,12 +174,11 @@ npm run dev
 
 ---
 
-## 🔮 Future Features (Phase 2+)
+## 🔮 Future Features
 
-- WhatsApp Cloud API (replace Telegram)
-- Automated appointment reminders
-- Walk-in patient manual entry by compounder
+- WhatsApp Cloud API integration
 - Digital PDF invoices via WhatsApp
 - AI-predicted waiting time
-- Analytics dashboard
-- Multi-language support
+- Payment integration (bKash, Nagad)
+- Multi-clinic support
+- Doctor rating system

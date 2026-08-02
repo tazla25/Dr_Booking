@@ -129,7 +129,8 @@ async function cancelBookingByToken(queueNumber, chatId) {
         patientPhone: String(chatId),
         status: 'Confirmed',
         appointmentDate: today
-      }
+      },
+      orderBy: { createdAt: 'desc' }
     });
 
     if (!appointment) {
@@ -164,7 +165,8 @@ async function rescheduleBookingByToken(queueNumber, chatId, newDate) {
         queueNumber: queueNumber,
         patientPhone: String(chatId),
         status: 'Confirmed'
-      }
+      },
+      orderBy: { createdAt: 'desc' }
     });
 
     if (!appointment) {
