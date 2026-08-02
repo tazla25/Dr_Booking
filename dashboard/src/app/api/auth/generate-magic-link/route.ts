@@ -100,6 +100,23 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // 3.5. Rate limit check: count unused magic links in the last 10 minutes
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000)
+    const unusedLinksCount = await db.magicLink.count({
+      where: {
+        adminUserId: user.id,
+        usedAt: null,
+        createdAt: { gte: tenMinutesAgo },
+      },
+    })
+
+    if (unusedLinksCount >= 3) {
+      return Response.json(
+        { error: 'rate_limit_exceeded', message: 'Too many unused magic links. Please wait before requesting another.' },
+        { status: 429 }
+      )
+    }
+
     // 4. Create the magic link (raw token + hashed DB record)
     const { rawToken, record } = await createMagicLink(user.id)
     const magicLink = buildMagicLinkUrl(rawToken)
@@ -136,8 +153,9 @@ export async function POST(req: NextRequest) {
       },
     })
   } catch (error: any) {
+    console.error('Magic link generation error:', error)
     return Response.json(
-      { error: 'internal_error', message: error.message, stack: error.stack },
+      { error: 'internal_error', message: 'Failed to generate magic link' },
       { status: 500 }
     )
   }

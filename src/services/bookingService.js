@@ -48,15 +48,7 @@ async function createBooking({ patientName, patientPhone, scheduleId, appointmen
         }
       });
 
-      // return mapped to expected format
-      return {
-        ...data,
-        patient_name: data.patientName,
-        patient_phone: data.patientPhone,
-        schedule_id: data.scheduleId,
-        appointment_date: data.appointmentDate,
-        queue_number: data.queueNumber
-      };
+      return data;
     } catch (error) {
       attempts++;
       // If it's a unique constraint violation, retry
@@ -98,14 +90,7 @@ async function getQueueStatus(scheduleId, appointmentDate) {
     const currentToken =
       completed.length > 0 ? Math.max(...completed.map((r) => r.queueNumber)) : 0;
 
-    // Map pending items for backward compatibility
-    const mappedPending = pending.map(p => ({
-      queue_number: p.queueNumber,
-      status: p.status,
-      patient_name: p.patientName
-    }));
-
-    return { currentToken, pending: mappedPending };
+    return { currentToken, pending };
   } catch (error) {
     throw new AppointmentError(error.message, 'DB_ERROR');
   }
@@ -118,7 +103,7 @@ async function getQueueStatus(scheduleId, appointmentDate) {
  * @param {string} chatId
  * @returns {boolean} true on success
  */
-async function cancelBookingByToken(queueNumber, chatId) {
+async function cancelBookingByQueueNumber(queueNumber, chatId) {
   try {
     const today = new Date().toISOString().split('T')[0];
 
@@ -128,7 +113,7 @@ async function cancelBookingByToken(queueNumber, chatId) {
         queueNumber: queueNumber,
         patientPhone: String(chatId),
         status: 'Confirmed',
-        appointmentDate: today
+        appointmentDate: { gte: today }
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -185,4 +170,4 @@ async function rescheduleBookingByToken(queueNumber, chatId, newDate) {
   }
 }
 
-module.exports = { createBooking, getQueueStatus, cancelBookingByToken, rescheduleBookingByToken };
+module.exports = { createBooking, getQueueStatus, cancelBookingByQueueNumber, rescheduleBookingByToken };

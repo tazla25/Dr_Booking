@@ -51,10 +51,17 @@ export async function GET(
     completedCount: completed.length,
     cancelledCount: cancelled.length,
     totalCount: rows.length,
-    pending: pending.map((r) => ({
-      queueNumber: r.queueNumber,
-      patientName: r.patientName,
-      status: r.status,
-    })),
+    pending: pending.map((r) => {
+      const maskName = (name: string) => {
+        if (!name) return name
+        const parts = name.split(' ')
+        return parts.map((p) => (p.length > 1 ? p[0] + '*'.repeat(p.length - 1) : p)).join(' ')
+      }
+      return {
+        queueNumber: r.queueNumber,
+        patientName: maskName(r.patientName),
+        status: r.status,
+      }
+    }),
   })
 }

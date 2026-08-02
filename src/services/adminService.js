@@ -2,70 +2,45 @@ const { AppointmentError } = require('../utils/errors');
 const prisma = require('../database/prisma');
 
 /**
- * Verify a 4-digit admin PIN.
- * Returns the doctor_id and schedule_id if valid, null if not found.
+ * Handle admin authentication via Telegram Chat ID and generate magic link.
  *
- * @param {string} pin - 4-digit PIN string
- * @param {string} chatId - User's chat ID for tracking attempts
- * @returns {Object|null} { doctor_id, schedule_id } or null
+ * @param {string} chatId
+ * @returns {Object|null} { adminUser, magicLink } or null
  */
-async function verifyAdminPin(pin, chatId) {
-  const pinNumber = parseInt(pin, 10);
-  if (isNaN(pinNumber)) {
-    if (chatId) {
-      await logFailedLogin(chatId, pin);
-    }
-    return null;
-  }
-
-  // Find a Schedule with matching pinCode. We assume pin is unique to a schedule/doctor in this old paradigm.
-  const schedule = await prisma.schedule.findFirst({
-    where: { pinCode: pinNumber },
-    include: { doctor: true }
+async function handleAdminAuth(chatId) {
+  const adminUser = await prisma.adminUser.findUnique({
+    where: { telegramChatId: String(chatId) }
   });
+  
+  if (!adminUser) return null;
 
-  if (!schedule) {
-    if (chatId) {
-      await logFailedLogin(chatId, pin);
-    }
-    return null;
-  }
-
-  // Auto-register or update the compounder's Telegram ID
-  await prisma.adminUser.upsert({
-    where: { telegramChatId: String(chatId) },
-    update: { doctorId: schedule.doctorId },
-    create: {
-      telegramChatId: String(chatId),
-      doctorId: schedule.doctorId,
-      name: 'Compounder (' + String(chatId) + ')',
-      role: 'compounder',
-      isActive: true
-    }
-  });
-
-  return { doctor_id: schedule.doctorId, schedule_id: schedule.id };
-}
-
-/**
- * Log a failed login attempt for admin access.
- *
- * @param {string} chatId - The telegram chat ID
- * @param {string} pin - The attempted PIN
- */
-async function logFailedLogin(chatId, pin) {
+  const baseUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
+  let magicLink;
   try {
-    await prisma.failedLogin.create({
-      data: {
-        email: `bot-chat-${chatId}`, // fallback email for tracking
-        ipAddress: pin // using ipAddress to store the attempted pin since the new schema doesn't have attempted_pin
-      }
+    const response = await fetch(`${baseUrl}/api/auth/generate-magic-link`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.BOT_API_SECRET}`
+      },
+      body: JSON.stringify({ telegramChatId: String(chatId) })
     });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to generate magic link');
+    }
+    magicLink = data.magicLink;
   } catch (error) {
     const logger = require('../utils/logger');
-    logger.error({ chatId, err: error.message }, 'Failed to log login attempt');
+    logger.error({ err: error.message }, 'Error generating magic link');
+    throw new Error('Link generation failed', { cause: error });
   }
+
+  return { adminUser, magicLink };
 }
+
+const { formatInTimeZone } = require('date-fns-tz');
 
 /**
  * Get today's patient list for a given schedule, ordered by queue number.
@@ -74,9 +49,15 @@ async function logFailedLogin(chatId, pin) {
  * @returns {Array} patient rows
  */
 async function getTodaysPatients(scheduleId) {
-  const today = new Date().toISOString().split('T')[0];
-
   try {
+    const schedule = await prisma.schedule.findUnique({
+      where: { id: scheduleId },
+      include: { doctor: true }
+    });
+    if (!schedule) return [];
+
+    const tz = schedule.doctor?.timezone || 'Asia/Dhaka';
+    const today = formatInTimeZone(new Date(), tz, 'yyyy-MM-dd');
     const appointments = await prisma.appointment.findMany({
       where: {
         scheduleId: scheduleId,
@@ -91,13 +72,7 @@ async function getTodaysPatients(scheduleId) {
       }
     });
 
-    // map fields back to what the bot expects
-    return appointments.map(app => ({
-      booking_id: app.id,
-      patient_name: app.patientName,
-      queue_number: app.queueNumber,
-      status: app.status
-    }));
+    return appointments;
   } catch (error) {
     throw new AppointmentError(error.message, 'DB_ERROR');
   }
@@ -108,10 +83,15 @@ async function getTodaysPatients(scheduleId) {
  *
  * @param {string} bookingId
  * @param {'Pending'|'Confirmed'|'Completed'|'Cancelled'} status
+ * @param {string} doctorId - to scope the update
  * @returns {boolean} true on success
  */
-async function updateAppointmentStatus(bookingId, status) {
+async function updateAppointmentStatus(bookingId, status, doctorId) {
   try {
+    const existing = await prisma.appointment.findUnique({ where: { id: bookingId } });
+    if (!existing) throw new Error('Appointment not found');
+    if (existing.doctorId !== doctorId) throw new Error('Unauthorized access to update appointment for this doctor');
+
     await prisma.appointment.update({
       where: { id: bookingId },
       data: { status }
@@ -122,4 +102,4 @@ async function updateAppointmentStatus(bookingId, status) {
   }
 }
 
-module.exports = { verifyAdminPin, getTodaysPatients, updateAppointmentStatus };
+module.exports = { handleAdminAuth, getTodaysPatients, updateAppointmentStatus };

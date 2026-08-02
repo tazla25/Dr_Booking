@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, jules-*]
+    branches: ['main', 'jules-*']
   pull_request:
-    branches: [main]
+    branches: ['main']
 
 jobs:
   test-bot:
@@ -19,6 +19,7 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npx prisma generate
+      - run: npm run lint
       - run: npm test
 
   build-dashboard:
@@ -34,6 +35,7 @@ jobs:
           node-version: '20'
       - run: npm install
       - run: npx prisma generate
+      - run: npm run lint
       - run: npm run build
         env:
           DATABASE_URL: "postgresql://fake:fake@localhost:5432/fake"

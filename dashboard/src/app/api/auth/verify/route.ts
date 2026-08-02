@@ -56,8 +56,8 @@ export async function POST(req: NextRequest) {
     return Response.json(
       {
         ok: false,
-        error: result.error,
-        message: messages[result.error] || 'Verification failed.',
+        error: result?.error || 'not_found',
+        message: messages[result?.error || 'not_found'] || 'Verification failed.',
       },
       { status: 401 }
     )

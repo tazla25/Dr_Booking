@@ -217,7 +217,7 @@ export const STRINGS = {
   yes: { bn: 'হ্যাঁ', en: 'Yes' },
   no: { bn: 'না', en: 'No' },
   loading: { bn: 'লোড হচ্ছে...', en: 'Loading...' },
-  saving: { bn: 'সংরক্ষণ হচ্ছে...', en: 'Saving...' },
+  tracker: { bn: 'ট্র্যাকার', en: 'Tracker' },
   cancelBtn: { bn: 'বাতিল', en: 'Cancel' },
   confirmBtn: { bn: 'নিশ্চিত করুন', en: 'Confirm' },
   apply: { bn: 'প্রয়োগ করুন', en: 'Apply' },

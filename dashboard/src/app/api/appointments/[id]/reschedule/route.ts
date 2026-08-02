@@ -17,10 +17,22 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return Response.json({ error: 'invalid_input', details: (e as Error).message }, { status: 400 })
   }
 
-  const existing = await db.appointment.findUnique({ where: { id } })
+  const existing = await db.appointment.findUnique({ where: { id }, include: { schedule: true } })
   if (!existing) return Response.json({ error: 'not_found' }, { status: 404 })
   if (user.role === 'compounder' && user.doctorId && existing.doctorId !== user.doctorId) {
     return Response.json({ error: 'forbidden' }, { status: 403 })
+  }
+
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const newDateDay = days[new Date(parsed.newDate).getUTCDay()]
+  if (existing.schedule.dayOfWeek !== newDateDay) {
+    return Response.json(
+      {
+        error: 'invalid_day',
+        message: `Cannot reschedule. ${parsed.newDate} is a ${newDateDay}, but this schedule runs on ${existing.schedule.dayOfWeek}`,
+      },
+      { status: 400 }
+    )
   }
 
   // Recompute queue number for new date — race-condition safe with retry

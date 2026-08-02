@@ -9,16 +9,29 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url)
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '30', 10) || 30, 200)
+  const offset = parseInt(url.searchParams.get('offset') || '0', 10) || 0
+  const action = url.searchParams.get('action') || undefined
+  const adminUserId = url.searchParams.get('adminUserId') || undefined
 
-  const logs = await db.auditLog.findMany({
-    take: limit,
-    orderBy: { createdAt: 'desc' },
-    include: {
-      adminUser: {
-        select: { name: true, email: true },
+  const where = {
+    ...(action ? { action } : {}),
+    ...(adminUserId ? { adminUserId } : {}),
+  }
+
+  const [logs, total] = await Promise.all([
+    db.auditLog.findMany({
+      where,
+      take: limit,
+      skip: offset,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        adminUser: {
+          select: { name: true, email: true },
+        },
       },
-    },
-  })
+    }),
+    db.auditLog.count({ where }),
+  ])
 
-  return Response.json({ logs })
+  return Response.json({ logs, total, limit, offset })
 }

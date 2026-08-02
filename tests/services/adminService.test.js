@@ -1,59 +1,42 @@
 // tests/services/adminService.test.js
 const {
-  verifyAdminPin,
+  handleAdminAuth,
   getTodaysPatients,
   updateAppointmentStatus,
 } = require('../../src/services/adminService');
 
 jest.mock('../../src/database/prisma', () => ({
-  schedule: {
-    findFirst: jest.fn()
-  },
-  failedLogin: {
-    create: jest.fn()
+  adminUser: {
+    findUnique: jest.fn()
   },
   appointment: {
     findMany: jest.fn(),
+    findUnique: jest.fn(),
     update: jest.fn()
-  },
-  adminUser: {
-    upsert: jest.fn()
   }
 }));
 
 const prisma = require('../../src/database/prisma');
 
-describe('verifyAdminPin', () => {
+describe('handleAdminAuth', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('returns doctor_id when PIN matches', async () => {
-    prisma.schedule.findFirst.mockResolvedValueOnce({
-      id: 'sch-1',
-      doctorId: 'doc-1',
-      pinCode: 1234,
-      doctor: { id: 'doc-1' }
-    });
-
-    const result = await verifyAdminPin('1234', 'chat-1');
-    expect(result).toEqual({ doctor_id: 'doc-1', schedule_id: 'sch-1' });
-    expect(prisma.failedLogin.create).not.toHaveBeenCalled();
+  it('returns adminUser and magicLink when found', async () => {
+    prisma.adminUser.findUnique.mockResolvedValueOnce({ id: 'au-1', telegramChatId: 'chat-1' });
+    global.fetch = jest.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ magicLink: 'http://link' }) }));
+    
+    const result = await handleAdminAuth('chat-1');
+    expect(result.magicLink).toBe('http://link');
+    expect(result.adminUser.id).toBe('au-1');
   });
 
-  it('returns null when PIN does not match and logs attempt', async () => {
-    prisma.schedule.findFirst.mockResolvedValueOnce(null);
-    prisma.failedLogin.create.mockResolvedValueOnce({});
+  it('returns null when user not found', async () => {
+    prisma.adminUser.findUnique.mockResolvedValueOnce(null);
 
-    const result = await verifyAdminPin('9999', 'chat-1');
+    const result = await handleAdminAuth('chat-1');
     expect(result).toBeNull();
-
-    expect(prisma.failedLogin.create).toHaveBeenCalledWith({
-      data: {
-        email: 'bot-chat-chat-1',
-        ipAddress: '9999'
-      }
-    });
   });
 });
 
@@ -70,8 +53,8 @@ describe('getTodaysPatients', () => {
 
     const result = await getTodaysPatients('sch-1');
     expect(result).toHaveLength(2);
-    expect(result[0].patient_name).toBe('Rina');
-    expect(result[0].booking_id).toBe('bk-1');
+    expect(result[0].patientName).toBe('Rina');
+    expect(result[0].id).toBe('bk-1');
   });
 
   it('returns empty array when no patients', async () => {
@@ -87,14 +70,16 @@ describe('updateAppointmentStatus', () => {
   });
 
   it('returns true on successful update', async () => {
+    prisma.appointment.findUnique.mockResolvedValueOnce({ id: 'bk-1', doctorId: 'doc-1' });
     prisma.appointment.update.mockResolvedValueOnce({});
-    const result = await updateAppointmentStatus('bk-1', 'Completed');
+    const result = await updateAppointmentStatus('bk-1', 'Completed', 'doc-1');
     expect(result).toBe(true);
   });
 
   it('throws when update fails', async () => {
+    prisma.appointment.findUnique.mockResolvedValueOnce({ id: 'bk-1', doctorId: 'doc-1' });
     prisma.appointment.update.mockRejectedValueOnce(new Error('Update failed'));
-    await expect(updateAppointmentStatus('bk-1', 'Completed')).rejects.toThrow(
+    await expect(updateAppointmentStatus('bk-1', 'Completed', 'doc-1')).rejects.toThrow(
       'Update failed'
     );
   });

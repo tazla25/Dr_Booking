@@ -15,21 +15,7 @@ async function getDoctorsByPin(pinCode) {
       include: { doctor: true }
     });
 
-    // map fields for backward compatibility
-    return schedules.map(schedule => ({
-      ...schedule,
-      schedule_id: schedule.id,
-      pin_code: schedule.pinCode,
-      doctor_id: schedule.doctorId,
-      day_of_week: schedule.dayOfWeek,
-      start_time: schedule.startTime,
-      end_time: schedule.endTime,
-      doctors: {
-        ...schedule.doctor,
-        doctor_id: schedule.doctor.id,
-        full_name: schedule.doctor.fullName
-      }
-    }));
+    return schedules;
   } catch (error) {
     throw new AppointmentError(error.message, 'DB_ERROR');
   }
@@ -44,15 +30,7 @@ async function getSchedulesForDoctor(doctorId) {
       where: { doctorId: doctorId }
     });
 
-    // map fields for backward compatibility
-    return schedules.map(schedule => ({
-      ...schedule,
-      pin_code: schedule.pinCode,
-      doctor_id: schedule.doctorId,
-      day_of_week: schedule.dayOfWeek,
-      start_time: schedule.startTime,
-      end_time: schedule.endTime
-    }));
+    return schedules;
   } catch (error) {
     throw new AppointmentError(error.message, 'DB_ERROR');
   }

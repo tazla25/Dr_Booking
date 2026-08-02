@@ -92,7 +92,7 @@ export async function consumeMagicLink(
 }
 
 /** Constant-time string comparison to prevent timing attacks on token lookup. */
-export function safeEqual(a: string, b: string): boolean {
+export function constantTimeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false
   return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))
 }
@@ -104,7 +104,7 @@ export function validateBotSecret(authHeader: string | null): boolean {
   if (!authHeader) return false
   const match = authHeader.match(/^Bearer\s+(.+)$/i)
   if (!match) return false
-  return safeEqual(match[1].trim(), expected)
+  return constantTimeCompare(match[1].trim(), expected)
 }
 
 /** Build the public magic link URL. */

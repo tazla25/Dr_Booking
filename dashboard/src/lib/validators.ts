@@ -74,7 +74,16 @@ export const appointmentStatusSchema = z.enum([
 export const rescheduleSchema = z.object({
   appointmentId: z.string().min(1),
   newDate: dateSchema,
-})
+}).refine(
+  (data) => {
+    const today = new Date().toISOString().split('T')[0]
+    return data.newDate >= today
+  },
+  {
+    message: 'Cannot reschedule to a past date',
+    path: ['newDate'],
+  }
+)
 
 export type DoctorInput = z.infer<typeof doctorSchema>
 export type ScheduleInput = z.infer<typeof scheduleSchema>

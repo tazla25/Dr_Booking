@@ -59,6 +59,8 @@ export function AppointmentsView() {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(0)
+  const [cursors, setCursors] = useState<(string | undefined)[]>([undefined])
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
   const pageSize = 25
 
   // Filters
@@ -109,7 +111,8 @@ export function AppointmentsView() {
     try {
       const params = new URLSearchParams()
       params.set('limit', String(pageSize))
-      params.set('offset', String(page * pageSize))
+      if (cursors[page]) params.set('cursor', cursors[page]!)
+      
       if (q) params.set('q', q)
       if (doctorFilter !== 'all') params.set('doctorId', doctorFilter)
       if (statusFilter !== 'all') params.set('status', statusFilter)
@@ -119,11 +122,20 @@ export function AppointmentsView() {
         params.set('date', dateFilter)
       }
 
-      const data = await api<{ appointments: Appointment[]; total: number }>(
+      const data = await api<{ appointments: Appointment[]; total: number; nextCursor: string | null }>(
         `/api/appointments?${params.toString()}`
       )
       setAppointments(data.appointments)
       setTotal(data.total)
+      setNextCursor(data.nextCursor)
+      
+      if (data.nextCursor) {
+        setCursors((prev) => {
+          const newCursors = [...prev]
+          newCursors[page + 1] = data.nextCursor!
+          return newCursors
+        })
+      }
     } catch (e) {
       toast.error(t('error'))
     } finally {
@@ -328,11 +340,11 @@ export function AppointmentsView() {
               <Input
                 placeholder={t('searchByNamePhone')}
                 value={q}
-                onChange={(e) => { setQ(e.target.value); setPage(0) }}
+                onChange={(e) => { setQ(e.target.value); setPage(0); setCursors([undefined]) }}
                 className="pl-10"
               />
             </div>
-            <Select value={doctorFilter} onValueChange={(v) => { setDoctorFilter(v); setPage(0) }}>
+            <Select value={doctorFilter} onValueChange={(v) => { setDoctorFilter(v); setPage(0); setCursors([undefined]) }}>
               <SelectTrigger>
                 <SelectValue placeholder={t('allDoctors')} />
               </SelectTrigger>
@@ -345,7 +357,7 @@ export function AppointmentsView() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0) }}>
+            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0); setCursors([undefined]) }}>
               <SelectTrigger>
                 <SelectValue placeholder={t('allStatuses')} />
               </SelectTrigger>
@@ -357,7 +369,7 @@ export function AppointmentsView() {
                 <SelectItem value="NoShow">{t('statusNoShow')}</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={dateFilter} onValueChange={(v) => { setDateFilter(v); setPage(0) }}>
+            <Select value={dateFilter} onValueChange={(v) => { setDateFilter(v); setPage(0); setCursors([undefined]) }}>
               <SelectTrigger>
                 <SelectValue placeholder={t('allDates')} />
               </SelectTrigger>
@@ -503,7 +515,7 @@ export function AppointmentsView() {
             <Button
               size="sm"
               variant="outline"
-              disabled={page + 1 >= totalPages}
+              disabled={page + 1 >= totalPages || !nextCursor}
               onClick={() => setPage((p) => p + 1)}
             >
               <ChevronRight className="w-4 h-4" />

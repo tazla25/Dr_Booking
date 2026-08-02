@@ -26,7 +26,7 @@ describe('doctorService', () => {
 
       const result = await getDoctorsByPin('1234');
       expect(result).toHaveLength(1);
-      expect(result[0].doctors.full_name).toBe('Dr. Smith');
+      expect(result[0].doctor.fullName).toBe('Dr. Smith');
       expect(prisma.schedule.findMany).toHaveBeenCalledWith({
         where: { pinCode: 1234 },
         include: { doctor: true }

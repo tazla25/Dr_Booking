@@ -18,11 +18,11 @@ const bookingService = require('../../src/services/bookingService');
 const session = require('../../src/bot/session');
 
 const MOCK_SCHEDULE = {
-  schedule_id: 'sch-1',
-  day_of_week: 'Wednesday',
-  start_time: '10:00',
-  end_time: '14:00',
-  doctors: { full_name: 'Dr. Sen', specialization: 'Optometry' },
+  id: 'sch-1',
+  dayOfWeek: 'Wednesday',
+  startTime: '10:00',
+  endTime: '14:00',
+  doctor: { fullName: 'Dr. Sen', specialization: 'Optometry' },
 };
 
 describe('handlePatientFlow — AWAITING_PIN step', () => {
@@ -47,7 +47,7 @@ describe('handlePatientFlow — AWAITING_PIN step', () => {
     expect(reply.text || reply).toContain('পাওয়া যায়নি');
   });
 
-  it('returns invalid format message when PIN is not 4-6 digits', async () => {
+  it('returns invalid format message when PIN is not 6 digits', async () => {
     session.getSession.mockReturnValue({ step: 'AWAITING_PIN' });
 
     const reply = await handlePatientFlow('123', '123');
@@ -59,13 +59,13 @@ describe('handlePatientFlow — AWAITING_NAME step', () => {
   it('creates booking and returns confirmation with queue number', async () => {
     session.getSession.mockReturnValue({
       step: 'AWAITING_NAME',
-      selectedSchedule: { schedule_id: 'sch-1' },
+      selectedSchedule: { id: 'sch-1' },
       appointmentDate: '2026-07-10',
     });
     bookingService.createBooking.mockResolvedValue({
-      patient_name: 'Rahul Das',
-      queue_number: 3,
-      appointment_date: '2026-07-10',
+      patientName: 'Rahul Das',
+      queueNumber: 3,
+      appointmentDate: '2026-07-10',
     });
 
     const reply = await handlePatientFlow('123', 'Rahul Das');

@@ -15,8 +15,8 @@ export async function GET(req: NextRequest) {
   const from = url.searchParams.get('from') || undefined
   const to = url.searchParams.get('to') || undefined
   const q = url.searchParams.get('q')?.trim() || undefined
+  const cursor = url.searchParams.get('cursor') || undefined
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '100', 10) || 100, 500)
-  const offset = parseInt(url.searchParams.get('offset') || '0', 10) || 0
 
   // Compounders only see their own doctor's appointments
   const scope = user.role === 'compounder' && user.doctorId ? { doctorId: user.doctorId } : {}
@@ -44,12 +44,14 @@ export async function GET(req: NextRequest) {
         doctor: { select: { id: true, fullName: true, specialization: true } },
         schedule: { select: { id: true, clinicName: true, startTime: true, endTime: true } },
       },
-      orderBy: [{ appointmentDate: 'desc' }, { queueNumber: 'asc' }],
+      orderBy: { createdAt: 'desc' },
       take: limit,
-      skip: offset,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
     }),
     db.appointment.count({ where }),
   ])
 
-  return Response.json({ appointments, total, limit, offset })
+  const nextCursor = appointments.length === limit ? appointments[appointments.length - 1].id : null
+
+  return Response.json({ appointments, total, limit, nextCursor })
 }

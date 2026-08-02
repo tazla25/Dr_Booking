@@ -3,33 +3,39 @@ const prisma = require('../database/prisma');
 const logger = require('../utils/logger');
 const { getMessage } = require('../utils/messages');
 
+const { formatInTimeZone } = require('date-fns-tz');
+
 function initReminderJob(bot) {
   // Run every 10 minutes
   cron.schedule('*/10 * * * *', async () => {
     logger.info('Running appointment reminder cron job...');
 
     try {
-      const today = new Date().toISOString().split('T')[0];
-
       const data = await prisma.appointment.findMany({
         where: {
-          appointmentDate: today,
           status: 'Confirmed',
           reminderSent: false
         },
         include: {
-          schedule: true
+          schedule: {
+            include: { doctor: true }
+          }
         }
       });
 
       if (!data || data.length === 0) return;
 
       const now = new Date();
-      const currentHour = now.getHours();
-      const currentMinute = now.getMinutes();
-      const currentTimeInMinutes = currentHour * 60 + currentMinute;
 
       for (const apt of data) {
+        const tz = apt.schedule.doctor?.timezone || 'Asia/Dhaka';
+        const todayStr = formatInTimeZone(now, tz, 'yyyy-MM-dd');
+
+        if (apt.appointmentDate !== todayStr) continue;
+
+        const currentHour = parseInt(formatInTimeZone(now, tz, 'HH'), 10);
+        const currentMinute = parseInt(formatInTimeZone(now, tz, 'mm'), 10);
+        const currentTimeInMinutes = currentHour * 60 + currentMinute;
         // Get user's language preference
         let lang = 'bn';
         try {

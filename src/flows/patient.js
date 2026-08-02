@@ -70,7 +70,7 @@ async function handlePatientFlow(chatId, text, isCallback = false, callbackData 
     });
 
     const inline_keyboard = schedules.map((s, idx) => [
-        { text: `${idx + 1}. ${s.doctors.full_name}`, callback_data: `doc_${idx}` }
+        { text: `${idx + 1}. ${s.doctor.fullName}`, callback_data: `doc_${idx}` }
     ]);
     inline_keyboard.push(...getBackButton('back_pin'));
 
@@ -110,13 +110,17 @@ async function handlePatientFlow(chatId, text, isCallback = false, callbackData 
     const selected = session.schedules[idx];
     await setSession(chatId, { step: 'AWAITING_DATE', selectedSchedule: selected });
 
-    // Generate dates (today + next 2 available days based on day_of_week)
-    // For simplicity, we just ask them to type or provide generic next 3 days
+    // Generate dates (14 days, filter by dayOfWeek, offer first 3)
     const nextDays = [];
-    for (let i = 0; i < 3; i++) {
+    const dayNameMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const targetDay = selected.dayOfWeek;
+    for (let i = 0; i < 14; i++) {
         const d = new Date();
         d.setDate(d.getDate() + i);
-        nextDays.push(d.toISOString().split('T')[0]);
+        if (dayNameMap[d.getDay()] === targetDay) {
+            nextDays.push(d.toISOString().split('T')[0]);
+        }
+        if (nextDays.length === 3) break;
     }
 
     const date_keyboard = nextDays.map(d => [
@@ -137,7 +141,7 @@ async function handlePatientFlow(chatId, text, isCallback = false, callbackData 
     if (isCallback && callbackData === 'back_doc') {
         await setSession(chatId, { step: 'AWAITING_DOCTOR_SELECTION' });
         const inline_keyboard = session.schedules.map((s, idx) => [
-            { text: `${idx + 1}. ${s.doctors.full_name}`, callback_data: `doc_${idx}` }
+            { text: `${idx + 1}. ${s.doctor.fullName}`, callback_data: `doc_${idx}` }
         ]);
         inline_keyboard.push(...getBackButton('back_pin'));
 
@@ -172,11 +176,17 @@ async function handlePatientFlow(chatId, text, isCallback = false, callbackData 
   if (session.step === 'AWAITING_NAME') {
     if (isCallback && callbackData === 'back_date') {
         await setSession(chatId, { step: 'AWAITING_DATE' });
+        
         const nextDays = [];
-        for (let i = 0; i < 3; i++) {
+        const dayNameMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const targetDay = session.selectedSchedule.dayOfWeek;
+        for (let i = 0; i < 14; i++) {
             const d = new Date();
             d.setDate(d.getDate() + i);
-            nextDays.push(d.toISOString().split('T')[0]);
+            if (dayNameMap[d.getDay()] === targetDay) {
+                nextDays.push(d.toISOString().split('T')[0]);
+            }
+            if (nextDays.length === 3) break;
         }
 
         const date_keyboard = nextDays.map(d => [
@@ -202,7 +212,7 @@ async function handlePatientFlow(chatId, text, isCallback = false, callbackData 
     const booking = await createBooking({
       patientName: name,
       patientPhone: String(chatId),
-      scheduleId: session.selectedSchedule.schedule_id,
+      scheduleId: session.selectedSchedule.id,
       appointmentDate: session.appointmentDate,
     });
 
@@ -210,10 +220,10 @@ async function handlePatientFlow(chatId, text, isCallback = false, callbackData 
     return getMessage(
       lang,
       'BOOKING_CONFIRMED',
-      booking.patient_name,
-      booking.queue_number,
-      booking.appointment_date,
-      session.selectedSchedule.schedule_id
+      booking.patientName,
+      booking.queueNumber,
+      booking.appointmentDate,
+      session.selectedSchedule.id
     );
   }
 

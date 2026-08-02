@@ -15,6 +15,7 @@ import { SchedulesView } from './views/schedules-view'
 import { AnalyticsView } from './views/analytics-view'
 import { TrackerView } from './views/tracker-view'
 import { SettingsView } from './views/settings-view'
+import { ErrorBoundary } from './error-boundary'
 import { Loader2 } from 'lucide-react'
 
 export type ViewKey =
@@ -75,12 +76,14 @@ export function AppShell() {
         <div className="flex-1 flex flex-col min-w-0 lg:ml-64">
           <Topbar onMenuClick={() => setSidebarOpen(true)} />
           <main className="flex-1 p-4 sm:p-6 lg:p-8">
-            {view === 'dashboard' && <DashboardView />}
-            {view === 'appointments' && <AppointmentsView />}
-            {view === 'doctors' && <DoctorsView />}
-            {view === 'schedules' && <SchedulesView />}
-            {view === 'analytics' && <AnalyticsView />}
-            {view === 'settings' && <SettingsView />}
+            <ErrorBoundary>
+              {view === 'dashboard' && <DashboardView />}
+              {view === 'appointments' && <AppointmentsView />}
+              {view === 'doctors' && <DoctorsView />}
+              {view === 'schedules' && <SchedulesView />}
+              {view === 'analytics' && <AnalyticsView />}
+              {view === 'settings' && <SettingsView />}
+            </ErrorBoundary>
           </main>
           <footer className="border-t border-border bg-card px-6 py-4 text-center text-xs text-muted-foreground">
             Dr_Booking · Reform Edition · {new Date().getFullYear()}

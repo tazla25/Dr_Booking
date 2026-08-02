@@ -70,18 +70,18 @@ export function DashboardView() {
       const todays = schedData.schedules.filter((s) => s.dayOfWeek === todayDow)
       setSchedules(todays)
 
-      // Fetch queue status for each of today's schedules
-      const queueEntries = await Promise.all(
-        todays.map(async (s) => {
-          try {
-            const q = await api<QueueStatus>(`/api/queue/${s.id}/${today}`)
-            return [s.id, q] as const
-          } catch {
-            return [s.id, { currentToken: 0, pendingCount: 0, estimatedWaitMinutes: 0, completedCount: 0, totalCount: 0 }] as const
-          }
-        })
-      )
-      setQueueMap(Object.fromEntries(queueEntries))
+      // Fetch queue status for all of today's schedules in a single batch request
+      if (todays.length > 0) {
+        try {
+          const scheduleIds = todays.map((s) => s.id).join(',')
+          const batchQ = await api<Record<string, QueueStatus>>(`/api/queue/batch?scheduleIds=${scheduleIds}&date=${today}`)
+          setQueueMap(batchQ)
+        } catch {
+          setQueueMap({})
+        }
+      } else {
+        setQueueMap({})
+      }
     } catch (e) {
       toast.error(t('error'))
       console.error(e)

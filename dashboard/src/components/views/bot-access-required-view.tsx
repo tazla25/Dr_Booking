@@ -58,6 +58,13 @@ const DEMO_USERS = [
 ]
 
 export function BotAccessRequiredView() {
+  if (
+    process.env.NODE_ENV === 'production' &&
+    DEMO_BOT_SECRET === 'dev-bot-secret-change-in-production'
+  ) {
+    throw new Error('FATAL: Default dev secret is not allowed in production')
+  }
+
   const { t, refreshUser } = useApp()
   const router = useRouter()
   const [generating, setGenerating] = useState<string | null>(null)

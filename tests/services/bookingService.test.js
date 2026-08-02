@@ -41,7 +41,7 @@ describe('bookingService', () => {
         appointmentDate: '2023-10-10',
       });
 
-      expect(result.queue_number).toBe(1);
+      expect(result.queueNumber).toBe(1);
       expect(prisma.appointment.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ queueNumber: 1 })
       });
@@ -74,7 +74,7 @@ describe('bookingService', () => {
       const result = await getQueueStatus('sch-1', '2023-10-10');
       expect(result.currentToken).toBe(2);
       expect(result.pending).toHaveLength(1);
-      expect(result.pending[0].queue_number).toBe(3);
+      expect(result.pending[0].queueNumber).toBe(3);
     });
 
     it('returns currentToken=0 when no completed patients', async () => {

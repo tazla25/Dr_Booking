@@ -11,7 +11,7 @@ export async function requireAuth() {
     return {
       user: null,
       json: (body: unknown, status = 401) =>
-        NextResponse.json({ error: 'unauthorized', ...body }, { status }),
+        NextResponse.json({ error: 'unauthorized', ...(body as any) }, { status }),
     }
   }
   return { user, json: null }

@@ -55,18 +55,24 @@ export async function createSessionForUser(
   const token = crypto.randomBytes(32).toString('hex')
   const tokenHash = hmacToken(token)
 
-  // Store the session token hash in passwordHash (field is unused since password auth was removed)
-  await db.adminUser.update({
-    where: { id: user.id },
-    data: { passwordHash: tokenHash },
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000) // 30 min sliding window
+
+  const session = await (db as any).session.create({
+    data: {
+      adminUserId: user.id,
+      tokenHash,
+      expiresAt,
+      ipAddress: meta?.ipAddress,
+      userAgent: meta?.userAgent,
+    },
   })
 
   const cookieStore = await cookies()
-  cookieStore.set(SESSION_COOKIE, `${user.id}:${token}`, {
+  cookieStore.set(SESSION_COOKIE, `${session.id}:${token}`, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: SESSION_MAX_AGE,
+    maxAge: 60 * 60 * 24, // 24 hours max
     path: '/',
   })
 
@@ -83,29 +89,64 @@ export async function getCurrentUser() {
   const separatorIdx = raw.indexOf(':')
   if (separatorIdx === -1) return null
 
-  const userId = raw.substring(0, separatorIdx)
+  const sessionId = raw.substring(0, separatorIdx)
   const token = raw.substring(separatorIdx + 1)
-  if (!userId || !token) return null
+  if (!sessionId || !token) return null
 
-  const user = await db.adminUser.findUnique({
-    where: { id: userId },
-    include: { doctor: true },
+  const session = await (db as any).session.findUnique({
+    where: { id: sessionId },
+    include: { adminUser: { include: { doctor: true } } },
   })
 
+  if (!session) return null
+
+  const user = session.adminUser
   if (!user || !user.isActive) return null
 
-  // Verify the session token matches the stored hash
-  if (!user.passwordHash) return null
-  const expectedHash = hmacToken(token)
-  if (!crypto.timingSafeEqual(Buffer.from(user.passwordHash), Buffer.from(expectedHash))) {
+  const absoluteTimeout = new Date(session.createdAt.getTime() + 24 * 60 * 60 * 1000)
+  if (new Date() > absoluteTimeout) {
     return null
   }
+
+  if (session.expiresAt < new Date()) {
+    return null
+  }
+
+  const expectedHash = hmacToken(token)
+  const actualBuffer = Buffer.from(session.tokenHash)
+  const expectedBuffer = Buffer.from(expectedHash)
+  
+  if (actualBuffer.length !== expectedBuffer.length) {
+    return null
+  }
+  
+  if (!crypto.timingSafeEqual(actualBuffer, expectedBuffer)) {
+    return null
+  }
+
+  // 4. Update session
+  await (db as any).session.update({
+    where: { id: session.id },
+    data: { expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
+  })
 
   return user
 }
 
 export async function logout() {
   const cookieStore = await cookies()
+  const raw = cookieStore.get(SESSION_COOKIE)?.value
+  if (raw) {
+    const separatorIdx = raw.indexOf(':')
+    if (separatorIdx !== -1) {
+      const sessionId = raw.substring(0, separatorIdx)
+      if (sessionId) {
+        try {
+          await (db as any).session.deleteMany({ where: { id: sessionId } }).catch(() => {})
+        } catch (e) {  }
+      }
+    }
+  }
   cookieStore.delete(SESSION_COOKIE)
 }
 

@@ -6,7 +6,7 @@ const logger = require('../utils/logger');
 const { getSession, setSession, clearSession } = require('./session');
 const { handlePatientFlow } = require('../flows/patient');
 const { handleAdminFlow } = require('../flows/admin');
-const { cancelBookingByToken, rescheduleBookingByToken } = require('../services/bookingService');
+const { cancelBookingByQueueNumber, rescheduleBookingByToken } = require('../services/bookingService');
 const { validateDate } = require('../utils/validators');
 const { getMessage } = require('../utils/messages');
 
@@ -55,8 +55,9 @@ async function handleMessage(bot, msg) {
     }
 
     if (text === '/admin') {
-      await setSession(chatId, { step: 'ADMIN_AWAITING_PIN' });
-      return send(getMessage(lang, 'ADMIN_ASK_PIN'));
+      await setSession(chatId, { step: 'ADMIN_START' });
+      replyObj = await handleAdminFlow(chatId, '/admin', null, false, null, lang);
+      return typeof replyObj === 'string' ? send(replyObj) : send(replyObj.text, replyObj.options);
     }
 
     if (text === '/queue') {
@@ -73,7 +74,7 @@ async function handleMessage(bot, msg) {
       if (parts.length > 1) {
         const token = parseInt(parts[1], 10);
         if (!isNaN(token)) {
-           await cancelBookingByToken(token, chatId);
+           await cancelBookingByQueueNumber(token, chatId);
            return send(getMessage(lang, 'BOOKING_CANCELLED', token));
         }
       } else {
@@ -178,8 +179,9 @@ async function handleCallbackQuery(bot, query) {
     }
 
     if (data === 'menu_admin') {
-      await setSession(chatId, { step: 'ADMIN_AWAITING_PIN' });
-      return send(getMessage(lang, 'ADMIN_ASK_PIN'));
+      await setSession(chatId, { step: 'ADMIN_START' });
+      replyObj = await handleAdminFlow(chatId, '/admin', null, false, null, lang);
+      return typeof replyObj === 'string' ? send(replyObj) : send(replyObj.text, replyObj.options);
     }
 
 
