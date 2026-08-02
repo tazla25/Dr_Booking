@@ -21,7 +21,7 @@ async function main() {
             startTime: '09:00',
             endTime: '13:00',
             clinicName: 'Health First Clinic',
-            clinicAddress: '123 Main St, Dhaka',
+            clinicAddress: '123 Main St, Kolkata',
             avgMinutesPerPatient: 15,
           },
           {
@@ -30,7 +30,7 @@ async function main() {
             startTime: '15:00',
             endTime: '20:00',
             clinicName: 'Health First Clinic',
-            clinicAddress: '123 Main St, Dhaka',
+            clinicAddress: '123 Main St, Kolkata',
             avgMinutesPerPatient: 15,
           }
         ]
@@ -64,7 +64,7 @@ async function main() {
             startTime: '10:00',
             endTime: '14:00',
             clinicName: 'Heart Care Center',
-            clinicAddress: '45 Banani, Dhaka',
+            clinicAddress: '45 Banani, Kolkata',
             avgMinutesPerPatient: 20,
           },
           {
@@ -73,7 +73,7 @@ async function main() {
             startTime: '17:00',
             endTime: '21:00',
             clinicName: 'Heart Care Center',
-            clinicAddress: '45 Banani, Dhaka',
+            clinicAddress: '45 Banani, Kolkata',
             avgMinutesPerPatient: 20,
           }
         ]
@@ -107,7 +107,7 @@ async function main() {
             startTime: '08:00',
             endTime: '12:00',
             clinicName: 'Happy Kids Care',
-            clinicAddress: '88 Dhanmondi, Dhaka',
+            clinicAddress: '88 Dhanmondi, Kolkata',
             avgMinutesPerPatient: 10,
           },
           {
