@@ -32,6 +32,7 @@ export const STRINGS = {
   'admin-verification': { bn: 'ডাক্তার যাচাই', en: 'Verify Doctors' },
   'pilot-insights': { bn: 'পাইলট ইনসাইটস', en: 'Pilot Insights' },
   'audit-log': { bn: 'অডিট লগ', en: 'Audit Log' },
+  'doctor-report': { bn: 'আমার রিপোর্ট', en: 'My Report' },
 
   // Dashboard
   todaysQueue: { bn: "আজকের কিউ", en: "Today's Queue" },

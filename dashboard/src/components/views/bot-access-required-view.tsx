@@ -101,6 +101,12 @@ export function BotAccessRequiredView() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
+        // V8-9 fix: handle 403 (verification pending/rejected) gracefully
+        if (res.status === 403) {
+          toast.error(err.message || 'Account not verified — cannot generate magic link.')
+          setGenerating(null)
+          return
+        }
         throw new Error(err.message || `HTTP ${res.status}`)
       }
 

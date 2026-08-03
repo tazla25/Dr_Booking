@@ -15,6 +15,9 @@ export async function GET() {
       verificationStatus: user.verificationStatus,
       medicalRegNumber: user.medicalRegNumber,
       specialization: user.specialization,
+      phone: user.phone,
+      telegramChatId: user.telegramChatId,
+      whatsappNumber: user.whatsappNumber,
       // Doctor-scoped info: which Doctor profile this user owns (DOCTOR) or is delegated to (COMPOUNDER)
       ownedDoctorId: user.ownedDoctor?.id ?? null,
       delegatedDoctorId: user.delegatedDoctorId,

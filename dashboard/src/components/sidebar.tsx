@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   TrendingUp,
   ScrollText,
+  FileText,
   X,
 } from 'lucide-react'
 import { Button } from './ui/button'
@@ -32,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'doctors', icon: Stethoscope, roles: ['DOCTOR', 'SUPER_ADMIN'] },
   { key: 'schedules', icon: Clock },
   { key: 'analytics', icon: BarChart3, roles: ['DOCTOR', 'SUPER_ADMIN'] },
+  { key: 'doctor-report', icon: FileText, roles: ['DOCTOR', 'COMPOUNDER', 'SUPER_ADMIN'] },
   { key: 'pilot-insights', icon: TrendingUp, roles: ['SUPER_ADMIN'] },
   { key: 'admin-verification', icon: ShieldCheck, roles: ['SUPER_ADMIN'] },
   { key: 'audit-log', icon: ScrollText, roles: ['DOCTOR', 'SUPER_ADMIN'] },

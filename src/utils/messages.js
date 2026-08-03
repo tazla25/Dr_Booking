@@ -68,8 +68,14 @@ const translations = {
     VERIFICATION_APPROVED: '✅ *অভিনন্দন!*\n\nআপনার ডাক্তার অ্যাকাউন্ট অনুমোদিত হয়েছে। এখন আপনি /admin দিয়ে লগইন করতে পারেন এবং /invite দিয়ে কম্পাউন্ডার ইনভাইট করতে পারেন।',
 
     // Bug 1 + Bug 2 fixes
-    ADMIN_NOT_REGISTERED: '🚫 আপনি নিবন্ধিত নন।\n\nডাক্তার হিসেবে নিবন্ধন করতে /register বাটনে চাপুন।\n\nআপনি যদি কম্পাউন্ডার হন, তবে আপনার ডাক্তার আপনাকে ইনভাইট করতে হবে।',
+    ADMIN_NOT_REGISTERED: '🚫 আপনি নিবন্ধিত নন।\n\nডাক্তার হিসেবে নিবন্ধন করতে /register দিন।\n\nকম্পাউন্ডার হিসেবে যুক্ত হতে /link <phone> দিন।',
     ADMIN_LINK_FAILED: '⚠️ ড্যাশবোর্ড লিঙ্ক তৈরি করতে সমস্যা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।',
+
+    // /link command for compounders (V8-3 fix)
+    LINK_INVALID_PHONE: '❌ ফোন নম্বর সঠিক নয়। E.164 ফরম্যাটে দিন।',
+    LINK_NO_COMPOUNDER: '❌ এই ফোন নম্বর দিয়ে কোনো কম্পাউন্ডার অ্যাকাউন্ট নেই।',
+    LINK_ALREADY_LINKED: '✅ আপনার অ্যাকাউন্ট ইতিমধ্যে যুক্ত। /admin দিয়ে লগইন করুন।',
+    LINK_SUCCESS: (doctorName) => '✅ অ্যাকাউন্ট যুক্ত হয়েছে! আপনি এখন ' + doctorName + ' এর কম্পাউন্ডার। /admin দিয়ে লগইন করুন।',
 
     // ── Compounder invitation ────────────────────────────────────────
     INVITE_PROMPT: '👨‍💼 ইনভাইট করতে কম্পাউন্ডারের ফোন নম্বর দিন (E.164 ফরম্যাটে):\n\nযেমন: +919876543210',
@@ -160,14 +166,19 @@ const translations = {
     REGISTER_INVALID_SPECIALIZATION: '❌ Specialization must be at least 3 characters. Try again:',
     REGISTER_ALREADY_EXISTS: '⚠️ An account with this phone number already exists. If it is yours, log in with /admin.',
 
-    VERIFICATION_PENDING_LOGIN: '⏳ Your account is not verified yet. Please wait for super admin approval.',
+    ADMIN_NOT_REGISTERED: '🚫 You are not registered.\n\nSend /register to register as a doctor.\n\nIf you are a compounder, send /link <phone> after your doctor invites you.',
     VERIFICATION_REJECTED_LOGIN: '❌ Your account was not approved. Contact support for details.',
     VERIFICATION_SUSPENDED_LOGIN: '🚫 Your account has been suspended. Contact support.',
     VERIFICATION_APPROVED: '✅ *Congratulations!*\n\nYour doctor account has been approved. You can now log in with /admin and invite compounders with /invite.',
 
     // Bug 1 + Bug 2 fixes
-    ADMIN_NOT_REGISTERED: '🚫 You are not registered.\n\nTap /register to register as a doctor.\n\nIf you are a compounder, your doctor needs to invite you.',
     ADMIN_LINK_FAILED: '⚠️ Failed to generate dashboard link. Please try again later.',
+
+    // /link command for compounders (V8-3 fix)
+    LINK_INVALID_PHONE: '❌ Invalid phone number. Use E.164 format (e.g., +919876543210).',
+    LINK_NO_COMPOUNDER: '❌ No compounder account found with this phone. Ask your doctor to invite you.',
+    LINK_ALREADY_LINKED: '✅ Your account is already linked. Use /admin to log in.',
+    LINK_SUCCESS: (doctorName) => '✅ Account linked! You are now a compounder for ' + doctorName + '. Use /admin to log in.',
 
     INVITE_PROMPT: '👨‍💼 Enter the compounder\'s phone number to invite (E.164 format):\n\nExample: +919876543210',
     INVITE_INVALID_PHONE: '❌ Invalid phone number. Use E.164 format. Try again:',
@@ -251,7 +262,7 @@ const translations = {
     REGISTER_ASK_SPECIALIZATION: '🩺 अपनी विशेषज्ञता दर्ज करें:\n\nउदाहरण: Cardiologist, General Physician, Pediatrician',
     REGISTER_ASK_CHAMBER: '🏠 अपना चैंबर पता दर्ज करें (शहर के साथ):\n\nउदाहरण: 123 Main St, Contai, Purba Medinipur',
     REGISTER_SUCCESS_PENDING: '✅ *पंजीकरण पूर्ण!*\n\nआपका खाता अब *सत्यापन की प्रतीक्षा में* है। सुपर एडमिन आपके मेडिकल पंजीकरण को सत्यापित कर स्वीकृत करेगा। एक बार स्वीकृत होने पर आपको एक संदेश मिलेगा।\n\nधन्यवाद! 🙏',
-    REGISTER_INVALID_NAME: '❌ नाम कम से कम 2 अक्षरों का होना चाहिए। पुनः प्रयास करें:',
+    ADMIN_NOT_REGISTERED: '🚫 आप पंजीकृत नहीं हैं।\n\nडॉक्टर के रूप में पंजीकरण के लिए /register दबाएं।\n\nकंपाउंडर के रूप में जुड़ने के लिए /link <phone> दबाएं।',
     REGISTER_INVALID_PHONE: '❌ अमान्य फोन नंबर। E.164 प्रारूप का उपयोग करें (जैसे, +919876543210)। पुनः प्रयास करें:',
     REGISTER_INVALID_MEDICAL_REG: '❌ अमान्य मेडिकल पंजीकरण नंबर। प्रारूप: 2-3 अक्षर + 4-8 अंक (जैसे, WBMC12345)। पुनः प्रयास करें:',
     REGISTER_INVALID_SPECIALIZATION: '❌ विशेषज्ञता कम से कम 3 अक्षरों की होनी चाहिए। पुनः प्रयास करें:',
@@ -263,8 +274,13 @@ const translations = {
     VERIFICATION_APPROVED: '✅ *बधाई हो!*\n\nआपका डॉक्टर खाता स्वीकृत हो गया है। अब आप /admin से लॉग इन कर सकते हैं और /invite से कंपाउंडर को आमंत्रित कर सकते हैं।',
 
     // Bug 1 + Bug 2 fixes
-    ADMIN_NOT_REGISTERED: '🚫 आप पंजीकृत नहीं हैं।\n\nडॉक्टर के रूप में पंजीकरण के लिए /register दबाएं।\n\nयदि आप कंपाउंडर हैं, तो आपके डॉक्टर को आपको आमंत्रित करना होगा।',
     ADMIN_LINK_FAILED: '⚠️ डैशबोर्ड लिंक बनाने में समस्या हुई है। कृपया बाद में पुनः प्रयास करें।',
+
+    // /link command for compounders (V8-3 fix)
+    LINK_INVALID_PHONE: '❌ अमान्य फोन नंबर। E.164 प्रारूप का उपयोग करें।',
+    LINK_NO_COMPOUNDER: '❌ इस फोन नंबर के साथ कोई कंपाउंडर खाता नहीं मिला।',
+    LINK_ALREADY_LINKED: '✅ आपका खाता पहले से जुड़ा हुआ है। /admin से लॉग इन करें।',
+    LINK_SUCCESS: (doctorName) => '✅ खाता जुड़ गया! आप अब ' + doctorName + ' के कंपाउंडर हैं। /admin से लॉग इन करें।',
 
     INVITE_PROMPT: '👨‍💼 आमंत्रित करने के लिए कंपाउंडर का फोन नंबर दर्ज करें (E.164 प्रारूप):\n\nउदाहरण: +919876543210',
     INVITE_INVALID_PHONE: '❌ अमान्य फोन नंबर। E.164 प्रारूप का उपयोग करें। पुनः प्रयास करें:',

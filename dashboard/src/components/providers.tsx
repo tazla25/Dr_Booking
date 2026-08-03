@@ -17,6 +17,9 @@ export interface AuthUser {
   verificationStatus: VerificationStatus
   medicalRegNumber?: string | null
   specialization?: string | null
+  phone?: string | null
+  telegramChatId?: string | null
+  whatsappNumber?: string | null
   ownedDoctorId?: string | null
   delegatedDoctorId?: string | null
   doctor?: { id: string; fullName: string; specialization: string } | null

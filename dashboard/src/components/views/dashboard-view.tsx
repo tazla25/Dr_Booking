@@ -12,6 +12,9 @@ import { Users, Clock, CheckCircle2, XCircle, UserX, TrendingUp, Calendar, Chevr
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { WalkInQuickAdd } from '../walk-in-quick-add'
+import { formatInTimeZone } from 'date-fns-tz'
+
+const IST = 'Asia/Kolkata'
 
 interface ScheduleWithDoctor {
   id: string
@@ -52,7 +55,7 @@ export function DashboardView() {
   const [queueMap, setQueueMap] = useState<Record<string, QueueStatus>>({})
   const [loading, setLoading] = useState(true)
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = formatInTimeZone(new Date(), IST, 'yyyy-MM-dd')
   const todayDow = DAYS[new Date().getDay()]
 
   const fetchAll = useCallback(async () => {

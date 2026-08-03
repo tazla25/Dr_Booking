@@ -6,6 +6,9 @@ import { useApp } from '../providers'
 import { api } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
+import { formatInTimeZone } from 'date-fns-tz'
+
+const IST = 'Asia/Kolkata'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
@@ -81,7 +84,7 @@ export function AppointmentsView() {
     scheduleId: '',
     patientName: '',
     patientPhone: '',
-    appointmentDate: new Date().toISOString().split('T')[0],
+    appointmentDate: formatInTimeZone(new Date(), IST, 'yyyy-MM-dd'),
     notes: '',
   })
   const [savingWalkIn, setSavingWalkIn] = useState(false)
@@ -118,7 +121,7 @@ export function AppointmentsView() {
       if (doctorFilter !== 'all') params.set('doctorId', doctorFilter)
       if (statusFilter !== 'all') params.set('status', statusFilter)
       if (dateFilter === 'today') {
-        params.set('date', new Date().toISOString().split('T')[0])
+        params.set('date', formatInTimeZone(new Date(), IST, 'yyyy-MM-dd'))
       } else if (dateFilter !== 'all') {
         params.set('date', dateFilter)
       }
@@ -200,7 +203,7 @@ export function AppointmentsView() {
         scheduleId: '',
         patientName: '',
         patientPhone: '',
-        appointmentDate: new Date().toISOString().split('T')[0],
+        appointmentDate: formatInTimeZone(new Date(), IST, 'yyyy-MM-dd'),
         notes: '',
       })
       fetchAppointments()

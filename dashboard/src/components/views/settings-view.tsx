@@ -8,9 +8,12 @@ import { api } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card'
 import { Button } from '../ui/button'
 import { Label } from '../ui/label'
+import { Input } from '../ui/input'
 import { Skeleton } from '../ui/skeleton'
 import { Badge } from '../ui/badge'
-import { Globe, Moon, Sun, KeyRound, ShieldAlert, History, User } from 'lucide-react'
+import { Globe, Moon, Sun, KeyRound, ShieldAlert, History, User, UserPlus, Users, Trash2, Loader2 } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
+import { toast } from 'sonner'
 
 interface AuditEntry {
   id: number
@@ -37,6 +40,13 @@ export function SettingsView() {
   const [failed, setFailed] = useState<{ count: number; recent: FailedLoginEntry[] }>({ count: 0, recent: [] })
   const [loading, setLoading] = useState(true)
 
+  // Compounder management state (V8-2 + V8-15)
+  const [compounders, setCompounders] = useState<Array<{ id: string; name: string; phone: string; telegramChatId: string | null; isActive: boolean; invitedAt: string; lastLoginAt: string | null }>>([])
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [invitePhone, setInvitePhone] = useState('')
+  const [inviting, setInviting] = useState(false)
+  const [removingId, setRemovingId] = useState<string | null>(null)
+
   const fetchAux = useCallback(async () => {
     setLoading(true)
     try {
@@ -48,12 +58,53 @@ export function SettingsView() {
       ])
       setAudit(auditData.logs)
       setFailed({ count: failData.count, recent: failData.recent })
+
+      // Fetch compounders if user is a doctor (V8-15)
+      if (user?.role === 'DOCTOR') {
+        try {
+          const compData = await api<{ compounders: typeof compounders }>('/api/admin/compounders')
+          setCompounders(compData.compounders)
+        } catch {
+          // ignore
+        }
+      }
     } catch {
       // ignore
     } finally {
       setLoading(false)
     }
   }, [user])
+
+  // V8-2: Invite compounder
+  const inviteCompounder = async () => {
+    if (!invitePhone.trim()) { toast.error('Phone number required'); return }
+    setInviting(true)
+    try {
+      await api('/api/admin/invite-compounder', { method: 'POST', body: JSON.stringify({ compounderPhone: invitePhone.trim() }) })
+      toast.success('Compounder invited! They need to send /link <phone> to the bot to connect their Telegram.')
+      setInviteOpen(false)
+      setInvitePhone('')
+      fetchAux()
+    } catch (e) {
+      toast.error((e as Error).message || 'Failed to invite compounder')
+    } finally {
+      setInviting(false)
+    }
+  }
+
+  // V8-15: Remove compounder
+  const removeCompounder = async (id: string) => {
+    setRemovingId(id)
+    try {
+      await api(`/api/admin/compounders/${id}`, { method: 'DELETE' })
+      toast.success('Compounder access removed')
+      fetchAux()
+    } catch (e) {
+      toast.error((e as Error).message || 'Failed to remove compounder')
+    } finally {
+      setRemovingId(null)
+    }
+  }
 
   useEffect(() => {
     fetchAux()
@@ -131,6 +182,104 @@ export function SettingsView() {
         </CardContent>
       </Card>
 
+      {/* Team Management (V8-2 + V8-15) — doctors only */}
+      {user?.role === 'DOCTOR' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="w-4 h-4 text-primary" />
+              Team Management
+            </CardTitle>
+            <CardDescription>Invite and manage compounders for your chambers.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button onClick={() => setInviteOpen(true)} className="gap-2">
+              <UserPlus className="w-4 h-4" />
+              Invite Compounder
+            </Button>
+
+            {compounders.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Current Compounders</p>
+                {compounders.map((c) => (
+                  <div key={c.id} className="flex items-center gap-3 p-3 rounded-md bg-muted/40">
+                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <User className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{c.name}</p>
+                      <p className="text-xs text-muted-foreground">{c.phone}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {c.telegramChatId ? '✅ Telegram linked' : '⏳ Waiting for /link'} ·
+                        Invited {new Date(c.invitedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <Badge variant={c.isActive ? 'default' : 'secondary'} className="text-[10px]">
+                      {c.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                      onClick={() => removeCompounder(c.id)}
+                      disabled={removingId === c.id}
+                    >
+                      {removingId === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No compounders yet. Invite one to help manage your appointments.
+              </p>
+            )}
+
+            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-md p-3 text-xs text-blue-700 dark:text-blue-400">
+              <strong>How it works:</strong> After inviting a compounder, they need to send
+              <code className="mx-1 px-1 py-0.5 bg-background rounded border border-border">/link {'<their-phone>'}</code>
+              to the bot from their Telegram to connect their account.
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Invite Compounder Dialog (V8-2) */}
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="w-4 h-4 text-primary" />
+              Invite Compounder
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              Enter the compounder&apos;s phone number in E.164 format. They will be linked to your doctor profile.
+            </p>
+            <div className="space-y-2">
+              <Label>Compounder phone number</Label>
+              <Input
+                value={invitePhone}
+                onChange={(e) => setInvitePhone(e.target.value)}
+                placeholder="+919876543210"
+                onKeyDown={(e) => { if (e.key === 'Enter') inviteCompounder() }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground bg-muted/40 rounded p-2">
+              After invitation, the compounder must send <code className="px-1 py-0.5 bg-background rounded border border-border">/link {invitePhone || '<their-phone>'}</code> to the bot to connect their Telegram account.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInviteOpen(false)}>Cancel</Button>
+            <Button onClick={inviteCompounder} disabled={inviting || !invitePhone.trim()} className="gap-2">
+              {inviting ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+              Invite
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Preferences */}
       <Card>
         <CardHeader>
@@ -207,24 +356,24 @@ export function SettingsView() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="bg-muted/40 rounded-lg p-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                Telegram Chat ID
+                Phone Number
               </p>
               <p className="text-sm font-medium font-mono">
-                {user?.id ? '••••••••' : t('none')}
+                {user?.phone || t('none')}
               </p>
               <p className="text-[10px] text-muted-foreground mt-1">
-                Linked via Telegram bot onboarding
+                Primary account identifier
               </p>
             </div>
             <div className="bg-muted/40 rounded-lg p-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                WhatsApp Number
+                Telegram Chat ID
               </p>
               <p className="text-sm font-medium font-mono">
-                {user?.id ? '••••••••' : t('none')}
+                {user?.telegramChatId || t('none')}
               </p>
               <p className="text-[10px] text-muted-foreground mt-1">
-                Alternative bot channel
+                {user?.telegramChatId ? 'Linked to Telegram' : 'Not linked — use /link in the bot'}
               </p>
             </div>
           </div>

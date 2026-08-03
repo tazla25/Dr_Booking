@@ -9,6 +9,9 @@ import { Label } from './ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog'
 import { Plus, X, Undo2, Loader2, Zap, UserCheck } from 'lucide-react'
 import { toast } from 'sonner'
+import { formatInTimeZone } from 'date-fns-tz'
+
+const IST = 'Asia/Kolkata'
 
 interface RecentWalkIn { id: string; patientName: string; queueNumber: number; addedAt: number }
 interface Props { schedules: Array<{ id: string; dayOfWeek: string; startTime: string; endTime: string; clinicName: string | null; doctor: { id: string; fullName: string; specialization: string } | null }>; onAdded?: () => void }
@@ -21,7 +24,7 @@ export function WalkInQuickAdd({ schedules, onAdded }: Props) {
   const [scheduleId, setScheduleId] = useState('')
   const [saving, setSaving] = useState(false)
   const [recent, setRecent] = useState<RecentWalkIn[]>([])
-  const today = new Date().toISOString().split('T')[0]
+  const today = formatInTimeZone(new Date(), IST, 'yyyy-MM-dd')
 
   useEffect(() => {
     if (!open || schedules.length === 0 || scheduleId) return

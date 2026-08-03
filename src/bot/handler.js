@@ -86,6 +86,43 @@ async function handleMessage(bot, msg) {
       return send(getMessage(lang, 'REGISTER_ASK_NAME'));
     }
 
+    // /link <phone> — compounder links their Telegram chat ID to their phone-based account (V8-3 fix)
+    if (text.startsWith('/link')) {
+      const { validatePhone } = require('../utils/validators');
+      const parts = text.split(/\s+/);
+      if (parts.length < 2) {
+        return send(
+          lang === 'en'
+            ? '🔗 To link your account, send: /link <your-phone>\n\nExample: /link +919876543210'
+            : lang === 'hi'
+            ? '🔗 अपना खाता लिंक करने के लिए भेजें: /link <your-phone>\n\nउदाहरण: /link +919876543210'
+            : '🔗 আপনার অ্যাকাউন্ট লিঙ্ক করতে পাঠান: /link <your-phone>\n\nযেমন: /link +919876543210'
+        );
+      }
+      const phone = validatePhone(parts[1]);
+      if (!phone) {
+        return send(getMessage(lang, 'LINK_INVALID_PHONE'));
+      }
+      const prisma = require('../database/prisma');
+      const compounder = await prisma.adminUser.findUnique({
+        where: { phone },
+        include: { delegatedDoctor: { include: { ownerAdmin: true } } },
+      });
+      if (!compounder || compounder.role !== 'COMPOUNDER') {
+        return send(getMessage(lang, 'LINK_NO_COMPOUNDER'));
+      }
+      if (compounder.telegramChatId) {
+        return send(getMessage(lang, 'LINK_ALREADY_LINKED'));
+      }
+      // Link the chatId
+      await prisma.adminUser.update({
+        where: { id: compounder.id },
+        data: { telegramChatId: chatId },
+      });
+      const doctorName = compounder.delegatedDoctor?.ownerAdmin?.name || 'your doctor';
+      return send(getMessage(lang, 'LINK_SUCCESS', doctorName));
+    }
+
     // /invite <phone> — verified doctor invites a compounder
     if (text === '/invite' || text.startsWith('/invite ')) {
       // Look up the current user — must be a verified doctor
