@@ -8,9 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui
 import { Button } from '../ui/button'
 import { Skeleton } from '../ui/skeleton'
 import { Badge } from '../ui/badge'
-import { Users, Clock, CheckCircle2, XCircle, UserX, TrendingUp, Calendar, ChevronRight, Play, Share2, Stethoscope, Plus } from 'lucide-react'
+import { Users, Clock, CheckCircle2, XCircle, UserX, TrendingUp, Calendar, ChevronRight, Play, Share2, Stethoscope, Plus, Globe, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
+import { WalkInQuickAdd } from '../walk-in-quick-add'
 
 interface ScheduleWithDoctor {
   id: string
@@ -57,8 +58,8 @@ export function DashboardView() {
   const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
-      // Compounders only see their doctor's schedules
-      const schedUrl = user?.doctorId ? `/api/schedules?doctorId=${user.doctorId}` : '/api/schedules'
+      // Scope to the user's doctor (DOCTOR sees own, COMPOUNDER sees delegated, SUPER_ADMIN sees all)
+      const schedUrl = user?.doctor?.id ? `/api/schedules?doctorId=${user.doctor.id}` : '/api/schedules'
       const [apptsData, schedData] = await Promise.all([
         api<{ appointments: Appointment[]; total: number }>(
           `/api/appointments?date=${today}&limit=100`
@@ -88,7 +89,7 @@ export function DashboardView() {
     } finally {
       setLoading(false)
     }
-  }, [today, todayDow, user?.doctorId, t])
+  }, [today, todayDow, user, t])
 
   useEffect(() => {
     fetchAll()
@@ -138,6 +139,21 @@ export function DashboardView() {
           <Clock className="w-4 h-4" />
           {t('refresh')}
         </Button>
+      </div>
+
+      {/* Today's queue breakdown — online vs walk-in (Task 1.5) */}
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <Badge variant="outline" className="gap-1.5 py-1 px-2.5">
+          <Globe className="w-3 h-3 text-blue-600" />
+          Online: <strong className="ml-1">{appointments.filter((a) => a.patientPhone !== '+0000000000').length}</strong>
+        </Badge>
+        <Badge variant="outline" className="gap-1.5 py-1 px-2.5">
+          <Zap className="w-3 h-3 text-amber-600" />
+          Walk-in: <strong className="ml-1">{appointments.filter((a) => a.patientPhone === '+0000000000').length}</strong>
+        </Badge>
+        <Badge variant="secondary" className="gap-1.5 py-1 px-2.5">
+          Total: <strong className="ml-1">{appointments.length}</strong>
+        </Badge>
       </div>
 
       {/* KPI cards */}
@@ -362,6 +378,9 @@ export function DashboardView() {
           </Button>
         </div>
       </div>
+
+      {/* Floating Quick-Add for walk-in patients (Task 1.5) */}
+      <WalkInQuickAdd schedules={schedules} onAdded={fetchAll} />
     </div>
   )
 }

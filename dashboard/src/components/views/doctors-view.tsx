@@ -53,7 +53,7 @@ const emptyForm: DoctorForm = {
 
 export function DoctorsView() {
   const { t, lang, user } = useApp()
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = user?.role === 'SUPER_ADMIN'
 
   const [doctors, setDoctors] = useState<Doctor[]>([])
   const [loading, setLoading] = useState(true)

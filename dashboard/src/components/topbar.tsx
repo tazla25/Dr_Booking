@@ -44,7 +44,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           </Button>
           <div>
             <h2 className="text-lg font-semibold text-foreground leading-tight">
-              {user?.role === 'admin' ? t('dashboard') : t('todaysQueue')}
+              {user?.role === 'SUPER_ADMIN' || user?.role === 'DOCTOR' ? t('dashboard') : t('todaysQueue')}
             </h2>
             <p className="text-xs text-muted-foreground hidden sm:block">
               {new Date().toLocaleDateString(lang === 'bn' ? 'bn-BD' : 'en-US', {

@@ -98,13 +98,13 @@ export function AppointmentsView() {
   const fetchSchedules = useCallback(async () => {
     try {
       const data = await api<{ schedules: Schedule[] }>(
-        user?.doctorId ? `/api/schedules?doctorId=${user.doctorId}` : '/api/schedules'
+        user?.doctor?.id ? `/api/schedules?doctorId=${user.doctor.id}` : '/api/schedules'
       )
       setSchedules(data.schedules)
     } catch {
       // ignore
     }
-  }, [user?.doctorId])
+  }, [user])
 
   const fetchAppointments = useCallback(async (currentCursor: string | null = null, append = false) => {
     if (append) setLoadingMore(true)

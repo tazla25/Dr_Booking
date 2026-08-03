@@ -1,7 +1,7 @@
 // /home/z/my-project/src/app/api/appointments/walk-in/route.ts
 import { NextRequest } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
-import { audit } from '@/lib/api-helpers'
+import { audit, canAccessDoctor } from '@/lib/api-helpers'
 import { db } from '@/lib/db'
 import { z } from 'zod'
 
@@ -35,6 +35,11 @@ export async function POST(req: NextRequest) {
     include: { doctor: true },
   })
   if (!schedule) return Response.json({ error: 'schedule_not_found' }, { status: 404 })
+
+  // Verify ownership: compounder must have this doctor delegated; doctor must own this schedule
+  if (!(await canAccessDoctor(user, schedule.doctorId))) {
+    return Response.json({ error: 'forbidden' }, { status: 403 })
+  }
 
   let attempts = 0
   let created

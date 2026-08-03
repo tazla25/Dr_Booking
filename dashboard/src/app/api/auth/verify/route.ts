@@ -53,11 +53,12 @@ export async function POST(req: NextRequest) {
       used: 'This magic link has already been used. Each link works only once.',
       not_found: 'This magic link is invalid or the account no longer exists.',
     }
+    const errCode = !result.ok ? result.error : 'not_found'
     return Response.json(
       {
         ok: false,
-        error: result?.error || 'not_found',
-        message: messages[result?.error || 'not_found'] || 'Verification failed.',
+        error: errCode,
+        message: messages[errCode] || 'Verification failed.',
       },
       { status: 401 }
     )

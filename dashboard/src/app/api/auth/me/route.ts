@@ -12,12 +12,23 @@ export async function GET() {
       email: user.email,
       name: user.name,
       role: user.role,
-      doctorId: user.doctorId,
-      doctor: user.doctor
+      verificationStatus: user.verificationStatus,
+      medicalRegNumber: user.medicalRegNumber,
+      specialization: user.specialization,
+      // Doctor-scoped info: which Doctor profile this user owns (DOCTOR) or is delegated to (COMPOUNDER)
+      ownedDoctorId: user.ownedDoctor?.id ?? null,
+      delegatedDoctorId: user.delegatedDoctorId,
+      doctor: user.ownedDoctor
         ? {
-            id: user.doctor.id,
-            fullName: user.doctor.fullName,
-            specialization: user.doctor.specialization,
+            id: user.ownedDoctor.id,
+            fullName: user.ownedDoctor.fullName,
+            specialization: user.ownedDoctor.specialization,
+          }
+        : user.delegatedDoctor
+        ? {
+            id: user.delegatedDoctor.id,
+            fullName: user.delegatedDoctor.fullName,
+            specialization: user.delegatedDoctor.specialization,
           }
         : null,
       lastLoginAt: user.lastLoginAt,

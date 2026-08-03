@@ -1,15 +1,20 @@
 // /home/z/my-project/src/app/api/doctors/route.ts
 import { NextRequest } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
-import { audit } from '@/lib/api-helpers'
+import { audit, getDoctorScope } from '@/lib/api-helpers'
 import { db } from '@/lib/db'
 import { doctorSchema } from '@/lib/validators'
 
+// GET /api/doctors — list doctors scoped to current user.
+// SUPER_ADMIN sees all; DOCTOR sees own profile; COMPOUNDER sees their delegated doctor.
 export async function GET() {
   const user = await getCurrentUser()
   if (!user) return Response.json({ error: 'unauthorized' }, { status: 401 })
 
+  const { filter } = await getDoctorScope(user)
+
   const doctors = await db.doctor.findMany({
+    where: filter,
     orderBy: { fullName: 'asc' },
     include: {
       _count: {
@@ -20,10 +25,18 @@ export async function GET() {
   return Response.json({ doctors })
 }
 
+// POST /api/doctors — create a new doctor profile.
+// Only DOCTOR or SUPER_ADMIN can create. When a DOCTOR creates, ownerAdminId is set automatically.
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return Response.json({ error: 'unauthorized' }, { status: 401 })
-  if (user.role !== 'admin') return Response.json({ error: 'forbidden' }, { status: 403 })
+  if (user.role !== 'DOCTOR' && user.role !== 'SUPER_ADMIN') {
+    return Response.json({ error: 'forbidden', message: 'Only doctors or super admins can create doctor profiles' }, { status: 403 })
+  }
+  // A doctor can only have ONE owned profile
+  if (user.role === 'DOCTOR' && user.ownedDoctor) {
+    return Response.json({ error: 'already_exists', message: 'You already have a doctor profile' }, { status: 409 })
+  }
 
   let parsed
   try {
@@ -34,6 +47,7 @@ export async function POST(req: NextRequest) {
 
   const created = await db.doctor.create({
     data: {
+      ownerAdminId: user.id,
       fullName: parsed.fullName,
       specialization: parsed.specialization,
       phone: parsed.phone || null,
@@ -44,6 +58,5 @@ export async function POST(req: NextRequest) {
     },
   })
   await audit(user, 'doctor.create', created.id, `Created doctor ${created.fullName}`)
-
   return Response.json({ doctor: created }, { status: 201 })
 }

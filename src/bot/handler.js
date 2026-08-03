@@ -46,6 +46,7 @@ async function handleMessage(bot, msg) {
               [{ text: getMessage(session.lang, 'BTN_STATUS'), callback_data: 'menu_status' }],
               [{ text: getMessage(session.lang, 'BTN_CANCEL'), callback_data: 'menu_cancel' }],
               [{ text: getMessage(session.lang, 'BTN_ADMIN'), callback_data: 'menu_admin' }],
+              [{ text: getMessage(session.lang, 'BTN_REGISTER'), callback_data: 'menu_register' }],
               [{ text: '🌐 Change Language', callback_data: 'change_lang' }]
             ]
           }
@@ -67,15 +68,56 @@ async function handleMessage(bot, msg) {
       });
     }
 
-    if (text === '/book') {
-        await setSession(chatId, { step: 'AWAITING_PIN' });
-        return send(getMessage(lang, 'ASK_PIN'));
+    if (text === '/book' || text === '/search') {
+        const { showSearchModePicker } = require('../flows/patient');
+        const replyObj = await showSearchModePicker(chatId, lang);
+        return send(replyObj.text, replyObj.options);
     }
 
     if (text === '/admin') {
       await setSession(chatId, { step: 'ADMIN_START' });
-      replyObj = await handleAdminFlow(chatId, '/admin', null, false, null, lang);
+      const replyObj = await handleAdminFlow(chatId, '/admin', null, false, null, lang);
       return typeof replyObj === 'string' ? send(replyObj) : send(replyObj.text, replyObj.options);
+    }
+
+    // /register — new doctor onboarding (Phase 1 reform)
+    if (text === '/register') {
+      await setSession(chatId, { step: 'REGISTER_NAME' });
+      return send(getMessage(lang, 'REGISTER_ASK_NAME'));
+    }
+
+    // /invite <phone> — verified doctor invites a compounder
+    if (text === '/invite' || text.startsWith('/invite ')) {
+      // Look up the current user — must be a verified doctor
+      const prisma = require('../database/prisma');
+      const adminUser = await prisma.adminUser.findUnique({
+        where: { telegramChatId: chatId },
+        include: { ownedDoctor: true },
+      });
+      if (!adminUser || adminUser.role !== 'DOCTOR' || adminUser.verificationStatus !== 'VERIFIED') {
+        return send(getMessage(lang, 'INVITE_ONLY_DOCTORS'));
+      }
+
+      // If phone was supplied inline, validate and process immediately
+      const parts = text.split(/\s+/);
+      if (parts.length > 1) {
+        const { validatePhone } = require('../utils/validators');
+        const phone = validatePhone(parts[1]);
+        if (!phone) return send(getMessage(lang, 'INVITE_INVALID_PHONE'));
+        try {
+          const { inviteCompounder } = require('../services/adminService');
+          await inviteCompounder({ doctorAdminId: adminUser.id, compounderPhone: phone });
+          return send(getMessage(lang, 'INVITE_SUCCESS', phone));
+        } catch (err) {
+          if (err.code === 'DUPLICATE_PHONE') return send(getMessage(lang, 'INVITE_ALREADY_EXISTS'));
+          logger.error({ err: err.message }, 'Compounder invitation failed');
+          return send(getMessage(lang, 'ERROR'));
+        }
+      }
+
+      // Otherwise enter the invite flow (ask for phone)
+      await setSession(chatId, { step: 'INVITE_PHONE', inviterDoctorAdminId: adminUser.id });
+      return send(getMessage(lang, 'INVITE_PROMPT'));
     }
 
     if (text === '/queue') {
@@ -121,7 +163,7 @@ async function handleMessage(bot, msg) {
     // ── Flow routing ──────────────────────────────────────────
     let replyObj;
 
-    if (session.step.startsWith('ADMIN')) {
+    if (session.step.startsWith('ADMIN') || session.step.startsWith('REGISTER') || session.step.startsWith('INVITE')) {
       replyObj = await handleAdminFlow(chatId, text, session.currentScheduleId || '', false, null, lang);
     } else if (session.step !== 'IDLE' && session.step !== 'AWAITING_LANG') {
       replyObj = await handlePatientFlow(chatId, text, false, null, lang);
@@ -192,6 +234,7 @@ async function handleCallbackQuery(bot, query) {
             [{ text: getMessage(lang, 'BTN_STATUS'), callback_data: 'menu_status' }],
             [{ text: getMessage(lang, 'BTN_CANCEL'), callback_data: 'menu_cancel' }],
             [{ text: getMessage(lang, 'BTN_ADMIN'), callback_data: 'menu_admin' }],
+            [{ text: getMessage(lang, 'BTN_REGISTER'), callback_data: 'menu_register' }],
             [{ text: '🌐 Change Language', callback_data: 'change_lang' }]
           ]
         }
@@ -202,8 +245,9 @@ async function handleCallbackQuery(bot, query) {
 
     // 2. Handle Main Menu Clicks
     if (data === 'menu_book') {
-      await setSession(chatId, { step: 'AWAITING_PIN' });
-      return send(getMessage(lang, 'ASK_PIN'));
+      const { showSearchModePicker } = require('../flows/patient');
+      const replyObj = await showSearchModePicker(chatId, lang);
+      return send(replyObj.text, replyObj.options);
     }
 
     if (data === 'menu_status') {
@@ -216,8 +260,13 @@ async function handleCallbackQuery(bot, query) {
 
     if (data === 'menu_admin') {
       await setSession(chatId, { step: 'ADMIN_START' });
-      replyObj = await handleAdminFlow(chatId, '/admin', null, false, null, lang);
+      const replyObj = await handleAdminFlow(chatId, '/admin', null, false, null, lang);
       return typeof replyObj === 'string' ? send(replyObj) : send(replyObj.text, replyObj.options);
+    }
+
+    if (data === 'menu_register') {
+      await setSession(chatId, { step: 'REGISTER_NAME' });
+      return send(getMessage(lang, 'REGISTER_ASK_NAME'));
     }
 
 

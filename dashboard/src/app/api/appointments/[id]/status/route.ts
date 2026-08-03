@@ -1,7 +1,7 @@
 // /home/z/my-project/src/app/api/appointments/[id]/status/route.ts
 import { NextRequest } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
-import { audit } from '@/lib/api-helpers'
+import { audit, canAccessDoctor } from '@/lib/api-helpers'
 import { db } from '@/lib/db'
 import { appointmentStatusSchema } from '@/lib/validators'
 import { z } from 'zod'
@@ -23,8 +23,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const existing = await db.appointment.findUnique({ where: { id } })
   if (!existing) return Response.json({ error: 'not_found' }, { status: 404 })
 
-  // Compounders can only update their own doctor's appointments
-  if (user.role === 'compounder' && user.doctorId && existing.doctorId !== user.doctorId) {
+  // Verify ownership using the new role-based scoping
+  if (!(await canAccessDoctor(user, existing.doctorId))) {
     return Response.json({ error: 'forbidden' }, { status: 403 })
   }
 

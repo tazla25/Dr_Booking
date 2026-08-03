@@ -6,12 +6,19 @@ import { Lang, t as translate, StringKey } from '@/lib/i18n'
 import { api } from '@/lib/api-client'
 
 // ---------- Types ----------
+export type Role = 'DOCTOR' | 'COMPOUNDER' | 'SUPER_ADMIN'
+export type VerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED' | 'SUSPENDED'
+
 export interface AuthUser {
   id: string
   email: string | null
   name: string
-  role: 'admin' | 'compounder'
-  doctorId?: string | null
+  role: Role
+  verificationStatus: VerificationStatus
+  medicalRegNumber?: string | null
+  specialization?: string | null
+  ownedDoctorId?: string | null
+  delegatedDoctorId?: string | null
   doctor?: { id: string; fullName: string; specialization: string } | null
   lastLoginAt?: string | null
 }

@@ -12,6 +12,7 @@ import {
   BarChart3,
   Settings,
   Activity,
+  ShieldCheck,
   X,
 } from 'lucide-react'
 import { Button } from './ui/button'
@@ -19,14 +20,17 @@ import { Button } from './ui/button'
 interface NavItem {
   key: ViewKey
   icon: typeof LayoutDashboard
+  /** If specified, only show this item when the user's role is in the list. */
+  roles?: Array<'DOCTOR' | 'COMPOUNDER' | 'SUPER_ADMIN'>
 }
 
 const NAV_ITEMS: NavItem[] = [
   { key: 'dashboard', icon: LayoutDashboard },
   { key: 'appointments', icon: CalendarDays },
-  { key: 'doctors', icon: Stethoscope },
+  { key: 'doctors', icon: Stethoscope, roles: ['DOCTOR', 'SUPER_ADMIN'] },
   { key: 'schedules', icon: Clock },
-  { key: 'analytics', icon: BarChart3 },
+  { key: 'analytics', icon: BarChart3, roles: ['DOCTOR', 'SUPER_ADMIN'] },
+  { key: 'admin-verification', icon: ShieldCheck, roles: ['SUPER_ADMIN'] },
   { key: 'settings', icon: Settings },
 ]
 
@@ -39,6 +43,12 @@ interface SidebarProps {
 
 export function Sidebar({ currentView, onNavigate, open, onClose }: SidebarProps) {
   const { t, user } = useApp()
+
+  // Filter nav items by role
+  const visibleItems = NAV_ITEMS.filter((item) => {
+    if (!item.roles) return true
+    return user && item.roles.includes(user.role)
+  })
 
   return (
     <>
@@ -85,7 +95,7 @@ export function Sidebar({ currentView, onNavigate, open, onClose }: SidebarProps
 
         {/* Nav */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {NAV_ITEMS.map((item) => {
+          {visibleItems.map((item) => {
             const Icon = item.icon
             const active = currentView === item.key
             return (
@@ -100,7 +110,7 @@ export function Sidebar({ currentView, onNavigate, open, onClose }: SidebarProps
                 )}
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
-                <span>{t(item.key)}</span>
+                <span>{t(item.key as never) || item.key}</span>
               </button>
             )
           })}
@@ -129,10 +139,24 @@ export function Sidebar({ currentView, onNavigate, open, onClose }: SidebarProps
               <p className="text-sm font-medium text-sidebar-foreground truncate">
                 {user.name}
               </p>
-              <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-              <span className="inline-block mt-1.5 text-[10px] px-2 py-0.5 rounded-full bg-primary/15 text-primary uppercase tracking-wider">
-                {user.role}
-              </span>
+              <p className="text-xs text-muted-foreground truncate">{user.email || user.doctor?.fullName || '—'}</p>
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <span className="inline-block text-[10px] px-2 py-0.5 rounded-full bg-primary/15 text-primary uppercase tracking-wider">
+                  {user.role}
+                </span>
+                {user.role === 'DOCTOR' && (
+                  <span
+                    className={cn(
+                      'inline-block text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider',
+                      user.verificationStatus === 'VERIFIED'
+                        ? 'bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-400'
+                        : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400'
+                    )}
+                  >
+                    {user.verificationStatus}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         )}

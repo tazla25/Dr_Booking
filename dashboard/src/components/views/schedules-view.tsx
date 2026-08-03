@@ -12,10 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Skeleton } from '../ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog'
-import { Plus, Clock, Pencil, Trash2, MapPin, Stethoscope, Share2, ExternalLink } from 'lucide-react'
+import { Plus, Clock, Pencil, Trash2, MapPin, Stethoscope, Share2, ExternalLink, CalendarX, CalendarClock, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { useRouter } from 'next/navigation'
+import { Badge } from '../ui/badge'
+import { Textarea } from '../ui/textarea'
 
 interface Doctor {
   id: string
@@ -35,6 +37,29 @@ interface Schedule {
   avgMinutesPerPatient: number
   doctor: { id: string; fullName: string; specialization: string } | null
   _count?: { appointments: number }
+}
+
+interface ScheduleOverride {
+  id: string
+  scheduleId: string
+  date: string
+  type: 'CLOSED' | 'MODIFIED_HOURS' | 'SPECIAL'
+  newStartTime: string | null
+  newEndTime: string | null
+  reason: string | null
+  createdAt: string
+}
+
+interface OverrideDialogState {
+  open: boolean
+  scheduleId: string | null
+  scheduleLabel: string | null
+  date: string
+  type: 'CLOSED' | 'MODIFIED_HOURS' | 'SPECIAL'
+  newStartTime: string
+  newEndTime: string
+  reason: string
+  saving: boolean
 }
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -66,7 +91,7 @@ const emptyForm: ScheduleForm = {
 export function SchedulesView() {
   const { t, lang, user } = useApp()
   const router = useRouter()
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'DOCTOR'
 
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [doctors, setDoctors] = useState<Doctor[]>([])
@@ -77,23 +102,50 @@ export function SchedulesView() {
   const [saving, setSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
+  // Override state
+  const [overridesBySchedule, setOverridesBySchedule] = useState<Record<string, ScheduleOverride[]>>({})
+  const [overrideDialog, setOverrideDialog] = useState<OverrideDialogState>({
+    open: false,
+    scheduleId: null,
+    scheduleLabel: null,
+    date: new Date().toISOString().split('T')[0],
+    type: 'CLOSED',
+    newStartTime: '10:00',
+    newEndTime: '14:00',
+    reason: '',
+    saving: false,
+  })
+
   const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
       const [schedData, docData] = await Promise.all([
         api<{ schedules: Schedule[] }>(
-          user?.doctorId ? `/api/schedules?doctorId=${user.doctorId}` : '/api/schedules'
+          user?.doctor?.id ? `/api/schedules?doctorId=${user.doctor.id}` : '/api/schedules'
         ),
         api<{ doctors: Doctor[] }>('/api/doctors'),
       ])
       setSchedules(schedData.schedules)
       setDoctors(docData.doctors)
+
+      // Fetch overrides for each schedule (in parallel)
+      const overrideEntries = await Promise.all(
+        schedData.schedules.map(async (s) => {
+          try {
+            const data = await api<{ overrides: ScheduleOverride[] }>(`/api/schedules/${s.id}/overrides`)
+            return [s.id, data.overrides] as const
+          } catch {
+            return [s.id, []] as const
+          }
+        })
+      )
+      setOverridesBySchedule(Object.fromEntries(overrideEntries))
     } catch {
       toast.error(t('error'))
     } finally {
       setLoading(false)
     }
-  }, [user?.doctorId, t])
+  }, [user, t])
 
   useEffect(() => {
     fetchAll()
@@ -166,6 +218,76 @@ export function SchedulesView() {
     const url = `${window.location.origin}/?view=tracker&scheduleId=${scheduleId}&date=${new Date().toISOString().split('T')[0]}`
     navigator.clipboard.writeText(url)
     toast.success(t('trackerLinkCopied'))
+  }
+
+  // ── Override handlers (Task 1.4) ───────────────────────────────────
+  const openOverrideDialog = (schedule: Schedule, defaultDate?: string) => {
+    setOverrideDialog({
+      open: true,
+      scheduleId: schedule.id,
+      scheduleLabel: `${schedule.doctor?.fullName || ''} · ${schedule.dayOfWeek} ${schedule.startTime}–${schedule.endTime}`,
+      date: defaultDate || new Date().toISOString().split('T')[0],
+      type: 'CLOSED',
+      newStartTime: schedule.startTime,
+      newEndTime: schedule.endTime,
+      reason: '',
+      saving: false,
+    })
+  }
+
+  const saveOverride = async () => {
+    if (!overrideDialog.scheduleId) return
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(overrideDialog.date)) {
+      toast.error('Date must be YYYY-MM-DD')
+      return
+    }
+    if (overrideDialog.type === 'MODIFIED_HOURS' && (!overrideDialog.newStartTime || !overrideDialog.newEndTime)) {
+      toast.error('Modified hours requires new start/end times')
+      return
+    }
+    setOverrideDialog((prev) => ({ ...prev, saving: true }))
+    try {
+      const body: Record<string, unknown> = {
+        date: overrideDialog.date,
+        type: overrideDialog.type,
+        reason: overrideDialog.reason || null,
+      }
+      if (overrideDialog.type === 'MODIFIED_HOURS') {
+        body.newStartTime = overrideDialog.newStartTime
+        body.newEndTime = overrideDialog.newEndTime
+      }
+      const data = await api<{ override: ScheduleOverride; affectedAppointments: { id: string; patientName: string }[] }>(
+        `/api/schedules/${overrideDialog.scheduleId}/overrides`,
+        { method: 'POST', body: JSON.stringify(body) }
+      )
+      if (data.affectedAppointments && data.affectedAppointments.length > 0) {
+        toast.success(`Override saved. ${data.affectedAppointments.length} patient(s) will be notified by the bot.`)
+      } else {
+        toast.success('Override saved')
+      }
+      setOverrideDialog((prev) => ({ ...prev, open: false }))
+      fetchAll()
+    } catch (e) {
+      toast.error((e as Error).message || t('error'))
+    } finally {
+      setOverrideDialog((prev) => ({ ...prev, saving: false }))
+    }
+  }
+
+  const removeOverride = async (scheduleId: string, date: string) => {
+    try {
+      await api(`/api/schedules/${scheduleId}/overrides/${date}`, { method: 'DELETE' })
+      toast.success('Override removed')
+      fetchAll()
+    } catch (e) {
+      toast.error((e as Error).message || t('error'))
+    }
+  }
+
+  const isTodayClosed = (scheduleId: string): ScheduleOverride | null => {
+    const today = new Date().toISOString().split('T')[0]
+    const list = overridesBySchedule[scheduleId] || []
+    return list.find((o) => o.date === today && o.type === 'CLOSED') || null
   }
 
   return (
@@ -246,6 +368,66 @@ export function SchedulesView() {
                   <span>{s._count?.appointments || 0} {t('totalAppts').toLowerCase()}</span>
                 </div>
 
+                {/* Today's status indicator (Task 1.4) */}
+                {isTodayClosed(s.id) ? (
+                  <div className="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-md p-2 flex items-center gap-2 text-xs">
+                    <CalendarX className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                    <span className="text-rose-700 dark:text-rose-400 font-medium">
+                      Closed today{isTodayClosed(s.id)?.reason ? `: ${isTodayClosed(s.id)?.reason}` : ''}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="ml-auto h-6 px-2 text-xs"
+                      onClick={() => removeOverride(s.id, isTodayClosed(s.id)!.date)}
+                    >
+                      Reopen
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 rounded-md p-2 flex items-center gap-2 text-xs">
+                    <CalendarClock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-emerald-700 dark:text-emerald-400 font-medium">Open today</span>
+                  </div>
+                )}
+
+                {/* Existing overrides list */}
+                {(overridesBySchedule[s.id] || []).length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Upcoming overrides</p>
+                    {(overridesBySchedule[s.id] || []).slice(0, 5).map((o) => (
+                      <div key={o.id} className="flex items-center gap-2 text-xs bg-muted/40 rounded p-1.5">
+                        <Badge
+                          variant="secondary"
+                          className={
+                            o.type === 'CLOSED'
+                              ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-400'
+                              : o.type === 'MODIFIED_HOURS'
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400'
+                              : 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400'
+                          }
+                        >
+                          {o.type === 'CLOSED' ? 'CLOSED' : o.type === 'MODIFIED_HOURS' ? 'MODIFIED' : 'SPECIAL'}
+                        </Badge>
+                        <span className="font-mono">{o.date}</span>
+                        {o.type === 'MODIFIED_HOURS' && o.newStartTime && o.newEndTime && (
+                          <span className="text-muted-foreground">{o.newStartTime}–{o.newEndTime}</span>
+                        )}
+                        {o.reason && <span className="text-muted-foreground truncate">· {o.reason}</span>}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="ml-auto h-6 w-6 p-0"
+                          onClick={() => removeOverride(s.id, o.date)}
+                          aria-label="Remove override"
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="flex gap-2 pt-2 border-t border-border">
                   <Button
                     size="sm"
@@ -266,6 +448,15 @@ export function SchedulesView() {
                   </Button>
                   {isAdmin && (
                     <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openOverrideDialog(s)}
+                        aria-label="Add override"
+                        title="Add override (close/modify a date)"
+                      >
+                        <CalendarX className="w-3.5 h-3.5" />
+                      </Button>
                       <Button size="sm" variant="outline" onClick={() => openEdit(s)}>
                         <Pencil className="w-3.5 h-3.5" />
                       </Button>
@@ -409,6 +600,95 @@ export function SchedulesView() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Override Dialog (Task 1.4) */}
+      <Dialog
+        open={overrideDialog.open}
+        onOpenChange={(open) => setOverrideDialog((prev) => ({ ...prev, open }))}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarX className="w-4 h-4" />
+              Schedule Override
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 max-h-[60vh] overflow-y-auto">
+            <p className="text-xs text-muted-foreground">
+              {overrideDialog.scheduleLabel}
+            </p>
+            <div className="space-y-2">
+              <Label>Date (YYYY-MM-DD)</Label>
+              <Input
+                type="date"
+                value={overrideDialog.date}
+                onChange={(e) => setOverrideDialog((prev) => ({ ...prev, date: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Override type</Label>
+              <Select
+                value={overrideDialog.type}
+                onValueChange={(v) => setOverrideDialog((prev) => ({ ...prev, type: v as OverrideDialogState['type'] }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CLOSED">Closed (no appointments)</SelectItem>
+                  <SelectItem value="MODIFIED_HOURS">Modified hours</SelectItem>
+                  <SelectItem value="SPECIAL">Special (note only)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {overrideDialog.type === 'MODIFIED_HOURS' && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>New start time</Label>
+                  <Input
+                    type="time"
+                    value={overrideDialog.newStartTime}
+                    onChange={(e) => setOverrideDialog((prev) => ({ ...prev, newStartTime: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>New end time</Label>
+                  <Input
+                    type="time"
+                    value={overrideDialog.newEndTime}
+                    onChange={(e) => setOverrideDialog((prev) => ({ ...prev, newEndTime: e.target.value }))}
+                  />
+                </div>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Reason (optional)</Label>
+              <Textarea
+                rows={2}
+                placeholder="e.g., অসুস্থ / Illness / পূজা / Festival"
+                value={overrideDialog.reason}
+                onChange={(e) => setOverrideDialog((prev) => ({ ...prev, reason: e.target.value }))}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground bg-muted/40 rounded p-2">
+              <strong>Note:</strong> If you close today, the bot will notify all
+              patients who have appointments for that date.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setOverrideDialog((prev) => ({ ...prev, open: false }))}
+              disabled={overrideDialog.saving}
+            >
+              {t('cancel')}
+            </Button>
+            <Button onClick={saveOverride} disabled={overrideDialog.saving}>
+              {overrideDialog.saving ? 'Saving...' : 'Save Override'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

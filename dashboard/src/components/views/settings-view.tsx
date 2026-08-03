@@ -53,7 +53,7 @@ export function SettingsView() {
     } finally {
       setLoading(false)
     }
-  }, [user?.email])
+  }, [user])
 
   useEffect(() => {
     fetchAux()
@@ -90,6 +90,31 @@ export function SettingsView() {
                 <Badge variant="secondary" className="uppercase">{user?.role}</Badge>
               </p>
             </div>
+            {user?.role === 'DOCTOR' && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Verification Status</Label>
+                <p>
+                  <Badge
+                    variant={user.verificationStatus === 'VERIFIED' ? 'default' : 'secondary'}
+                    className="uppercase"
+                  >
+                    {user.verificationStatus}
+                  </Badge>
+                </p>
+              </div>
+            )}
+            {user?.role === 'DOCTOR' && user.medicalRegNumber && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Medical Reg. Number</Label>
+                <p className="text-sm font-medium">{user.medicalRegNumber}</p>
+              </div>
+            )}
+            {user?.role === 'DOCTOR' && user.specialization && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Specialization</Label>
+                <p className="text-sm font-medium">{user.specialization}</p>
+              </div>
+            )}
             <div>
               <Label className="text-xs text-muted-foreground">{t('doctor')}</Label>
               <p className="text-sm font-medium">{user?.doctor?.fullName || t('none')}</p>
