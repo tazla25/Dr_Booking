@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
   const offset = parseInt(url.searchParams.get('offset') || '0', 10) || 0
   const action = url.searchParams.get('action') || undefined
   const adminUserId = url.searchParams.get('adminUserId') || undefined
+  const q = url.searchParams.get('q')?.trim() || undefined
 
   // Build the user-scope filter
   let scopeFilter: Record<string, unknown> = {}
@@ -58,10 +59,19 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const where = {
-    ...scopeFilter,
+  const where: {
+    action?: string
+    adminUserId?: string | { in: string[] }
+    detail?: { contains: string; mode: 'insensitive' }
+  } = {
     ...(action ? { action } : {}),
     ...(adminUserId ? { adminUserId } : {}),
+    ...(q ? { detail: { contains: q, mode: 'insensitive' as const } } : {}),
+  }
+
+  // Merge the scopeFilter (which may contain adminUserId: { in: [...] })
+  if (scopeFilter.adminUserId) {
+    where.adminUserId = scopeFilter.adminUserId as never
   }
 
   const [logs, total] = await Promise.all([

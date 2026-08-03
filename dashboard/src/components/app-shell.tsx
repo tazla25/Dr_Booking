@@ -16,6 +16,9 @@ import { AnalyticsView } from './views/analytics-view'
 import { TrackerView } from './views/tracker-view'
 import { SettingsView } from './views/settings-view'
 import { AdminVerificationView } from './views/admin-verification-view'
+import { PilotInsightsView } from './views/pilot-insights-view'
+import { DoctorReportView } from './views/doctor-report-view'
+import { AuditLogView } from './views/audit-log-view'
 import { ErrorBoundary } from './error-boundary'
 import { Loader2 } from 'lucide-react'
 
@@ -28,6 +31,9 @@ export type ViewKey =
   | 'tracker'
   | 'settings'
   | 'admin-verification'
+  | 'pilot-insights'
+  | 'doctor-report'
+  | 'audit-log'
 
 export function AppShell() {
   const { user, loadingAuth } = useApp()
@@ -39,14 +45,12 @@ export function AppShell() {
   const view = (search.get('view') as ViewKey | null) || 'dashboard'
   const isPublicTracker = view === 'tracker'
 
-  // Update document title with language
   useEffect(() => {
     if (typeof window !== 'undefined') {
       document.documentElement.lang = search.get('lang') || 'en'
     }
   }, [search])
 
-  // Public tracker view — render without auth/shell
   if (isPublicTracker) {
     return <TrackerView />
   }
@@ -86,6 +90,9 @@ export function AppShell() {
               {view === 'analytics' && <AnalyticsView />}
               {view === 'settings' && <SettingsView />}
               {view === 'admin-verification' && <AdminVerificationView />}
+              {view === 'pilot-insights' && <PilotInsightsView />}
+              {view === 'doctor-report' && <DoctorReportView />}
+              {view === 'audit-log' && <AuditLogView />}
             </ErrorBoundary>
           </main>
           <footer className="border-t border-border bg-card px-6 py-4 text-center text-xs text-muted-foreground">
