@@ -118,8 +118,11 @@ model Appointment {
   token           String   @unique @default(cuid())
   notes           String?
   reminderSent    Boolean  @default(false)
+  feedbackSent    Boolean  @default(false) // Phase 1 reform (Task 2.1) — feedback request sent
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  feedback        Feedback?
 
   // Race-condition protection: queue numbers must be unique per schedule+date
   @@unique([scheduleId, appointmentDate, queueNumber])
@@ -127,6 +130,19 @@ model Appointment {
   @@index([status])
   @@index([doctorId, appointmentDate])
   @@map("appointments")
+}
+
+// Phase 1 reform (Task 2.1) — post-appointment patient feedback.
+model Feedback {
+  id             String   @id @default(cuid())
+  appointmentId  String   @unique
+  appointment    Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  rating         Int      // 1-5 stars
+  comment        String?
+  createdAt      DateTime @default(now())
+
+  @@index([rating])
+  @@map("feedback")
 }
 
 // ── AdminUser (Doctor / Compounder / Super Admin) ───────────────────

@@ -269,6 +269,37 @@ async function handleCallbackQuery(bot, query) {
       return send(getMessage(lang, 'REGISTER_ASK_NAME'));
     }
 
+    // ── Feedback rating callback (Task 2.1) ────────────────────────────
+    // Format: fb_<appointmentId>_<rating 1-5>
+    if (data.startsWith('fb_')) {
+      const parts = data.split('_');
+      if (parts.length === 3) {
+        const appointmentId = parts[1];
+        const rating = parseInt(parts[2], 10);
+        if (rating >= 1 && rating <= 5) {
+          try {
+            const { submitFeedback } = require('../services/feedbackService');
+            await submitFeedback({
+              appointmentId,
+              rating,
+              patientPhone: chatId,
+            });
+            const thankYou =
+              lang === 'en'
+                ? `🙏 Thank you for your feedback! Your rating: ${rating} star(s).`
+                : lang === 'hi'
+                ? `🙏 आपकी प्रतिक्रिया के लिए धन्यवाद! आपकी रेटिंग: ${rating} स्टार।`
+                : `🙏 আপনার মতামতের জন্য ধন্যবাদ! আপনার রেটিং: ${rating} তারকা।`;
+            return send(thankYou);
+          } catch (err) {
+            // Already submitted, not found, etc.
+            return send(`ℹ️ ${err.message || 'Could not submit feedback.'}`);
+          }
+        }
+      }
+      return send(getMessage(lang, 'ERROR'));
+    }
+
 
     // 3. Forward to flows
     let replyObj;

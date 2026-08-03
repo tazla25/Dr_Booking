@@ -11,7 +11,8 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
-import { Users, CheckCircle2, UserX, TrendingUp, BarChart3 } from 'lucide-react'
+import { Users, CheckCircle2, UserX, TrendingUp, BarChart3, Star } from 'lucide-react'
+import { FeedbackWidget } from './feedback-widget'
 
 interface AnalyticsData {
   kpis: {
@@ -278,6 +279,9 @@ export function AnalyticsView() {
           </Card>
         </>
       )}
+
+      {/* Patient Feedback / NPS widget (Task 2.1) */}
+      <FeedbackWidget days={days} />
     </div>
   )
 }
