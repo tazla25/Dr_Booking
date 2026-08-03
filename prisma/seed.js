@@ -1,196 +1,240 @@
 // prisma/seed.js
 //
-// Phase 1 reform seed: creates a super admin (founder), a verified doctor
-// with an owned Doctor profile, and an invited compounder.
-//
-// Run with: `npm run db:seed` (after `npm run db:push`)
+// Comprehensive seed data for testing Dr_Booking.
+// Creates:
+//   - 1 SUPER_ADMIN (founder) with telegramChatId 100000001
+//   - 3 VERIFIED doctors with their own Doctor profiles + schedules + telegramChatIds
+//   - 1 PENDING doctor (for testing verification flow)
+//   - 1 COMPOUNDER delegated to Dr. Arjun Sen
+//   - Sample appointments (mix of online + walk-in, various statuses)
+//   - Sample feedback
 
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-async function main() {
-  console.log('Starting seed...');
+const { formatInTimeZone } = require('date-fns-tz');
 
-  // 1. Create the SUPER_ADMIN (the founder)
-  //    This is the only account that can verify new doctors.
+async function main() {
+  console.log('Starting comprehensive seed...');
+
+  // ── 1. SUPER_ADMIN (founder) ───────────────────────────────────────
   const superAdmin = await prisma.adminUser.upsert({
     where: { phone: '+910000000001' },
-    update: {
-      role: 'SUPER_ADMIN',
-      verificationStatus: 'VERIFIED',
-      isActive: true,
-      name: 'Founder (Super Admin)',
-    },
+    update: { role: 'SUPER_ADMIN', verificationStatus: 'VERIFIED', isActive: true, name: 'Founder (Super Admin)' },
     create: {
-      phone: '+910000000001',
-      name: 'Founder (Super Admin)',
-      role: 'SUPER_ADMIN',
-      verificationStatus: 'VERIFIED',
-      telegramChatId: '100000001',
-      isActive: true,
+      phone: '+910000000001', name: 'Founder (Super Admin)', role: 'SUPER_ADMIN',
+      verificationStatus: 'VERIFIED', telegramChatId: '100000001', isActive: true,
     },
   });
-  console.log(`Upserted super admin: ${superAdmin.name} (${superAdmin.phone})`);
+  console.log(`✅ Super admin: ${superAdmin.name} (telegramChatId: 100000001)`);
 
-  // 2. Create a verified doctor + their Doctor profile + schedules
-  const doctorAdmin = await prisma.adminUser.upsert({
-    where: { phone: '+919876543210' },
-    update: {},
-    create: {
-      phone: '+919876543210',
-      name: 'Dr. Arjun Sen',
-      role: 'DOCTOR',
-      verificationStatus: 'VERIFIED',
-      medicalRegNumber: 'WBMC12345',
-      specialization: 'General Physician',
-      telegramChatId: '100000002',
-      verifiedAt: new Date(),
-      verifiedBy: superAdmin.id,
-      isActive: true,
+  // ── 2. VERIFIED DOCTORS ────────────────────────────────────────────
+  const doctorsData = [
+    {
+      phone: '+919876543210', name: 'Dr. Arjun Sen', medReg: 'WBMC12345', spec: 'General Physician',
+      telegramChatId: '100000002', fee: 500, rating: 4.8,
+      schedules: [
+        { pinCode: 721401, day: 'Monday', start: '09:00', end: '13:00', clinic: 'Health First Clinic', addr: '123 Main St, Contai, Purba Medinipur', avg: 15 },
+        { pinCode: 721401, day: 'Wednesday', start: '15:00', end: '20:00', clinic: 'Health First Clinic', addr: '123 Main St, Contai, Purba Medinipur', avg: 15 },
+        { pinCode: 721636, day: 'Friday', start: '10:00', end: '14:00', clinic: 'Tamluk Medical', addr: '45 Station Rd, Tamluk, Purba Medinipur', avg: 12 },
+      ],
     },
-  });
-  console.log(`Upserted doctor admin: ${doctorAdmin.name} (${doctorAdmin.phone})`);
+    {
+      phone: '+919876543211', name: 'Dr. Meera Chowdhury', medReg: 'WBMC67890', spec: 'Cardiologist',
+      telegramChatId: '100000004', fee: 1200, rating: 4.9,
+      schedules: [
+        { pinCode: 700001, day: 'Tuesday', start: '10:00', end: '14:00', clinic: 'Heart Care Center', addr: '45 Park Street, Kolkata', avg: 20 },
+        { pinCode: 700001, day: 'Saturday', start: '16:00', end: '20:00', clinic: 'Heart Care Center', addr: '45 Park Street, Kolkata', avg: 20 },
+      ],
+    },
+    {
+      phone: '+919876543212', name: 'Dr. Rahul Pramanik', medReg: 'WBMC54321', spec: 'Pediatrician',
+      telegramChatId: '100000005', fee: 800, rating: 4.7,
+      schedules: [
+        { pinCode: 721401, day: 'Thursday', start: '08:00', end: '12:00', clinic: 'Happy Kids Care', addr: '88 Market Rd, Contai, Purba Medinipur', avg: 10 },
+        { pinCode: 721636, day: 'Sunday', start: '11:00', end: '15:00', clinic: 'Happy Kids Care', addr: '88 Station Rd, Tamluk, Purba Medinipur', avg: 10 },
+      ],
+    },
+  ];
 
-  // Create the Doctor profile owned by this admin
-  const doctor1 = await prisma.doctor.upsert({
-    where: { ownerAdminId: doctorAdmin.id },
-    update: {},
-    create: {
-      ownerAdminId: doctorAdmin.id,
-      fullName: doctorAdmin.name,
-      specialization: 'General Physician',
-      phone: doctorAdmin.phone,
-      fee: 500,
-      rating: 4.8,
-      isActive: true,
-      timezone: 'Asia/Kolkata',
-      schedules: {
-        create: [
-          {
-            pinCode: 721401, // Contai, Purba Medinipur
-            dayOfWeek: 'Monday',
-            startTime: '09:00',
-            endTime: '13:00',
-            clinicName: 'Health First Clinic',
-            clinicAddress: '123 Main St, Contai, Purba Medinipur',
-            avgMinutesPerPatient: 15,
-          },
-          {
-            pinCode: 721401,
-            dayOfWeek: 'Wednesday',
-            startTime: '15:00',
-            endTime: '20:00',
-            clinicName: 'Health First Clinic',
-            clinicAddress: '123 Main St, Contai, Purba Medinipur',
-            avgMinutesPerPatient: 15,
-          },
-        ],
+  const createdDoctors = [];
+  for (const dd of doctorsData) {
+    // Create the AdminUser (doctor)
+    const adminUser = await prisma.adminUser.upsert({
+      where: { phone: dd.phone },
+      update: {},
+      create: {
+        phone: dd.phone, name: dd.name, role: 'DOCTOR', verificationStatus: 'VERIFIED',
+        medicalRegNumber: dd.medReg, specialization: dd.spec, telegramChatId: dd.telegramChatId,
+        verifiedAt: new Date(), verifiedBy: superAdmin.id, isActive: true,
       },
-    },
-    include: { schedules: true },
-  });
-  console.log(`Upserted doctor profile: ${doctor1.fullName} (${doctor1.schedules.length} schedules)`);
+    });
 
-  // 3. Create a verified doctor #2 (Cardiologist)
-  const doctorAdmin2 = await prisma.adminUser.upsert({
-    where: { phone: '+919876543211' },
-    update: {},
-    create: {
-      phone: '+919876543211',
-      name: 'Dr. Meera Chowdhury',
-      role: 'DOCTOR',
-      verificationStatus: 'VERIFIED',
-      medicalRegNumber: 'WBMC67890',
-      specialization: 'Cardiologist',
-      telegramChatId: '100000004',
-      verifiedAt: new Date(),
-      verifiedBy: superAdmin.id,
-      isActive: true,
-    },
-  });
-
-  const doctor2 = await prisma.doctor.upsert({
-    where: { ownerAdminId: doctorAdmin2.id },
-    update: {},
-    create: {
-      ownerAdminId: doctorAdmin2.id,
-      fullName: doctorAdmin2.name,
-      specialization: 'Cardiologist',
-      phone: doctorAdmin2.phone,
-      fee: 1200,
-      rating: 4.9,
-      isActive: true,
-      timezone: 'Asia/Kolkata',
-      schedules: {
-        create: [
-          {
-            pinCode: 700001, // Kolkata
-            dayOfWeek: 'Tuesday',
-            startTime: '10:00',
-            endTime: '14:00',
-            clinicName: 'Heart Care Center',
-            clinicAddress: '45 Park Street, Kolkata',
-            avgMinutesPerPatient: 20,
-          },
-        ],
+    // Create the Doctor profile
+    const doctor = await prisma.doctor.upsert({
+      where: { ownerAdminId: adminUser.id },
+      update: {},
+      create: {
+        ownerAdminId: adminUser.id, fullName: dd.name, specialization: dd.spec,
+        phone: dd.phone, fee: dd.fee, rating: dd.rating, isActive: true, timezone: 'Asia/Kolkata',
+        schedules: { create: dd.schedules.map(s => ({ pinCode: s.pinCode, dayOfWeek: s.day, startTime: s.start, endTime: s.end, clinicName: s.clinic, clinicAddress: s.addr, avgMinutesPerPatient: s.avg })) },
       },
-    },
-    include: { schedules: true },
-  });
-  console.log(`Upserted doctor profile: ${doctor2.fullName} (${doctor2.schedules.length} schedules)`);
+      include: { schedules: true },
+    });
+    console.log(`✅ Doctor: ${doctor.fullName} (telegramChatId: ${dd.telegramChatId}, ${doctor.schedules.length} schedules)`);
+    createdDoctors.push({ adminUser, doctor, schedules: doctor.schedules });
+  }
 
-  // 4. Create a PENDING doctor (for testing the verification flow)
+  // ── 3. PENDING DOCTOR (for testing verification flow) ─────────────
   const pendingDoctor = await prisma.adminUser.upsert({
     where: { phone: '+919876543299' },
     update: {},
     create: {
-      phone: '+919876543299',
-      name: 'Dr. Pending Applicant',
-      role: 'DOCTOR',
-      verificationStatus: 'PENDING',
-      medicalRegNumber: 'WBMC99999',
-      specialization: 'Pediatrician',
-      telegramChatId: '100000099',
-      isActive: true,
-      verificationDocs: { chamberAddress: '88 Dhanmondi, Kolkata' },
+      phone: '+919876543299', name: 'Dr. Pending Applicant', role: 'DOCTOR',
+      verificationStatus: 'PENDING', medicalRegNumber: 'WBMC99999', specialization: 'Dermatologist',
+      telegramChatId: '100000099', isActive: true,
+      verificationDocs: { chamberAddress: '123 Salt Lake, Kolkata' },
     },
   });
-  console.log(`Upserted PENDING doctor: ${pendingDoctor.name} (${pendingDoctor.phone})`);
+  console.log(`✅ Pending doctor: ${pendingDoctor.name} (telegramChatId: 100000099)`);
 
-  // 5. Create an invited compounder (delegated to Dr. Arjun Sen)
-  const compounder1 = await prisma.adminUser.upsert({
+  // ── 4. COMPOUNDER (delegated to Dr. Arjun Sen) ─────────────────────
+  const arjunDoctor = createdDoctors[0].doctor;
+  const compounder = await prisma.adminUser.upsert({
     where: { phone: '+919876543220' },
     update: {},
     create: {
-      phone: '+919876543220',
-      name: 'Ramesh (Compounder for Dr. Arjun Sen)',
-      role: 'COMPOUNDER',
-      verificationStatus: 'VERIFIED', // Compounders inherit trust from their doctor
-      delegatedDoctorId: doctor1.id,
-      invitedBy: doctorAdmin.phone,
-      invitedAt: new Date(),
-      telegramChatId: '100000003',
-      isActive: true,
+      phone: '+919876543220', name: 'Ramesh (Compounder for Dr. Arjun Sen)',
+      role: 'COMPOUNDER', verificationStatus: 'VERIFIED',
+      delegatedDoctorId: arjunDoctor.id, invitedBy: '+919876543210', invitedAt: new Date(),
+      telegramChatId: '100000003', isActive: true,
     },
   });
-  console.log(`Upserted compounder: ${compounder1.name} (${compounder1.phone})`);
+  console.log(`✅ Compounder: ${compounder.name} (telegramChatId: 100000003, delegated to Dr. Arjun Sen)`);
 
-  console.log('Seed completed successfully!');
-  console.log('───────────────────────────────────');
-  console.log('Test accounts (telegramChatId → role):');
-  console.log('  100000001 → SUPER_ADMIN (Founder)');
-  console.log('  100000002 → DOCTOR (Dr. Arjun Sen, VERIFIED)');
-  console.log('  100000003 → COMPOUNDER (Ramesh, delegated to Dr. Arjun Sen)');
-  console.log('  100000004 → DOCTOR (Dr. Meera Chowdhury, VERIFIED)');
-  console.log('  100000099 → DOCTOR (Dr. Pending Applicant, PENDING)');
-  console.log('───────────────────────────────────');
+  // ── 5. SAMPLE APPOINTMENTS ─────────────────────────────────────────
+  // Create some appointments for today and recent days
+  const today = formatInTimeZone(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
+  const yesterday = formatInTimeZone(new Date(Date.now() - 86400000), 'Asia/Kolkata', 'yyyy-MM-dd');
+  const twoDaysAgo = formatInTimeZone(new Date(Date.now() - 2 * 86400000), 'Asia/Kolkata', 'yyyy-MM-dd');
+
+  // Find Dr. Arjun Sen's Monday schedule (or whichever matches today)
+  const arjunSchedules = createdDoctors[0].schedules;
+  const allSchedules = createdDoctors.flatMap(d => d.schedules);
+
+  // Create appointments for today on Arjun's first schedule
+  const todaySchedule = arjunSchedules[0];
+  const todayDayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()];
+
+  // Only create today's appointments if the schedule matches today's day
+  let appointmentCount = 0;
+  if (todaySchedule.dayOfWeek === todayDayName) {
+    const patients = [
+      { name: 'Rahul Das', phone: '100000101', status: 'Completed', queue: 1 },
+      { name: 'Sita Roy', phone: '100000102', status: 'Completed', queue: 2 },
+      { name: 'Amit Khan', phone: '100000103', status: 'Confirmed', queue: 3 },
+      { name: 'Priya Sen', phone: '100000104', status: 'Confirmed', queue: 4 },
+      { name: 'Walk-in Patient 1', phone: '+0000000000', status: 'Confirmed', queue: 5 },
+      { name: 'Walk-in Patient 2', phone: '+0000000000', status: 'Confirmed', queue: 6 },
+    ];
+    for (const p of patients) {
+      await prisma.appointment.create({
+        data: {
+          scheduleId: todaySchedule.id, doctorId: arjunDoctor.id,
+          patientName: p.name, patientPhone: p.phone, appointmentDate: today,
+          queueNumber: p.queue, status: p.status,
+        },
+      });
+      appointmentCount++;
+    }
+  }
+
+  // Create some past appointments for history testing
+  for (const sched of allSchedules) {
+    // Check if the schedule's dayOfWeek matches yesterday or 2 days ago
+    const yDay = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date(Date.now() - 86400000).getDay()];
+    const tdDay = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date(Date.now() - 2 * 86400000).getDay()];
+    const dates = [];
+    if (sched.dayOfWeek === yDay) dates.push(yesterday);
+    if (sched.dayOfWeek === tdDay) dates.push(twoDaysAgo);
+
+    for (const date of dates) {
+      for (let i = 1; i <= 3; i++) {
+        try {
+          await prisma.appointment.create({
+            data: {
+              scheduleId: sched.id, doctorId: sched.doctorId,
+              patientName: `Patient ${i} (${sched.clinicName || 'Clinic'})`,
+              patientPhone: `10000020${i}`, appointmentDate: date,
+              queueNumber: i, status: i === 1 ? 'Completed' : i === 2 ? 'NoShow' : 'Cancelled',
+              reminderSent: true,
+            },
+          });
+          appointmentCount++;
+        } catch (e) { /* skip if unique constraint fails */ }
+      }
+    }
+  }
+
+  console.log(`✅ Created ${appointmentCount} sample appointments`);
+
+  // ── 6. SAMPLE FEEDBACK ─────────────────────────────────────────────
+  // Find completed appointments and add feedback to some
+  const completedAppts = await prisma.appointment.findMany({
+    where: { status: 'Completed' },
+    take: 5,
+  });
+
+  let feedbackCount = 0;
+  for (let i = 0; i < Math.min(3, completedAppts.length); i++) {
+    const appt = completedAppts[i];
+    try {
+      await prisma.feedback.create({
+        data: {
+          appointmentId: appt.id,
+          rating: [5, 4, 5, 3, 4][i % 5],
+          comment: ['খুব ভালো অভিজ্ঞতা। ডাক্তার খুব যত্নশীল।', 'Good service, quick appointment.', 'সিরিয়াল সিস্টেম চমৎকার।', 'Wait time was a bit long but doctor was good.', 'মোটামুটি।'][i % 5],
+        },
+      });
+      feedbackCount++;
+    } catch (e) { /* skip if already exists */ }
+  }
+  console.log(`✅ Created ${feedbackCount} feedback entries`);
+
+  // ── 7. SAMPLE AUDIT LOGS ───────────────────────────────────────────
+  await prisma.auditLog.create({
+    data: { adminUserId: superAdmin.id, action: 'magic_link_login', detail: 'Super admin login via magic link', ipAddress: '127.0.0.1' },
+  });
+  await prisma.auditLog.create({
+    data: { adminUserId: createdDoctors[0].adminUser.id, action: 'magic_link_login', detail: 'Doctor login via magic link', ipAddress: '127.0.0.1' },
+  });
+  console.log(`✅ Created sample audit logs`);
+
+  // ── SUMMARY ────────────────────────────────────────────────────────
+  console.log('\n═══════════════════════════════════════════════════════════');
+  console.log('SEED COMPLETE — TEST ACCOUNTS');
+  console.log('═══════════════════════════════════════════════════════════');
+  console.log('Role          | Name                    | telegramChatId');
+  console.log('──────────────|─────────────────────────|────────────────');
+  console.log('SUPER_ADMIN   | Founder                 | 100000001');
+  console.log('DOCTOR (VERIFIED) | Dr. Arjun Sen       | 100000002');
+  console.log('COMPOUNDER    | Ramesh (for Dr. Arjun)  | 100000003');
+  console.log('DOCTOR (VERIFIED) | Dr. Meera Chowdhury | 100000004');
+  console.log('DOCTOR (VERIFIED) | Dr. Rahul Pramanik  | 100000005');
+  console.log('DOCTOR (PENDING)  | Dr. Pending Applicant | 100000099');
+  console.log('═══════════════════════════════════════════════════════════');
+  console.log('Patients (for testing /history):');
+  console.log('  100000101 — Rahul Das (has appointments with Dr. Arjun Sen)');
+  console.log('  100000102 — Sita Roy');
+  console.log('  100000103 — Amit Khan');
+  console.log('═══════════════════════════════════════════════════════════');
+  console.log('To test via the dashboard dev panel:');
+  console.log('  1. Open https://dr-booking.vercel.app');
+  console.log('  2. Click any demo user button in the Dev Panel');
+  console.log('  3. Or use the bot: send /admin with the telegramChatId above');
+  console.log('═══════════════════════════════════════════════════════════');
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .catch((e) => { console.error(e); process.exit(1); })
+  .finally(async () => { await prisma.$disconnect(); });
