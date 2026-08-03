@@ -6,7 +6,7 @@ const logger = require('../utils/logger');
 const { getSession, setSession, clearSession } = require('./session');
 const { handlePatientFlow } = require('../flows/patient');
 const { handleAdminFlow } = require('../flows/admin');
-const { cancelBookingByQueueNumber, rescheduleBookingByToken } = require('../services/bookingService');
+const { cancelBookingByQueueNumber, rescheduleBookingByToken, getPatientHistory } = require('../services/bookingService');
 const { validateDate } = require('../utils/validators');
 const { getMessage } = require('../utils/messages');
 
@@ -122,6 +122,43 @@ async function handleMessage(bot, msg) {
 
     if (text === '/queue') {
       return send(getMessage(lang, 'STATUS_MSG'));
+    }
+
+    // /history — show patient's last 10 appointments (Task 2.2)
+    if (text === '/history') {
+      try {
+        const history = await getPatientHistory(chatId);
+        if (!history.length) {
+          const msg =
+            lang === 'en'
+              ? '📋 You have no appointment history yet.\n\nUse /book to schedule your first appointment.'
+              : lang === 'hi'
+              ? '📋 आपकी कोई अपॉइंटमेंट हिस्ट्री नहीं है।\n\nअपनी पहली अपॉइंटमेंट बुक करने के लिए /book का उपयोग करें।'
+              : '📋 আপনার কোনো অ্যাপয়েন্টমেন্ট ইতিহাস নেই।\n\nপ্রথম অ্যাপয়েন্টমেন্ট বুক করতে /book ব্যবহার করুন।';
+          return send(msg);
+        }
+        const list = history
+          .map((a, i) => {
+            const statusEmoji =
+              a.status === 'Completed' ? '✅' :
+              a.status === 'Cancelled' ? '❌' :
+              a.status === 'NoShow' ? '⏭️' :
+              a.status === 'Pending' ? '⏳' : '📅';
+            const clinic = a.schedule?.clinicName ? ` (${a.schedule.clinicName})` : '';
+            return `${i + 1}. ${statusEmoji} *${a.doctor?.fullName || 'Doctor'}*${clinic}\n   📅 ${a.appointmentDate} · 🔢 Token #${a.queueNumber} · _${a.status}_`;
+          })
+          .join('\n\n');
+        const header =
+          lang === 'en'
+            ? `📋 *Your Appointment History*\n\n${list}`
+            : lang === 'hi'
+            ? `📋 *आपकी अपॉइंटमेंट हिस्ट्री*\n\n${list}`
+            : `📋 *আপনার অ্যাপয়েন্টমেন্ট ইতিহাস*\n\n${list}`;
+        return send(header);
+      } catch (err) {
+        logger.error({ chatId, err: err.message }, 'Failed to fetch patient history');
+        return send(getMessage(lang, 'ERROR'));
+      }
     }
 
     if (text === '/help') {

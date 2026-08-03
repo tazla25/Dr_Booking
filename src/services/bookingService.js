@@ -170,4 +170,40 @@ async function rescheduleBookingByToken(queueNumber, chatId, newDate) {
   }
 }
 
-module.exports = { createBooking, getQueueStatus, cancelBookingByQueueNumber, rescheduleBookingByToken };
+/**
+ * Get a patient's booking history (last 10 appointments, excluding very old ones).
+ *
+ * @param {string} chatId - the patient's telegram chatId (used as patientPhone)
+ * @returns {Promise<Array>} appointment rows with doctor + schedule info
+ */
+async function getPatientHistory(chatId) {
+  try {
+    // Only show appointments from the last 6 months
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const sinceStr = sixMonthsAgo.toISOString().split('T')[0];
+
+    return await prisma.appointment.findMany({
+      where: {
+        patientPhone: String(chatId),
+        appointmentDate: { gte: sinceStr },
+      },
+      include: {
+        doctor: { select: { id: true, fullName: true, specialization: true } },
+        schedule: { select: { id: true, clinicName: true, dayOfWeek: true, startTime: true, endTime: true } },
+      },
+      orderBy: { appointmentDate: 'desc' },
+      take: 10,
+    });
+  } catch (error) {
+    throw new AppointmentError(error.message, 'DB_ERROR');
+  }
+}
+
+module.exports = {
+  createBooking,
+  getQueueStatus,
+  cancelBookingByQueueNumber,
+  rescheduleBookingByToken,
+  getPatientHistory,
+};
