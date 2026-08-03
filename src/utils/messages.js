@@ -76,7 +76,25 @@ const translations = {
     INVITE_COMPOUNDER_WELCOME: (doctorName) => `👋 *স্বাগতম!*\n\nআপনি ${doctorName} এর কম্পাউন্ডার হিসেবে যুক্ত হয়েছেন। /admin দিয়ে লগইন করুন।`,
 
     BTN_REGISTER: '👨‍⚕️ ডাক্তার রেজিস্টার',
-    BTN_INVITE: '👨‍💼 কম্পাউন্ডার ইনভাইট'
+    BTN_INVITE: '👨‍💼 কম্পাউন্ডার ইনভাইট',
+
+    // ── Multi-mode doctor discovery (Task 1.3) ────────────────────────
+    SEARCH_MODE_PROMPT: '🔍 ডাক্তার খুঁজতে একটি মোড বেছে নিন:',
+    SEARCH_MODE_PIN: '📍 PIN কোড দিন',
+    SEARCH_MODE_NAME: '👤 নাম দিন',
+    SEARCH_MODE_SPECIALTY_CITY: '🩺 স্পেশালিটি + শহর',
+    SEARCH_MODE_SPECIALTY_PIN: '🩺 স্পেশালিটি + PIN',
+    SEARCH_ASK_NAME: '👤 ডাক্তারের নাম লিখুন (অন্তত ২ অক্ষর):',
+    SEARCH_ASK_SPECIALTY: '🩺 স্পেশালিটি লিখুন (যেমন: Cardiologist, General Physician):',
+    SEARCH_ASK_CITY: '🏙️ শহরের নাম লিখুন (যেমন: Kolkata, Contai):',
+    SEARCH_ASK_PIN: '📍 আপনার এলাকার PIN কোড দিন (৬ ডিজিট):',
+    SEARCH_ASK_SPECIALTY_FOR_PIN: '🩺 স্পেশালিটি লিখুন (যেমন: Cardiologist):',
+    SEARCH_INVALID_NAME: '❌ নাম কমপক্ষে ২ অক্ষরের হতে হবে। আবার চেষ্টা করুন:',
+    SEARCH_INVALID_SPECIALTY: '❌ স্পেশালিটি কমপক্ষে ৩ অক্ষরের হতে হবে। আবার চেষ্টা করুন:',
+    SEARCH_INVALID_CITY: '❌ শহরের নাম কমপক্ষে ২ অক্ষরের হতে হবে। আবার চেষ্টা করুন:',
+    SEARCH_INVALID_PIN: '❌ PIN কোড ৬ ডিজিটের হতে হবে। আবার চেষ্টা করুন:',
+    SEARCH_NO_RESULTS: '😔 কোনো ডাক্তার পাওয়া যায়নি। অন্য মানদণ্ড দিয়ে চেষ্টা করুন।',
+    SEARCH_RESULTS_FOUND: (count) => `✅ ${count} জন ডাক্তার পাওয়া গেছে। নিচের বাটন থেকে বেছে নিন:`
   },
   en: {
     WELCOME: '👋 Hello! I am *Smart Queue Bot*.',
@@ -151,7 +169,25 @@ const translations = {
     INVITE_COMPOUNDER_WELCOME: (doctorName) => `👋 *Welcome!*\n\nYou have been added as a compounder for ${doctorName}. Log in with /admin.`,
 
     BTN_REGISTER: '👨‍⚕️ Register as Doctor',
-    BTN_INVITE: '👨‍💼 Invite Compounder'
+    BTN_INVITE: '👨‍💼 Invite Compounder',
+
+    // ── Multi-mode doctor discovery (Task 1.3) ────────────────────────
+    SEARCH_MODE_PROMPT: '🔍 Choose a mode to find a doctor:',
+    SEARCH_MODE_PIN: '📍 By PIN Code',
+    SEARCH_MODE_NAME: '👤 By Name',
+    SEARCH_MODE_SPECIALTY_CITY: '🩺 Specialty + City',
+    SEARCH_MODE_SPECIALTY_PIN: '🩺 Specialty + PIN',
+    SEARCH_ASK_NAME: '👤 Type the doctor\'s name (at least 2 characters):',
+    SEARCH_ASK_SPECIALTY: '🩺 Type the specialty (e.g., Cardiologist, General Physician):',
+    SEARCH_ASK_CITY: '🏙️ Type the city name (e.g., Kolkata, Contai):',
+    SEARCH_ASK_PIN: '📍 Type your area PIN code (6 digits):',
+    SEARCH_ASK_SPECIALTY_FOR_PIN: '🩺 Type the specialty (e.g., Cardiologist):',
+    SEARCH_INVALID_NAME: '❌ Name must be at least 2 characters. Try again:',
+    SEARCH_INVALID_SPECIALTY: '❌ Specialty must be at least 3 characters. Try again:',
+    SEARCH_INVALID_CITY: '❌ City must be at least 2 characters. Try again:',
+    SEARCH_INVALID_PIN: '❌ PIN must be 6 digits. Try again:',
+    SEARCH_NO_RESULTS: '😔 No doctors found. Try different criteria.',
+    SEARCH_RESULTS_FOUND: (count) => `✅ Found ${count} doctor${count === 1 ? '' : 's'}. Choose from the buttons below:`
   },
   hi: {
     WELCOME: '👋 नमस्ते! मैं *Smart Queue Bot* हूँ।',
@@ -226,7 +262,25 @@ const translations = {
     INVITE_COMPOUNDER_WELCOME: (doctorName) => `👋 *स्वागत है!*\n\nआप ${doctorName} के कंपाउंडर के रूप में जोड़े गए हैं। /admin से लॉग इन करें।`,
 
     BTN_REGISTER: '👨‍⚕️ डॉक्टर के रूप में पंजीकरण करें',
-    BTN_INVITE: '👨‍💼 कंपाउंडर को आमंत्रित करें'
+    BTN_INVITE: '👨‍💼 कंपाउंडर को आमंत्रित करें',
+
+    // ── Multi-mode doctor discovery (Task 1.3) ────────────────────────
+    SEARCH_MODE_PROMPT: '🔍 डॉक्टर खोजने के लिए एक मोड चुनें:',
+    SEARCH_MODE_PIN: '📍 PIN कोड द्वारा',
+    SEARCH_MODE_NAME: '👤 नाम द्वारा',
+    SEARCH_MODE_SPECIALTY_CITY: '🩺 विशेषज्ञता + शहर',
+    SEARCH_MODE_SPECIALTY_PIN: '🩺 विशेषज्ञता + PIN',
+    SEARCH_ASK_NAME: '👤 डॉक्टर का नाम लिखें (कम से कम 2 अक्षर):',
+    SEARCH_ASK_SPECIALTY: '🩺 विशेषज्ञता लिखें (जैसे: Cardiologist, General Physician):',
+    SEARCH_ASK_CITY: '🏙️ शहर का नाम लिखें (जैसे: Kolkata, Contai):',
+    SEARCH_ASK_PIN: '📍 अपने क्षेत्र का PIN कोड लिखें (6 अंक):',
+    SEARCH_ASK_SPECIALTY_FOR_PIN: '🩺 विशेषज्ञता लिखें (जैसे: Cardiologist):',
+    SEARCH_INVALID_NAME: '❌ नाम कम से कम 2 अक्षरों का होना चाहिए। पुनः प्रयास करें:',
+    SEARCH_INVALID_SPECIALTY: '❌ विशेषज्ञता कम से कम 3 अक्षरों की होनी चाहिए। पुनः प्रयास करें:',
+    SEARCH_INVALID_CITY: '❌ शहर कम से कम 2 अक्षरों का होना चाहिए। पुनः प्रयास करें:',
+    SEARCH_INVALID_PIN: '❌ PIN 6 अंकों का होना चाहिए। पुनः प्रयास करें:',
+    SEARCH_NO_RESULTS: '😔 कोई डॉक्टर नहीं मिला। अलग मानदंड आज़माएं।',
+    SEARCH_RESULTS_FOUND: (count) => `✅ ${count} डॉक्टर मिले। नीचे दिए गए बटन से चुनें:`
   }
 };
 

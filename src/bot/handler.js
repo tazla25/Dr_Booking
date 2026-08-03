@@ -68,9 +68,10 @@ async function handleMessage(bot, msg) {
       });
     }
 
-    if (text === '/book') {
-        await setSession(chatId, { step: 'AWAITING_PIN' });
-        return send(getMessage(lang, 'ASK_PIN'));
+    if (text === '/book' || text === '/search') {
+        const { showSearchModePicker } = require('../flows/patient');
+        const replyObj = await showSearchModePicker(chatId, lang);
+        return send(replyObj.text, replyObj.options);
     }
 
     if (text === '/admin') {
@@ -244,8 +245,9 @@ async function handleCallbackQuery(bot, query) {
 
     // 2. Handle Main Menu Clicks
     if (data === 'menu_book') {
-      await setSession(chatId, { step: 'AWAITING_PIN' });
-      return send(getMessage(lang, 'ASK_PIN'));
+      const { showSearchModePicker } = require('../flows/patient');
+      const replyObj = await showSearchModePicker(chatId, lang);
+      return send(replyObj.text, replyObj.options);
     }
 
     if (data === 'menu_status') {
