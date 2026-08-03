@@ -76,7 +76,7 @@ async function handleMessage(bot, msg) {
 
     if (text === '/admin') {
       await setSession(chatId, { step: 'ADMIN_START' });
-      const replyObj = await handleAdminFlow(chatId, '/admin', null, false, null, lang);
+      const replyObj = await handleAdminFlow(bot, chatId, '/admin', null, false, null, lang);
       return typeof replyObj === 'string' ? send(replyObj) : send(replyObj.text, replyObj.options);
     }
 
@@ -201,7 +201,7 @@ async function handleMessage(bot, msg) {
     let replyObj;
 
     if (session.step.startsWith('ADMIN') || session.step.startsWith('REGISTER') || session.step.startsWith('INVITE')) {
-      replyObj = await handleAdminFlow(chatId, text, session.currentScheduleId || '', false, null, lang);
+      replyObj = await handleAdminFlow(bot, chatId, text, session.currentScheduleId || '', false, null, lang);
     } else if (session.step !== 'IDLE' && session.step !== 'AWAITING_LANG') {
       replyObj = await handlePatientFlow(chatId, text, false, null, lang);
     } else {
@@ -297,7 +297,7 @@ async function handleCallbackQuery(bot, query) {
 
     if (data === 'menu_admin') {
       await setSession(chatId, { step: 'ADMIN_START' });
-      const replyObj = await handleAdminFlow(chatId, '/admin', null, false, null, lang);
+      const replyObj = await handleAdminFlow(bot, chatId, '/admin', null, false, null, lang);
       return typeof replyObj === 'string' ? send(replyObj) : send(replyObj.text, replyObj.options);
     }
 
@@ -341,7 +341,7 @@ async function handleCallbackQuery(bot, query) {
     // 3. Forward to flows
     let replyObj;
     if (session.step.startsWith('ADMIN')) {
-      replyObj = await handleAdminFlow(chatId, '', session.currentScheduleId || '', true, data, lang);
+      replyObj = await handleAdminFlow(bot, chatId, '', session.currentScheduleId || '', true, data, lang);
     } else {
       replyObj = await handlePatientFlow(chatId, '', true, data, lang);
     }

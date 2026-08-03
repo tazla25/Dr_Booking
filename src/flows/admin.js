@@ -27,66 +27,90 @@ const LOCKOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
  * Handle an admin message based on current session step.
+ *
+ * Bug 7 fix: rate limiter only runs for the /admin login attempt, NOT for
+ * registration or invitation steps (those were getting rate-limited after
+ * 5 steps, breaking the registration flow).
+ *
+ * Bug 8 fix: bot instance is passed in so notifySuperAdminsOfNewRegistration
+ * can actually send messages to super admins.
+ *
+ * @param {Object|null} bot - the Telegram bot instance (for sending notifications)
+ * @param {string} chatId
+ * @param {string} text
+ * @param {string} scheduleId
+ * @param {boolean} isCallback
+ * @param {string|null} callbackData
+ * @param {string} lang
  */
-async function handleAdminFlow(chatId, text, scheduleId, isCallback = false, callbackData = null, lang = 'bn') {
+async function handleAdminFlow(bot, chatId, text, _scheduleId, _isCallback = false, _callbackData = null, lang = 'bn') {
   const session = await getSession(chatId);
 
-  // Rate limit check (only for the /admin login attempt, not for registration steps)
-  const ip = String(chatId);
-  const endpoint = 'admin_login';
-  const now = new Date();
+  // ── Rate limit ONLY for /admin login attempt (Bug 7 fix) ───────────
+  if (session.step === 'ADMIN_START' || text === '/admin') {
+    const ip = String(chatId);
+    const endpoint = 'admin_login';
+    const now = new Date();
 
-  try {
-    if (Math.random() < 0.2) {
-      await prisma.rateLimitEntry.deleteMany({
-        where: { expiresAt: { lt: now } }
+    try {
+      if (Math.random() < 0.2) {
+        await prisma.rateLimitEntry.deleteMany({
+          where: { expiresAt: { lt: now } }
+        });
+      }
+
+      let entry = await prisma.rateLimitEntry.upsert({
+        where: { ip_endpoint: { ip, endpoint } },
+        update: { hits: { increment: 1 } },
+        create: {
+          ip,
+          endpoint,
+          hits: 1,
+          expiresAt: new Date(now.getTime() + LOCKOUT_MS)
+        }
       });
-    }
 
-    let entry = await prisma.rateLimitEntry.upsert({
-      where: { ip_endpoint: { ip, endpoint } },
-      update: { hits: { increment: 1 } },
-      create: {
-        ip,
-        endpoint,
-        hits: 1,
-        expiresAt: new Date(now.getTime() + LOCKOUT_MS)
+      if (entry.hits > MAX_ATTEMPTS) {
+        if (entry.expiresAt < now) {
+          entry = await prisma.rateLimitEntry.update({
+            where: { ip_endpoint: { ip, endpoint } },
+            data: { hits: 1, expiresAt: new Date(now.getTime() + LOCKOUT_MS) }
+          });
+        } else {
+          const remainMin = Math.ceil((entry.expiresAt.getTime() - now.getTime()) / 60000);
+          return getMessage(lang, 'LOCKOUT', remainMin);
+        }
       }
-    });
-
-    if (entry.hits > MAX_ATTEMPTS) {
-      if (entry.expiresAt < now) {
-         entry = await prisma.rateLimitEntry.update({
-           where: { ip_endpoint: { ip, endpoint } },
-           data: { hits: 1, expiresAt: new Date(now.getTime() + LOCKOUT_MS) }
-         });
-      } else {
-         const remainMin = Math.ceil((entry.expiresAt.getTime() - now.getTime()) / 60000);
-         return getMessage(lang, 'LOCKOUT', remainMin);
-      }
+    } catch (error) {
+      logger.error('Rate limit error:', error);
     }
-  } catch (error) {
-    logger.error('Rate limit error:', error);
   }
 
   // ── /admin login flow ──────────────────────────────────────────────
   if (session.step === 'ADMIN_START' || text === '/admin') {
     const authResult = await handleAdminAuth(chatId);
+
+    // Bug 1 fix: when user not found, show helpful "not registered" message
+    // instead of generic "Something went wrong"
     if (!authResult) {
-      return getMessage(lang, 'ERROR');
+      return getMessage(lang, 'ADMIN_NOT_REGISTERED');
     }
 
     const { adminUser, magicLink, reason } = authResult;
 
-    // If verification gate failed, show appropriate message
+    // If verification gate or link generation failed, show specific messages
     if (!magicLink) {
       if (reason === 'PENDING') return getMessage(lang, 'VERIFICATION_PENDING_LOGIN');
       if (reason === 'REJECTED') return getMessage(lang, 'VERIFICATION_REJECTED_LOGIN');
       if (reason === 'SUSPENDED') return getMessage(lang, 'VERIFICATION_SUSPENDED_LOGIN');
+      // Bug 2 fix: handle LINK_FAILED reason
+      if (reason === 'LINK_FAILED') return getMessage(lang, 'ADMIN_LINK_FAILED');
       return getMessage(lang, 'ERROR');
     }
 
     // Reset rate limit on success
+    const ip = String(chatId);
+    const endpoint = 'admin_login';
     await prisma.rateLimitEntry.delete({
       where: { ip_endpoint: { ip, endpoint } }
     }).catch(() => {});
@@ -157,8 +181,8 @@ async function handleAdminFlow(chatId, text, scheduleId, isCallback = false, cal
         chamberAddress: chamber,
         telegramChatId: chatId,
       });
-      // Notify super admins
-      await notifySuperAdminsOfNewRegistration(s.regName, s.regPhone, s.regMedReg, s.regSpec, chatId);
+      // Bug 8 fix: actually notify super admins via the bot
+      await notifySuperAdminsOfNewRegistration(bot, s.regName, s.regPhone, s.regMedReg, s.regSpec, chatId);
       await clearSession(chatId);
       await setSession(chatId, { step: 'IDLE', lang });
       return getMessage(lang, 'REGISTER_SUCCESS_PENDING');
@@ -196,20 +220,37 @@ async function handleAdminFlow(chatId, text, scheduleId, isCallback = false, cal
 
 /**
  * Send a notification to all super admins about a new doctor registration.
+ * Bug 8 fix: now actually sends messages via the bot instance.
  */
-async function notifySuperAdminsOfNewRegistration(name, phone, reg, spec, chatId) {
+async function notifySuperAdminsOfNewRegistration(bot, name, phone, reg, spec, _chatId) {
   try {
     const superAdmins = await prisma.adminUser.findMany({
       where: { role: 'SUPER_ADMIN', isActive: true, telegramChatId: { not: null } },
     });
-    // We can't directly call bot.sendMessage here (no bot instance in this module).
-    // The notification will be sent via a separate job or webhook. For now, just log it.
-    logger.info(
-      { name, phone, reg, spec, registeredFromChatId: chatId, superAdminCount: superAdmins.length },
-      'New doctor registration — super admins should review'
-    );
+
+    if (superAdmins.length === 0) {
+      logger.warn('No super admins with telegramChatId found to notify');
+      return;
+    }
+
+    const message =
+      `📋 *New Doctor Registration*\n\n` +
+      `👤 Name: ${name}\n` +
+      `📱 Phone: ${phone}\n` +
+      `🏥 Medical Reg: ${reg}\n` +
+      `🩺 Specialization: ${spec}\n\n` +
+      `Approve in the dashboard → Verify Doctors.`;
+
+    for (const admin of superAdmins) {
+      try {
+        await bot.sendMessage(admin.telegramChatId, message, { parse_mode: 'Markdown' });
+        logger.info({ superAdminId: admin.id, chatId: admin.telegramChatId }, 'Notified super admin of new registration');
+      } catch (sendErr) {
+        logger.error({ superAdminId: admin.id, err: sendErr.message }, 'Failed to send notification to super admin');
+      }
+    }
   } catch (err) {
-    logger.error({ err: err.message }, 'Failed to notify super admins');
+    logger.error({ err: err.message }, 'Failed to fetch super admins for notification');
   }
 }
 

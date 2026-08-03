@@ -50,9 +50,21 @@ const DEMO_USERS = [
     role: 'SUPER_ADMIN',
   },
   {
-    label: 'Doctor · Verified',
+    label: 'Doctor · Verified · Dr. Arjun Sen',
     name: 'Dr. Arjun Sen',
     telegramChatId: '100000002',
+    role: 'DOCTOR',
+  },
+  {
+    label: 'Doctor · Verified · Dr. Meera Chowdhury',
+    name: 'Dr. Meera Chowdhury',
+    telegramChatId: '100000004',
+    role: 'DOCTOR',
+  },
+  {
+    label: 'Doctor · Pending (not yet verified)',
+    name: 'Dr. Pending Applicant',
+    telegramChatId: '100000099',
     role: 'DOCTOR',
   },
   {

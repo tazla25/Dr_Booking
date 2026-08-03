@@ -67,6 +67,10 @@ const translations = {
     VERIFICATION_SUSPENDED_LOGIN: '🚫 আপনার অ্যাকাউন্ট সাসপেন্ড করা হয়েছে। সাপোর্টে যোগাযোগ করুন।',
     VERIFICATION_APPROVED: '✅ *অভিনন্দন!*\n\nআপনার ডাক্তার অ্যাকাউন্ট অনুমোদিত হয়েছে। এখন আপনি /admin দিয়ে লগইন করতে পারেন এবং /invite দিয়ে কম্পাউন্ডার ইনভাইট করতে পারেন।',
 
+    // Bug 1 + Bug 2 fixes
+    ADMIN_NOT_REGISTERED: '🚫 আপনি নিবন্ধিত নন।\n\nডাক্তার হিসেবে নিবন্ধন করতে /register বাটনে চাপুন।\n\nআপনি যদি কম্পাউন্ডার হন, তবে আপনার ডাক্তার আপনাকে ইনভাইট করতে হবে।',
+    ADMIN_LINK_FAILED: '⚠️ ড্যাশবোর্ড লিঙ্ক তৈরি করতে সমস্যা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।',
+
     // ── Compounder invitation ────────────────────────────────────────
     INVITE_PROMPT: '👨‍💼 ইনভাইট করতে কম্পাউন্ডারের ফোন নম্বর দিন (E.164 ফরম্যাটে):\n\nযেমন: +919876543210',
     INVITE_INVALID_PHONE: '❌ ফোন নম্বর সঠিক নয়। E.164 ফরম্যাটে দিন। আবার চেষ্টা করুন:',
@@ -161,6 +165,10 @@ const translations = {
     VERIFICATION_SUSPENDED_LOGIN: '🚫 Your account has been suspended. Contact support.',
     VERIFICATION_APPROVED: '✅ *Congratulations!*\n\nYour doctor account has been approved. You can now log in with /admin and invite compounders with /invite.',
 
+    // Bug 1 + Bug 2 fixes
+    ADMIN_NOT_REGISTERED: '🚫 You are not registered.\n\nTap /register to register as a doctor.\n\nIf you are a compounder, your doctor needs to invite you.',
+    ADMIN_LINK_FAILED: '⚠️ Failed to generate dashboard link. Please try again later.',
+
     INVITE_PROMPT: '👨‍💼 Enter the compounder\'s phone number to invite (E.164 format):\n\nExample: +919876543210',
     INVITE_INVALID_PHONE: '❌ Invalid phone number. Use E.164 format. Try again:',
     INVITE_SUCCESS: (phone) => `✅ *Compounder Invited!*\n\nPhone: ${phone}\n\nThe compounder will be linked to your doctor profile when they /start the bot with ${phone}.`,
@@ -253,6 +261,10 @@ const translations = {
     VERIFICATION_REJECTED_LOGIN: '❌ आपका खाता स्वीकृत नहीं हुआ। विवरण के लिए सहायता से संपर्क करें।',
     VERIFICATION_SUSPENDED_LOGIN: '🚫 आपका खाता निलंबित कर दिया गया है। सहायता से संपर्क करें।',
     VERIFICATION_APPROVED: '✅ *बधाई हो!*\n\nआपका डॉक्टर खाता स्वीकृत हो गया है। अब आप /admin से लॉग इन कर सकते हैं और /invite से कंपाउंडर को आमंत्रित कर सकते हैं।',
+
+    // Bug 1 + Bug 2 fixes
+    ADMIN_NOT_REGISTERED: '🚫 आप पंजीकृत नहीं हैं।\n\nडॉक्टर के रूप में पंजीकरण के लिए /register दबाएं।\n\nयदि आप कंपाउंडर हैं, तो आपके डॉक्टर को आपको आमंत्रित करना होगा।',
+    ADMIN_LINK_FAILED: '⚠️ डैशबोर्ड लिंक बनाने में समस्या हुई है। कृपया बाद में पुनः प्रयास करें।',
 
     INVITE_PROMPT: '👨‍💼 आमंत्रित करने के लिए कंपाउंडर का फोन नंबर दर्ज करें (E.164 प्रारूप):\n\nउदाहरण: +919876543210',
     INVITE_INVALID_PHONE: '❌ अमान्य फोन नंबर। E.164 प्रारूप का उपयोग करें। पुनः प्रयास करें:',

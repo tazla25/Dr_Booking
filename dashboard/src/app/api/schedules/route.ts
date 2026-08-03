@@ -36,6 +36,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/schedules — create a schedule.
 // Allowed for: DOCTOR (for own profile) or COMPOUNDER (for delegated doctor) or SUPER_ADMIN.
+//
+// Bug 10 fix: if the user is a DOCTOR, auto-use their ownedDoctorId so they
+// don't need to look up and pass their own Doctor.id in the request body.
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return Response.json({ error: 'unauthorized' }, { status: 401 })
@@ -47,14 +50,28 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'invalid_input', details: (e as Error).message }, { status: 400 })
   }
 
+  // Bug 10 fix: auto-fill doctorId for DOCTOR role users
+  let doctorId = parsed.doctorId
+  if (user.role === 'DOCTOR') {
+    // Look up the doctor's owned Doctor profile
+    const ownedDoctor = await db.doctor.findUnique({ where: { ownerAdminId: user.id } })
+    if (!ownedDoctor) {
+      return Response.json({ error: 'no_doctor_profile', message: 'You do not have a doctor profile yet' }, { status: 403 })
+    }
+    doctorId = ownedDoctor.id
+  } else if (user.role === 'COMPOUNDER') {
+    // Compounders create schedules for their delegated doctor
+    doctorId = user.delegatedDoctorId || parsed.doctorId
+  }
+
   // Verify the user has access to the target doctorId
-  if (!(await canAccessDoctor(user, parsed.doctorId))) {
+  if (!(await canAccessDoctor(user, doctorId))) {
     return Response.json({ error: 'forbidden' }, { status: 403 })
   }
 
   const created = await db.schedule.create({
     data: {
-      doctorId: parsed.doctorId,
+      doctorId,
       pinCode: parsed.pinCode,
       dayOfWeek: parsed.dayOfWeek,
       startTime: parsed.startTime,

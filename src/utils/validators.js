@@ -46,18 +46,6 @@ function validateName(input) {
 }
 
 /**
- * Validate a 6-digit admin PIN. (LEGACY — kept for backward compatibility.
- * New admin auth uses magic links, not PINs.)
- * @param {string} input
- * @returns {string|null} trimmed PIN or null
- */
-function validateAdminPin(input) {
-  const trimmed = (input || '').trim();
-  if (!/^\d{6}$/.test(trimmed)) return null;
-  return trimmed;
-}
-
-/**
  * Validate an Indian medical registration number.
  * Format: 2-3 uppercase letters followed by 4-8 digits (e.g., WBMC12345, MCI987654).
  * This is a FORMAT check only — actual registry lookup is done by super admin manually.
@@ -111,7 +99,6 @@ module.exports = {
   validatePinCode,
   validateDate,
   validateName,
-  validateAdminPin,
   validateMedicalRegNumber,
   validatePhone,
   validateSpecialization,

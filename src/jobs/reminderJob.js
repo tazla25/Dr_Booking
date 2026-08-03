@@ -12,10 +12,16 @@ function initReminderJob(bot) {
     logger.info('Running appointment reminder cron job...');
 
     try {
+      // Bug 12 fix: only fetch today's appointments (in the doctor's timezone).
+      // Previously, the query fetched ALL future appointments with reminderSent=false,
+      // which would try to send reminders for next week/month appointments too.
+      const todayStr = formatInTimeZone(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
+
       const data = await prisma.appointment.findMany({
         where: {
           status: 'Confirmed',
-          reminderSent: false
+          reminderSent: false,
+          appointmentDate: todayStr,  // Bug 12 fix: only today's appointments
         },
         include: {
           schedule: {

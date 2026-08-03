@@ -1,5 +1,8 @@
 const { AppointmentError } = require('../utils/errors');
 const prisma = require('../database/prisma');
+const { formatInTimeZone } = require('date-fns-tz');
+
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /**
  * Create a new appointment booking.
@@ -99,15 +102,19 @@ async function getQueueStatus(scheduleId, appointmentDate) {
 /**
  * Cancel an appointment by token and user chatId.
  *
+ * Bug 5 fix: use timezone-aware "today" (Asia/Kolkata) instead of UTC.
+ * Previously, a patient in West Bengal (UTC+5:30) trying to cancel at 1am
+ * local time couldn't cancel today's appointment because UTC returned yesterday.
+ *
  * @param {number} queueNumber
  * @param {string} chatId
  * @returns {boolean} true on success
  */
 async function cancelBookingByQueueNumber(queueNumber, chatId) {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = formatInTimeZone(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
 
-    // Find the appointment — scoped to today's bookings for this patient
+    // Find the appointment — scoped to today's and future bookings for this patient
     const appointment = await prisma.appointment.findFirst({
       where: {
         queueNumber: queueNumber,
@@ -135,15 +142,27 @@ async function cancelBookingByQueueNumber(queueNumber, chatId) {
 }
 
 /**
- * Reschedule an appointment by token and user chatId.
+ * Reschedule an appointment by queue number and user chatId.
+ *
+ * Bug 6 fix: validates that:
+ *   - newDate is not in the past
+ *   - newDate falls on the same dayOfWeek as the schedule (doctor works that day)
+ *
+ * Also renamed from rescheduleBookingByToken → rescheduleBookingByQueueNumber
+ * for consistency with cancelBookingByQueueNumber.
  *
  * @param {number} queueNumber
  * @param {string} chatId
  * @param {string} newDate (YYYY-MM-DD)
  * @returns {boolean} true on success
  */
-async function rescheduleBookingByToken(queueNumber, chatId, newDate) {
+async function rescheduleBookingByQueueNumber(queueNumber, chatId, newDate) {
   try {
+    // Bug 6 fix: validate the new date format
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
+      throw new AppointmentError('Invalid date format', 'INVALID_DATE', '❌ তারিখ সঠিক নয় (YYYY-MM-DD ফরম্যাট দিন)।');
+    }
+
     // Find the appointment first
     const appointment = await prisma.appointment.findFirst({
       where: {
@@ -151,17 +170,54 @@ async function rescheduleBookingByToken(queueNumber, chatId, newDate) {
         patientPhone: String(chatId),
         status: 'Confirmed'
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      include: { schedule: true }
     });
 
     if (!appointment) {
-      throw new AppointmentError('Appointment not found or already cancelled.', 'NOT_FOUND', '❌ আপনার দেওয়া টোকেনটি পাওয়া যায়নি অথবা ইতোমধ্যে বাতিল করা হয়েছে।');
+      throw new AppointmentError('Appointment not found or already cancelled.', 'NOT_FOUND', '❌ আপনার দেওয়া টোকেনটি পাওয়া যায়নি অথবা ইতোমধ্যে বাতিল করা হয়েছে।');
     }
 
-    await prisma.appointment.update({
-      where: { id: appointment.id },
-      data: { appointmentDate: newDate }
-    });
+    // Bug 6 fix: validate newDate is not in the past
+    const today = formatInTimeZone(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
+    if (newDate < today) {
+      throw new AppointmentError('Cannot reschedule to past date', 'INVALID_DATE', '❌ অতীতের তারিখে রিশেডিউল করা যায় না।');
+    }
+
+    // Bug 6 fix: validate the doctor works on that day
+    const newDateDay = DAYS[new Date(newDate + 'T00:00:00').getDay()];
+    if (appointment.schedule && appointment.schedule.dayOfWeek !== newDateDay) {
+      throw new AppointmentError(
+        'Doctor does not work on this day',
+        'INVALID_DAY',
+        `❌ এই দিনে ডাক্তার চেম্বার করেন না। ডাক্তার শুধুমাত্র ${appointment.schedule.dayOfWeek} দিনে চেম্বার করেন।`
+      );
+    }
+
+    // Recompute queue number for new date — race-condition safe with retry
+    let attempts = 0;
+    while (attempts < 3) {
+      try {
+        const maxRow = await prisma.appointment.aggregate({
+          _max: { queueNumber: true },
+          where: { scheduleId: appointment.scheduleId, appointmentDate: newDate },
+        });
+        const nextQueue = (maxRow._max.queueNumber ?? 0) + 1;
+
+        await prisma.appointment.update({
+          where: { id: appointment.id },
+          data: { appointmentDate: newDate, queueNumber: nextQueue, status: 'Confirmed' },
+        });
+        break;
+      } catch (error) {
+        attempts++;
+        if (error.code === 'P2002' && attempts < 3) continue;
+        if (attempts >= 3) {
+          throw new AppointmentError('Could not assign queue number after retries', 'RACE_CONDITION',
+            '❌ রিশেডিউল করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+        }
+      }
+    }
 
     return true;
   } catch (error) {
@@ -169,6 +225,9 @@ async function rescheduleBookingByToken(queueNumber, chatId, newDate) {
     throw new AppointmentError(error.message, 'DB_ERROR');
   }
 }
+
+// Backward-compatible alias
+const rescheduleBookingByToken = rescheduleBookingByQueueNumber;
 
 /**
  * Get a patient's booking history (last 10 appointments, excluding very old ones).
@@ -235,7 +294,8 @@ module.exports = {
   createBooking,
   getQueueStatus,
   cancelBookingByQueueNumber,
-  rescheduleBookingByToken,
+  rescheduleBookingByQueueNumber,
+  rescheduleBookingByToken, // backward-compatible alias
   getPatientHistory,
   estimateWaitTime,
 };

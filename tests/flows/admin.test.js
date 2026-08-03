@@ -8,6 +8,7 @@ jest.mock('../../src/database/prisma', () => ({
   },
   adminUser: {
     findUnique: jest.fn(),
+    findMany: jest.fn().mockResolvedValue([]),
   },
 }));
 jest.mock('../../src/services/adminService'); // Mock first before any requires
@@ -17,6 +18,8 @@ const { handleAdminFlow } = require('../../src/flows/admin');
 const session = require('../../src/bot/session');
 const adminService = require('../../src/services/adminService');
 
+// Mock bot instance
+const mockBot = { sendMessage: jest.fn() };
 
 describe('handleAdminFlow', () => {
   beforeEach(() => {
@@ -31,26 +34,39 @@ describe('handleAdminFlow', () => {
         magicLink: 'http://localhost:3000/auth/verify?token=123'
       });
 
-      const reply = await handleAdminFlow('999', '/admin', 'sch-1');
+      // Bug 7/8 fix: first arg is now the bot instance
+      const reply = await handleAdminFlow(mockBot, '999', '/admin', 'sch-1');
 
       expect(reply.text || reply).toContain('লগইন সফল');
       expect(reply.options.reply_markup.inline_keyboard[0][0].url).toBe('http://localhost:3000/auth/verify?token=123');
-      // The new flow uses ownedDoctor.id or delegatedDoctorId
       expect(session.setSession).toHaveBeenCalledWith(
         '999',
         expect.objectContaining({ step: 'ADMIN_DASHBOARD' })
       );
     });
 
-    it('returns error message when handleAdminAuth returns null (user not found)', async () => {
+    it('returns ADMIN_NOT_REGISTERED message when handleAdminAuth returns null (Bug 1)', async () => {
       session.getSession.mockResolvedValue({ step: 'ADMIN_START' });
       adminService.handleAdminAuth.mockResolvedValue(null);
 
-      const reply = await handleAdminFlow('999', '/admin', 'sch-1');
+      const reply = await handleAdminFlow(mockBot, '999', '/admin', 'sch-1');
 
-      // The flow returns the localized ERROR message
+      // Bug 1 fix: should show "not registered" message, not generic error
       const replyText = typeof reply === 'string' ? reply : reply.text;
-      expect(replyText).toBeTruthy(); // Some error message is returned
+      expect(replyText).toContain('নিবন্ধিত নন');
+    });
+
+    it('returns ADMIN_LINK_FAILED message when link generation fails (Bug 2)', async () => {
+      session.getSession.mockResolvedValue({ step: 'ADMIN_START' });
+      adminService.handleAdminAuth.mockResolvedValue({
+        adminUser: { id: 'au-1', role: 'DOCTOR', verificationStatus: 'VERIFIED' },
+        magicLink: null,
+        reason: 'LINK_FAILED',
+      });
+
+      const reply = await handleAdminFlow(mockBot, '999', '/admin', 'sch-1');
+      const replyText = typeof reply === 'string' ? reply : reply.text;
+      expect(replyText).toContain('ড্যাশবোর্ড লিঙ্ক তৈরি করতে সমস্যা');
     });
 
     it('returns verification-pending message when doctor is not verified', async () => {
@@ -61,9 +77,8 @@ describe('handleAdminFlow', () => {
         reason: 'PENDING',
       });
 
-      const reply = await handleAdminFlow('999', '/admin', 'sch-1');
+      const reply = await handleAdminFlow(mockBot, '999', '/admin', 'sch-1');
       const replyText = typeof reply === 'string' ? reply : reply.text;
-      // Bengali message for "not verified yet"
       expect(replyText).toContain('যাচাই');
     });
   });

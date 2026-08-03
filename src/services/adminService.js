@@ -70,7 +70,9 @@ async function handleAdminAuth(chatId) {
   } catch (error) {
     const logger = require('../utils/logger');
     logger.error({ err: error.message }, 'Error generating magic link');
-    throw new Error('Link generation failed', { cause: error });
+    // Bug 2 fix: return structured result instead of throwing, so the flow
+    // can show a specific "link failed" message instead of generic ERROR.
+    return { adminUser, magicLink: null, reason: 'LINK_FAILED' };
   }
 
   return { adminUser, magicLink };
