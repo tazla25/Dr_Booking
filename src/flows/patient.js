@@ -70,6 +70,9 @@ function renderDoctorList(schedules, lang, backCallbackData) {
     };
   }
 
+  // Strategy v2: build trust signal text for each doctor
+  const { buildTrustSignal, toBengaliNumber } = require('../utils/bengali');
+
   const inlineKeyboard = schedules.map((s, idx) => {
     const clinicStr = s.clinicName ? ` · ${s.clinicName}` : '';
     return [{
@@ -79,8 +82,18 @@ function renderDoctorList(schedules, lang, backCallbackData) {
   });
   inlineKeyboard.push([{ text: getMessage(lang, 'BTN_BACK'), callback_data: backCallbackData }]);
 
+  // Build the doctor list text with trust signals
+  const listText = schedules.map((s, idx) => {
+    const trust = buildTrustSignal(s.doctor, lang);
+    const feeStr = s.doctor.fee > 0 ? `\n   💰 ₹${toBengaliNumber(s.doctor.fee)}` : '';
+    const clinicStr = s.clinicName ? ` · ${s.clinicName}` : '';
+    const isTopPick = s.doctor.isTopPick && idx === 0;
+    const topPickStr = isTopPick ? '⭐ সেরা পছন্দ\n' : '';
+    return `${topPickStr}${idx + 1}. ${s.doctor.fullName}\n   ${trust}${feeStr}${clinicStr}`;
+  }).join('\n\n');
+
   return {
-    text: getMessage(lang, 'SEARCH_RESULTS_FOUND', schedules.length) + '\n\n' + getMessage(lang, 'SELECT_DOCTOR', schedules),
+    text: getMessage(lang, 'SEARCH_RESULTS_FOUND', schedules.length) + '\n\n' + listText,
     options: { reply_markup: { inline_keyboard: inlineKeyboard } },
   };
 }
@@ -269,7 +282,7 @@ async function handlePatientFlow(chatId, text, isCallback = false, callbackData 
     }
 
     let idx = -1;
-    if (isCallback && callbackData && callbackData.startsWith('doc_')) {
+    if (isCallback && callbackData && (callbackData.startsWith('doc_') || callbackData.startsWith('rebook_'))) {
       idx = parseInt(callbackData.split('_')[1], 10);
     } else if (!isCallback) {
       idx = parseInt(text.trim(), 10) - 1;

@@ -33,26 +33,29 @@ async function main() {
     {
       phone: '+919876543210', name: 'Dr. Arjun Sen', medReg: 'WBMC12345', spec: 'General Physician',
       telegramChatId: '100000002', fee: 500, rating: 4.8,
+      yearsExperience: 15, isTopPick: false, specialties: ['Fever', 'Cold', 'BP', 'Diabetes'],
       schedules: [
-        { pinCode: 721401, day: 'Monday', start: '09:00', end: '13:00', clinic: 'Health First Clinic', addr: '123 Main St, Contai, Purba Medinipur', avg: 15 },
-        { pinCode: 721401, day: 'Wednesday', start: '15:00', end: '20:00', clinic: 'Health First Clinic', addr: '123 Main St, Contai, Purba Medinipur', avg: 15 },
-        { pinCode: 721636, day: 'Friday', start: '10:00', end: '14:00', clinic: 'Tamluk Medical', addr: '45 Station Rd, Tamluk, Purba Medinipur', avg: 12 },
+        { pinCode: 721401, day: 'Monday', start: '09:00', end: '13:00', clinic: 'Health First Clinic', addr: '123 Main St, Contai, Purba Medinipur', landmark: 'Contai Bus Stand-এর পাশে', avg: 15 },
+        { pinCode: 721401, day: 'Wednesday', start: '15:00', end: '20:00', clinic: 'Health First Clinic', addr: '123 Main St, Contai, Purba Medinipur', landmark: 'Contai Bus Stand-এর পাশে', avg: 15 },
+        { pinCode: 721636, day: 'Friday', start: '10:00', end: '14:00', clinic: 'Tamluk Medical', addr: '45 Station Rd, Tamluk, Purba Medinipur', landmark: 'Tamluk Station-এর কাছে', avg: 12 },
       ],
     },
     {
       phone: '+919876543211', name: 'Dr. Meera Chowdhury', medReg: 'WBMC67890', spec: 'Cardiologist',
       telegramChatId: '100000004', fee: 1200, rating: 4.9,
+      yearsExperience: 20, isTopPick: true, specialties: ['Chest Pain', 'Heart Disease', 'BP Problems', 'Palpitation'],
       schedules: [
-        { pinCode: 700001, day: 'Tuesday', start: '10:00', end: '14:00', clinic: 'Heart Care Center', addr: '45 Park Street, Kolkata', avg: 20 },
-        { pinCode: 700001, day: 'Saturday', start: '16:00', end: '20:00', clinic: 'Heart Care Center', addr: '45 Park Street, Kolkata', avg: 20 },
+        { pinCode: 700001, day: 'Tuesday', start: '10:00', end: '14:00', clinic: 'Heart Care Center', addr: '45 Park Street, Kolkata', landmark: 'Park Street Metro-এর কাছে', avg: 20 },
+        { pinCode: 700001, day: 'Saturday', start: '16:00', end: '20:00', clinic: 'Heart Care Center', addr: '45 Park Street, Kolkata', landmark: 'Park Street Metro-এর কাছে', avg: 20 },
       ],
     },
     {
       phone: '+919876543212', name: 'Dr. Rahul Pramanik', medReg: 'WBMC54321', spec: 'Pediatrician',
       telegramChatId: '100000005', fee: 800, rating: 4.7,
+      yearsExperience: 8, isTopPick: false, specialties: ['Child Fever', 'Vaccination', 'Child Nutrition'],
       schedules: [
-        { pinCode: 721401, day: 'Thursday', start: '08:00', end: '12:00', clinic: 'Happy Kids Care', addr: '88 Market Rd, Contai, Purba Medinipur', avg: 10 },
-        { pinCode: 721636, day: 'Sunday', start: '11:00', end: '15:00', clinic: 'Happy Kids Care', addr: '88 Station Rd, Tamluk, Purba Medinipur', avg: 10 },
+        { pinCode: 721401, day: 'Thursday', start: '08:00', end: '12:00', clinic: 'Happy Kids Care', addr: '88 Market Rd, Contai, Purba Medinipur', landmark: 'Contai Market-এর পাশে', avg: 10 },
+        { pinCode: 721636, day: 'Sunday', start: '11:00', end: '15:00', clinic: 'Happy Kids Care', addr: '88 Station Rd, Tamluk, Purba Medinipur', landmark: 'Tamluk Court-এর কাছে', avg: 10 },
       ],
     },
   ];
@@ -77,7 +80,14 @@ async function main() {
       create: {
         ownerAdminId: adminUser.id, fullName: dd.name, specialization: dd.spec,
         phone: dd.phone, fee: dd.fee, rating: dd.rating, isActive: true, timezone: 'Asia/Kolkata',
-        schedules: { create: dd.schedules.map(s => ({ pinCode: s.pinCode, dayOfWeek: s.day, startTime: s.start, endTime: s.end, clinicName: s.clinic, clinicAddress: s.addr, avgMinutesPerPatient: s.avg })) },
+        yearsExperience: dd.yearsExperience || 0,
+        isTopPick: dd.isTopPick || false,
+        specialties: dd.specialties || [],
+        avgRating: dd.rating || 0,
+        reviewCount: Math.floor(Math.random() * 30) + 10, // mock review count
+        appointmentCount: Math.floor(Math.random() * 500) + 50, // mock patient count
+        isAvailableNow: true,
+        schedules: { create: dd.schedules.map(s => ({ pinCode: s.pinCode, dayOfWeek: s.day, startTime: s.start, endTime: s.end, clinicName: s.clinic, clinicAddress: s.addr, landmark: s.landmark || null, avgMinutesPerPatient: s.avg })) },
       },
       include: { schedules: true },
     });

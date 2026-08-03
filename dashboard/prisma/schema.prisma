@@ -56,6 +56,17 @@ model Doctor {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  // Strategy v2: Trust & Rating System
+  yearsExperience   Int      @default(0)
+  isTopPick         Boolean  @default(false)
+  specialties       String[] @default([])
+  avgRating         Float    @default(0)
+  reviewCount       Int      @default(0)
+  appointmentCount  Int      @default(0)
+
+  // Strategy v2: Live availability indicator
+  isAvailableNow    Boolean  @default(false)
+
   schedules    Schedule[]
   appointments Appointment[] @relation("DoctorAppointments")
 
@@ -72,6 +83,9 @@ model Schedule {
   endTime              String // 'HH:mm' 24h
   clinicName           String?
   clinicAddress        String?
+  // Strategy v2: chamber location aids
+  landmark             String?  // e.g. "Contai Bus Stand-এর পাশে"
+  mapLink              String?  // Google Maps short link
   avgMinutesPerPatient Int      @default(10)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt

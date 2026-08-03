@@ -48,7 +48,12 @@ export function DoctorReportView() {
         <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2"><Activity className="w-6 h-6 text-primary" />Doctor Performance Report</h1>
       </div>
       <Card><CardContent className="p-4 grid grid-cols-1 sm:grid-cols-4 gap-3">
-        <div className="space-y-1.5"><Label className="text-xs">Doctor ID</Label><Input value={doctorId} onChange={(e) => setDoctorId(e.target.value)} placeholder="doctor ID" /></div>
+        {/* V9-3 fix: auto-detect doctorId for non-super-admins, show dropdown for super admins */}
+        {user?.role === 'SUPER_ADMIN' ? (
+          <div className="space-y-1.5"><Label className="text-xs">Doctor</Label><Input value={doctorId} onChange={(e) => setDoctorId(e.target.value)} placeholder="Doctor ID (CUID)" /></div>
+        ) : (
+          <div className="space-y-1.5"><Label className="text-xs">Doctor</Label><p className="text-sm font-medium py-2">{user?.doctor?.fullName || 'Your doctor'}</p></div>
+        )}
         <div className="space-y-1.5"><Label className="text-xs">From</Label><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
         <div className="space-y-1.5"><Label className="text-xs">To</Label><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
         <div className="flex items-end"><Button onClick={fetch} className="w-full gap-2"><TrendingUp className="w-4 h-4" />Generate</Button></div>

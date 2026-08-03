@@ -74,6 +74,58 @@ async function handleMessage(bot, msg) {
         return send(replyObj.text, replyObj.options);
     }
 
+    // /rebook — show patient's previous doctors for quick re-booking (Strategy v2)
+    if (text === '/rebook') {
+      try {
+        const prisma = require('../database/prisma');
+        // Find distinct doctors this patient has booked before
+        const pastAppts = await prisma.appointment.findMany({
+          where: { patientPhone: String(chatId) },
+          select: { doctorId: true, scheduleId: true },
+          distinct: ['doctorId'],
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+        });
+        if (pastAppts.length === 0) {
+          const msg = lang === 'en'
+            ? '📋 You have no previous bookings.\n\nUse /book to find a doctor.'
+            : '📋 আপনার কোনো পূর্ববর্তী বুকিং নেই।\n\nডাক্তার খুঁজতে /book ব্যবহার করুন।';
+          return send(msg);
+        }
+        const doctorIds = pastAppts.map(a => a.doctorId);
+        const doctors = await prisma.doctor.findMany({
+          where: { id: { in: doctorIds }, isActive: true },
+          include: { schedules: true, ownerAdmin: true },
+        });
+        if (doctors.length === 0) {
+          return send(getMessage(lang, 'SEARCH_NO_RESULTS'));
+        }
+        const { buildTrustSignal, toBengaliNumber } = require('../utils/bengali');
+        const list = doctors.map((d, i) => {
+          const trust = buildTrustSignal(d, lang);
+          const feeStr = d.fee > 0 ? `\n   💰 ₹${toBengaliNumber(d.fee)}` : '';
+          return `${i + 1}. ${d.fullName}\n   ${trust}${feeStr}`;
+        }).join('\n\n');
+        const header = lang === 'en'
+          ? `📋 *Your Previous Doctors*\n\nTap a doctor to book again:\n\n${list}`
+          : `📋 *আপনার পূর্ববর্তী ডাক্তারগণ*\n\nআবার বুক করতে একজন ডাক্তার নির্বাচন করুন:\n\n${list}`;
+        const keyboard = doctors.map((d, i) => [{
+          text: `${i + 1}. ${d.fullName}`,
+          callback_data: `rebook_${i}`,
+        }]);
+        keyboard.push([{ text: getMessage(lang, 'BTN_BACK'), callback_data: 'menu_book' }]);
+        // Store the doctors in session for the callback to use
+        await setSession(chatId, {
+          step: 'AWAITING_DOCTOR_SELECTION',
+          schedules: doctors.map(d => ({ id: d.schedules[0]?.id, doctor: d, dayOfWeek: d.schedules[0]?.dayOfWeek, startTime: d.schedules[0]?.startTime, endTime: d.schedules[0]?.endTime, clinicName: d.schedules[0]?.clinicName })),
+        });
+        return send(header, { reply_markup: { inline_keyboard: keyboard } });
+      } catch (err) {
+        logger.error({ chatId, err: err.message }, 'Failed to fetch rebook doctors');
+        return send(getMessage(lang, 'ERROR'));
+      }
+    }
+
     if (text === '/admin') {
       await setSession(chatId, { step: 'ADMIN_START' });
       const replyObj = await handleAdminFlow(bot, chatId, '/admin', null, false, null, lang);

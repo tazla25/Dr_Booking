@@ -1,9 +1,10 @@
 const { AppointmentError } = require('../utils/errors');
 const prisma = require('../database/prisma');
+const { sortByTrustScore } = require('../utils/bengali');
 
 /**
  * Get all doctor schedules for a given PIN code.
- * Returns array of schedule rows joined with doctor info.
+ * Returns array of schedule rows joined with doctor info, sorted by trust score.
  * Only includes doctors that are active AND owned by a verified AdminUser.
  */
 async function getDoctorsByPin(pinCode) {
@@ -26,7 +27,8 @@ async function getDoctorsByPin(pinCode) {
       include: { doctor: { include: { ownerAdmin: true } } },
     });
 
-    return schedules;
+    // Strategy v2: sort by trust score (verified first, then rating × reviews, etc.)
+    return sortByTrustScore(schedules);
   } catch (error) {
     throw new AppointmentError(error.message, 'DB_ERROR');
   }
@@ -42,7 +44,7 @@ async function getSchedulesForDoctor(doctorId) {
       include: { doctor: true },
     });
 
-    return schedules;
+    return schedules; // Don't sort — these are all for the same doctor
   } catch (error) {
     throw new AppointmentError(error.message, 'DB_ERROR');
   }
@@ -77,7 +79,7 @@ async function searchDoctorsByName(name) {
       orderBy: { doctor: { fullName: 'asc' } },
     });
 
-    return schedules;
+    return sortByTrustScore(schedules);
   } catch (error) {
     throw new AppointmentError(error.message, 'DB_ERROR');
   }
@@ -122,7 +124,7 @@ async function searchDoctorsBySpecialty(specialty, city) {
       orderBy: { doctor: { fullName: 'asc' } },
     });
 
-    return schedules;
+    return sortByTrustScore(schedules);
   } catch (error) {
     throw new AppointmentError(error.message, 'DB_ERROR');
   }
@@ -159,7 +161,7 @@ async function searchDoctorsBySpecialtyAndPin(specialty, pinCode) {
       orderBy: { doctor: { fullName: 'asc' } },
     });
 
-    return schedules;
+    return sortByTrustScore(schedules);
   } catch (error) {
     throw new AppointmentError(error.message, 'DB_ERROR');
   }

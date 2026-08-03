@@ -8,6 +8,7 @@ const {
 jest.mock('../../src/database/prisma', () => ({
   adminUser: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     create: jest.fn(),
   },
   schedule: {
@@ -28,7 +29,7 @@ describe('handleAdminAuth', () => {
   });
 
   it('returns adminUser and magicLink when found', async () => {
-    prisma.adminUser.findUnique.mockResolvedValueOnce({
+    prisma.adminUser.findFirst.mockResolvedValueOnce({
       id: 'au-1',
       telegramChatId: 'chat-1',
       isActive: true,
@@ -45,14 +46,14 @@ describe('handleAdminAuth', () => {
   });
 
   it('returns null when user not found', async () => {
-    prisma.adminUser.findUnique.mockResolvedValueOnce(null);
+    prisma.adminUser.findFirst.mockResolvedValueOnce(null);
 
     const result = await handleAdminAuth('chat-1');
     expect(result).toBeNull();
   });
 
   it('returns null when user is explicitly inactive', async () => {
-    prisma.adminUser.findUnique.mockResolvedValueOnce({
+    prisma.adminUser.findFirst.mockResolvedValueOnce({
       id: 'au-1',
       isActive: false,
       role: 'SUPER_ADMIN',
@@ -63,7 +64,7 @@ describe('handleAdminAuth', () => {
   });
 
   it('returns reason=PENDING when doctor is not verified', async () => {
-    prisma.adminUser.findUnique.mockResolvedValueOnce({
+    prisma.adminUser.findFirst.mockResolvedValueOnce({
       id: 'au-1',
       isActive: true,
       role: 'DOCTOR',

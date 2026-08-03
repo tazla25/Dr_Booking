@@ -147,7 +147,7 @@ export function BotAccessRequiredView() {
                 <ShieldCheck className="w-7 h-7 text-primary" />
               </div>
               <h2 className="text-lg font-semibold text-foreground">
-                Access via Telegram Bot Only
+                Access via {process.env.NEXT_PUBLIC_PLATFORM === 'whatsapp' ? 'WhatsApp' : 'Telegram'} Bot
               </h2>
               <p className="text-sm text-muted-foreground">
                 For security, the admin dashboard is not accessible by typing a URL or
@@ -206,15 +206,17 @@ export function BotAccessRequiredView() {
               </div>
             </div>
 
-            {/* Open Telegram button */}
+            {/* Open Bot button — platform-aware (V9-2 fix) */}
             <Button
               className="w-full gap-2 h-11"
               onClick={() => {
-                window.location.href = process.env.NEXT_PUBLIC_BOT_URL || 'https://t.me/Ax_erax_bot'
+                const platform = process.env.NEXT_PUBLIC_PLATFORM || 'telegram'
+                const defaultUrl = platform === 'whatsapp' ? 'https://wa.me/91XXXXXXXXXX' : 'https://t.me/Ax_erax_bot'
+                window.location.href = process.env.NEXT_PUBLIC_BOT_URL || defaultUrl
               }}
             >
               <MessageCircle className="w-4 h-4" />
-              Open Dr_Booking Bot in Telegram
+              Open Dr_Booking Bot in {process.env.NEXT_PUBLIC_PLATFORM === 'whatsapp' ? 'WhatsApp' : 'Telegram'}
             </Button>
 
             {/* Register as a doctor hint */}

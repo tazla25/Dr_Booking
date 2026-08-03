@@ -17,8 +17,15 @@ const prisma = require('../database/prisma');
  * @returns {Object|null} { adminUser, magicLink } or null
  */
 async function handleAdminAuth(chatId) {
-  const adminUser = await prisma.adminUser.findUnique({
-    where: { telegramChatId: String(chatId) },
+  // V9-5 fix: platform-aware lookup — try both telegramChatId and whatsappNumber
+  // so the same code works whether PLATFORM=telegram or PLATFORM=whatsapp
+  const adminUser = await prisma.adminUser.findFirst({
+    where: {
+      OR: [
+        { telegramChatId: String(chatId) },
+        { whatsappNumber: String(chatId) },
+      ],
+    },
     include: {
       ownedDoctor: true,
       delegatedDoctor: { include: { ownerAdmin: true } },
@@ -51,6 +58,12 @@ async function handleAdminAuth(chatId) {
   // SUPER_ADMIN: no extra checks
 
   const baseUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
+  // V9-5 fix: platform-aware body — send whatsappNumber if PLATFORM=whatsapp
+  const platform = (process.env.PLATFORM || 'telegram').toLowerCase();
+  const magicLinkBody = platform === 'whatsapp'
+    ? { whatsappNumber: String(chatId) }
+    : { telegramChatId: String(chatId) };
+
   let magicLink;
   try {
     const response = await fetch(`${baseUrl}/api/auth/generate-magic-link`, {
@@ -59,7 +72,7 @@ async function handleAdminAuth(chatId) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${process.env.BOT_API_SECRET}`
       },
-      body: JSON.stringify({ telegramChatId: String(chatId) })
+      body: JSON.stringify(magicLinkBody)
     });
 
     const data = await response.json();
