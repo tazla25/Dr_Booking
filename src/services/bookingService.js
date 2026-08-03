@@ -200,10 +200,42 @@ async function getPatientHistory(chatId) {
   }
 }
 
+/**
+ * Estimate the wait time (in minutes) for a patient based on their queue
+ * position and the schedule's avgMinutesPerPatient.
+ *
+ * @param {string} scheduleId
+ * @param {string} date - 'YYYY-MM-DD'
+ * @param {number} queueNumber - the patient's queue number
+ * @returns {Promise<{ patientsAhead: number, waitMinutes: number, isNext: boolean }>}
+ */
+async function estimateWaitTime(scheduleId, date, queueNumber) {
+  try {
+    const { currentToken } = await getQueueStatus(scheduleId, date);
+    const patientsAhead = queueNumber - currentToken - 1;
+    const isNext = patientsAhead === 0;
+    if (patientsAhead < 0) return { patientsAhead: 0, waitMinutes: 0, isNext: true };
+
+    const schedule = await prisma.schedule.findUnique({
+      where: { id: scheduleId },
+      select: { avgMinutesPerPatient: true },
+    });
+    const avgMin = schedule?.avgMinutesPerPatient || 10;
+    return {
+      patientsAhead,
+      waitMinutes: patientsAhead * avgMin,
+      isNext,
+    };
+  } catch (error) {
+    throw new AppointmentError(error.message, 'DB_ERROR');
+  }
+}
+
 module.exports = {
   createBooking,
   getQueueStatus,
   cancelBookingByQueueNumber,
   rescheduleBookingByToken,
   getPatientHistory,
+  estimateWaitTime,
 };
