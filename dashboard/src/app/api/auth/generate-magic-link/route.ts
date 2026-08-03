@@ -80,7 +80,13 @@ export async function POST(req: NextRequest) {
       ? { telegramChatId: parsed.telegramChatId }
       : { whatsappNumber: parsed.whatsappNumber }
 
-    const user = await db.adminUser.findUnique({ where, include: { doctor: true } })
+    const user = await db.adminUser.findUnique({
+      where,
+      include: {
+        ownedDoctor: true,
+        delegatedDoctor: { include: { ownerAdmin: true } },
+      },
+    })
 
     if (!user) {
       return Response.json(
@@ -98,6 +104,34 @@ export async function POST(req: NextRequest) {
         { error: 'account_disabled', message: 'This account has been deactivated.' },
         { status: 423 }
       )
+    }
+
+    // 3.5. Verification gate — doctors must be VERIFIED, compounders must have an active verified delegated doctor.
+    //      SUPER_ADMIN bypasses.
+    if (user.role === 'DOCTOR' && user.verificationStatus !== 'VERIFIED') {
+      return Response.json(
+        {
+          error: 'verification_' + user.verificationStatus.toLowerCase(),
+          message:
+            user.verificationStatus === 'PENDING'
+              ? 'Your doctor account is pending verification. Please wait for super admin approval.'
+              : user.verificationStatus === 'REJECTED'
+              ? 'Your doctor account was rejected. Contact support.'
+              : 'Your doctor account is suspended. Contact support.',
+        },
+        { status: 403 }
+      )
+    }
+
+    if (user.role === 'COMPOUNDER') {
+      const doc = user.delegatedDoctor
+      const owner = doc?.ownerAdmin
+      if (!doc || !doc.isActive || !owner || !owner.isActive || owner.verificationStatus !== 'VERIFIED') {
+        return Response.json(
+          { error: 'account_suspended', message: 'Compounder access has been revoked.' },
+          { status: 403 }
+        )
+      }
     }
 
     // 3.5. Rate limit check: count unused magic links in the last 10 minutes
@@ -147,8 +181,13 @@ export async function POST(req: NextRequest) {
         id: user.id,
         name: user.name,
         role: user.role,
-        doctor: user.doctor
-          ? { id: user.doctor.id, fullName: user.doctor.fullName }
+        verificationStatus: user.verificationStatus,
+        ownedDoctorId: user.ownedDoctor?.id ?? null,
+        delegatedDoctorId: user.delegatedDoctorId,
+        doctor: user.ownedDoctor
+          ? { id: user.ownedDoctor.id, fullName: user.ownedDoctor.fullName }
+          : user.delegatedDoctor
+          ? { id: user.delegatedDoctor.id, fullName: user.delegatedDoctor.fullName }
           : null,
       },
     })

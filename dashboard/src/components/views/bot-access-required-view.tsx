@@ -30,7 +30,13 @@ import { toast } from 'sonner'
 interface MagicLinkResponse {
   magicLink: string
   expiresAt: string
-  user: { id: string; name: string; role: string; doctor?: { fullName: string } | null }
+  user: {
+    id: string
+    name: string
+    role: 'DOCTOR' | 'COMPOUNDER' | 'SUPER_ADMIN'
+    verificationStatus?: string
+    doctor?: { fullName: string } | null
+  }
 }
 
 const DEMO_BOT_SECRET =
@@ -38,22 +44,22 @@ const DEMO_BOT_SECRET =
 
 const DEMO_USERS = [
   {
-    label: 'Admin',
-    name: 'System Administrator',
+    label: 'Super Admin (Founder)',
+    name: 'Founder',
     telegramChatId: '100000001',
-    role: 'admin',
+    role: 'SUPER_ADMIN',
+  },
+  {
+    label: 'Doctor · Verified',
+    name: 'Dr. Arjun Sen',
+    telegramChatId: '100000002',
+    role: 'DOCTOR',
   },
   {
     label: 'Compounder · Dr. Arjun Sen',
     name: 'Ramesh',
-    telegramChatId: '100000002',
-    role: 'compounder',
-  },
-  {
-    label: 'Compounder · Dr. Meera Chowdhury',
-    name: 'Meera Assistant',
     telegramChatId: '100000003',
-    role: 'compounder',
+    role: 'COMPOUNDER',
   },
 ]
 
@@ -192,6 +198,14 @@ export function BotAccessRequiredView() {
               <MessageCircle className="w-4 h-4" />
               Open Dr_Booking Bot in Telegram
             </Button>
+
+            {/* Register as a doctor hint */}
+            <div className="text-center text-xs text-muted-foreground bg-muted/40 rounded-lg p-3">
+              <p>
+                Are you a doctor? Send <code className="px-1 py-0.5 bg-background rounded border border-border">/register</code> to the bot
+                to create an account. After super admin verification, you can invite compounders and manage your chambers.
+              </p>
+            </div>
 
             {/* Dev panel — only visible in non-production */}
             {process.env.NODE_ENV !== 'production' && (

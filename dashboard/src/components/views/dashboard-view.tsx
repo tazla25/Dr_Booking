@@ -57,8 +57,8 @@ export function DashboardView() {
   const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
-      // Compounders only see their doctor's schedules
-      const schedUrl = user?.doctorId ? `/api/schedules?doctorId=${user.doctorId}` : '/api/schedules'
+      // Scope to the user's doctor (DOCTOR sees own, COMPOUNDER sees delegated, SUPER_ADMIN sees all)
+      const schedUrl = user?.doctor?.id ? `/api/schedules?doctorId=${user.doctor.id}` : '/api/schedules'
       const [apptsData, schedData] = await Promise.all([
         api<{ appointments: Appointment[]; total: number }>(
           `/api/appointments?date=${today}&limit=100`
@@ -88,7 +88,7 @@ export function DashboardView() {
     } finally {
       setLoading(false)
     }
-  }, [today, todayDow, user?.doctorId, t])
+  }, [today, todayDow, user, t])
 
   useEffect(() => {
     fetchAll()

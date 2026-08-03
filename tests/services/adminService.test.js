@@ -7,13 +7,17 @@ const {
 
 jest.mock('../../src/database/prisma', () => ({
   adminUser: {
-    findUnique: jest.fn()
+    findUnique: jest.fn(),
+    create: jest.fn(),
+  },
+  schedule: {
+    findUnique: jest.fn(),
   },
   appointment: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
-    update: jest.fn()
-  }
+    update: jest.fn(),
+  },
 }));
 
 const prisma = require('../../src/database/prisma');
@@ -24,9 +28,17 @@ describe('handleAdminAuth', () => {
   });
 
   it('returns adminUser and magicLink when found', async () => {
-    prisma.adminUser.findUnique.mockResolvedValueOnce({ id: 'au-1', telegramChatId: 'chat-1' });
-    global.fetch = jest.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ magicLink: 'http://link' }) }));
-    
+    prisma.adminUser.findUnique.mockResolvedValueOnce({
+      id: 'au-1',
+      telegramChatId: 'chat-1',
+      isActive: true,
+      role: 'SUPER_ADMIN',
+    });
+    global.fetch = jest.fn(() => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({ magicLink: 'http://link' })
+    }));
+
     const result = await handleAdminAuth('chat-1');
     expect(result.magicLink).toBe('http://link');
     expect(result.adminUser.id).toBe('au-1');
@@ -38,6 +50,30 @@ describe('handleAdminAuth', () => {
     const result = await handleAdminAuth('chat-1');
     expect(result).toBeNull();
   });
+
+  it('returns null when user is explicitly inactive', async () => {
+    prisma.adminUser.findUnique.mockResolvedValueOnce({
+      id: 'au-1',
+      isActive: false,
+      role: 'SUPER_ADMIN',
+    });
+
+    const result = await handleAdminAuth('chat-1');
+    expect(result).toBeNull();
+  });
+
+  it('returns reason=PENDING when doctor is not verified', async () => {
+    prisma.adminUser.findUnique.mockResolvedValueOnce({
+      id: 'au-1',
+      isActive: true,
+      role: 'DOCTOR',
+      verificationStatus: 'PENDING',
+    });
+
+    const result = await handleAdminAuth('chat-1');
+    expect(result.magicLink).toBeNull();
+    expect(result.reason).toBe('PENDING');
+  });
 });
 
 describe('getTodaysPatients', () => {
@@ -46,6 +82,10 @@ describe('getTodaysPatients', () => {
   });
 
   it('returns ordered patient list', async () => {
+    prisma.schedule.findUnique.mockResolvedValueOnce({
+      id: 'sch-1',
+      doctor: { timezone: 'Asia/Kolkata' },
+    });
     prisma.appointment.findMany.mockResolvedValueOnce([
       { id: 'bk-1', patientName: 'Rina', queueNumber: 1, status: 'Confirmed' },
       { id: 'bk-2', patientName: 'Sumon', queueNumber: 2, status: 'Confirmed' },
@@ -58,7 +98,17 @@ describe('getTodaysPatients', () => {
   });
 
   it('returns empty array when no patients', async () => {
+    prisma.schedule.findUnique.mockResolvedValueOnce({
+      id: 'sch-1',
+      doctor: { timezone: 'Asia/Kolkata' },
+    });
     prisma.appointment.findMany.mockResolvedValueOnce([]);
+    const result = await getTodaysPatients('sch-1');
+    expect(result).toEqual([]);
+  });
+
+  it('returns empty array when schedule not found', async () => {
+    prisma.schedule.findUnique.mockResolvedValueOnce(null);
     const result = await getTodaysPatients('sch-1');
     expect(result).toEqual([]);
   });

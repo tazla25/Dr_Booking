@@ -1,7 +1,7 @@
 // /home/z/my-project/src/app/api/appointments/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
-import { audit } from '@/lib/api-helpers'
+import { audit, canAccessDoctor } from '@/lib/api-helpers'
 import { db } from '@/lib/db'
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -11,7 +11,9 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
 
   const existing = await db.appointment.findUnique({ where: { id } })
   if (!existing) return Response.json({ error: 'not_found' }, { status: 404 })
-  if (user.role === 'compounder' && user.doctorId && existing.doctorId !== user.doctorId) {
+
+  // Verify ownership: the doctor who owns this appointment must be accessible to the user
+  if (!(await canAccessDoctor(user, existing.doctorId))) {
     return Response.json({ error: 'forbidden' }, { status: 403 })
   }
 

@@ -1,6 +1,7 @@
 // /home/z/my-project/src/app/api/appointments/route.ts
 import { NextRequest } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
+import { getDoctorScope } from '@/lib/api-helpers'
 import { db } from '@/lib/db'
 
 // GET /api/appointments?doctorId=&status=&date=&from=&to=&q=&limit=&offset=
@@ -18,8 +19,8 @@ export async function GET(req: NextRequest) {
   const cursor = url.searchParams.get('cursor') || undefined
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '100', 10) || 100, 500)
 
-  // Compounders only see their own doctor's appointments
-  const scope = user.role === 'compounder' && user.doctorId ? { doctorId: user.doctorId } : {}
+  // Scope: SUPER_ADMIN sees all; DOCTOR/COMPOUNDER see only their scoped doctor
+  const { filter: scope } = await getDoctorScope(user)
 
   const where = {
     ...scope,

@@ -29,6 +29,7 @@ export const STRINGS = {
   analytics: { bn: 'অ্যানালিটিক্স', en: 'Analytics' },
   queueTracker: { bn: 'লাইভ কিউ', en: 'Live Queue' },
   settings: { bn: 'সেটিংস', en: 'Settings' },
+  'admin-verification': { bn: 'ডাক্তার যাচাই', en: 'Verify Doctors' },
 
   // Dashboard
   todaysQueue: { bn: "আজকের কিউ", en: "Today's Queue" },

@@ -34,7 +34,10 @@ export async function createSessionForUser(
 ) {
   const user = await db.adminUser.findUnique({
     where: { id: userId },
-    include: { doctor: true },
+    include: {
+      ownedDoctor: true,
+      delegatedDoctor: { include: { ownerAdmin: true } },
+    },
   })
   if (!user || !user.isActive) return null
 
@@ -95,7 +98,14 @@ export async function getCurrentUser() {
 
   const session = await db.session.findUnique({
     where: { id: sessionId },
-    include: { adminUser: { include: { doctor: true } } },
+    include: {
+      adminUser: {
+        include: {
+          ownedDoctor: true,
+          delegatedDoctor: { include: { ownerAdmin: true } },
+        },
+      },
+    },
   })
 
   if (!session) return null

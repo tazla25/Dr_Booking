@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
+import { getDoctorScope } from '@/lib/api-helpers'
 import { db } from '@/lib/db'
-import { Prisma } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -13,18 +13,25 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url)
   const days = parseInt(url.searchParams.get('days') || '30', 10)
 
-  let tz = 'Asia/Dhaka'
-  if (user.doctorId) {
-    const d = await db.doctor.findUnique({ where: { id: user.doctorId } })
-    // if (d?.timezone) tz = d.timezone
+  let tz = 'Asia/Kolkata'
+  // Look up the doctor's timezone if scoped to a single doctor
+  const scopedDoctorId =
+    user.role === 'COMPOUNDER'
+      ? user.delegatedDoctorId
+      : user.role === 'DOCTOR'
+      ? user.ownedDoctor?.id
+      : null
+  if (scopedDoctorId) {
+    const d = await db.doctor.findUnique({ where: { id: scopedDoctorId } })
+    if (d?.timezone) tz = d.timezone
   }
-  
+
   const now = new Date()
   const sinceDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
   const sinceStr = formatInTimeZone(sinceDate, tz, 'yyyy-MM-dd')
 
-  // Scope for compounder
-  const scope = user.role === 'compounder' && user.doctorId ? { doctorId: user.doctorId } : {}
+  // Scope: SUPER_ADMIN sees all; DOCTOR sees own; COMPOUNDER sees delegated
+  const { filter: scope } = await getDoctorScope(user)
 
   // 1. Daily appointments (last N days)
   const dailyGroups = await db.appointment.groupBy({
@@ -39,7 +46,7 @@ export async function GET(req: NextRequest) {
   for (const g of dailyGroups) {
     const date = g.appointmentDate
     const entry = dailyMap.get(date) || { total: 0, completed: 0, cancelled: 0, noShow: 0 }
-    
+
     const count = g._count._all
     entry.total += count
     totalAppts += count
@@ -77,7 +84,7 @@ export async function GET(req: NextRequest) {
     where: { ...scope, appointmentDate: { gte: sinceStr } },
     _count: { _all: true },
   })
-  const doctors = await db.doctor.findMany()
+  const doctors = await db.doctor.findMany({ where: scope })
   const doctorMap = new Map(doctors.map((d) => [d.id, d]))
   const byDoctorNamed = byDoctor.map((b) => ({
     doctorId: b.doctorId,
@@ -86,13 +93,13 @@ export async function GET(req: NextRequest) {
     count: b._count._all,
   }))
 
-  // 4. By day of week (SQL groupBy)
+  // 4. By day of week (SQL groupBy) — scoped to user's filter
   let rawDow: { dow: number; count: bigint | number }[] = []
-  if (user.role === 'compounder' && user.doctorId) {
+  if (scopedDoctorId) {
     rawDow = await db.$queryRaw`
       SELECT EXTRACT(DOW FROM CAST("appointmentDate" AS DATE)) as dow, COUNT(*) as count
       FROM "appointments"
-      WHERE "appointmentDate" >= ${sinceStr} AND "doctorId" = ${user.doctorId}
+      WHERE "appointmentDate" >= ${sinceStr} AND "doctorId" = ${scopedDoctorId}
       GROUP BY EXTRACT(DOW FROM CAST("appointmentDate" AS DATE))
     `
   } else {

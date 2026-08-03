@@ -2,7 +2,7 @@
 // Calls the next patient: marks the next "Confirmed" appointment as "Completed".
 import { NextRequest } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
-import { audit } from '@/lib/api-helpers'
+import { audit, canAccessDoctor } from '@/lib/api-helpers'
 import { db } from '@/lib/db'
 import { z } from 'zod'
 
@@ -22,6 +22,16 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'invalid_input', details: (e as Error).message }, { status: 400 })
   }
 
+  // Verify the user has access to the schedule's doctor before proceeding
+  const schedule = await db.schedule.findUnique({
+    where: { id: parsed.scheduleId },
+    select: { doctorId: true },
+  })
+  if (!schedule) return Response.json({ error: 'schedule_not_found' }, { status: 404 })
+  if (!(await canAccessDoctor(user, schedule.doctorId))) {
+    return Response.json({ error: 'forbidden' }, { status: 403 })
+  }
+
   const next = await db.appointment.findFirst({
     where: {
       scheduleId: parsed.scheduleId,
@@ -33,11 +43,6 @@ export async function POST(req: NextRequest) {
 
   if (!next) {
     return Response.json({ ok: false, message: 'no_next' })
-  }
-
-  // Compounders: only their own doctor
-  if (user.role === 'compounder' && user.doctorId && next.doctorId !== user.doctorId) {
-    return Response.json({ error: 'forbidden' }, { status: 403 })
   }
 
   const updated = await db.appointment.update({

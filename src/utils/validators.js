@@ -46,7 +46,8 @@ function validateName(input) {
 }
 
 /**
- * Validate a 4-digit admin PIN.
+ * Validate a 6-digit admin PIN. (LEGACY — kept for backward compatibility.
+ * New admin auth uses magic links, not PINs.)
  * @param {string} input
  * @returns {string|null} trimmed PIN or null
  */
@@ -56,4 +57,62 @@ function validateAdminPin(input) {
   return trimmed;
 }
 
-module.exports = { validatePinCode, validateDate, validateName, validateAdminPin };
+/**
+ * Validate an Indian medical registration number.
+ * Format: 2-3 uppercase letters followed by 4-8 digits (e.g., WBMC12345, MCI987654).
+ * This is a FORMAT check only — actual registry lookup is done by super admin manually.
+ *
+ * @param {string} input
+ * @returns {string|null} normalized reg number or null if invalid format
+ */
+function validateMedicalRegNumber(input) {
+  const trimmed = (input || '').trim().toUpperCase();
+  if (!/^[A-Z]{2,3}\d{4,8}$/.test(trimmed)) return null;
+  return trimmed;
+}
+
+/**
+ * Validate a phone number in E.164 format (+CCNNNNNNNNNN).
+ * Accepts:
+ *   - +91XXXXXXXXXX (India, 12 digits total with +)
+ *   - +880XXXXXXXXX (Bangladesh)
+ *   - General E.164: + followed by 8-15 digits
+ *
+ * @param {string} input
+ * @returns {string|null} normalized phone (with leading +) or null if invalid
+ */
+function validatePhone(input) {
+  const trimmed = (input || '').trim();
+
+  // Allow user to type without leading +, normalize it
+  let normalized = trimmed;
+  if (/^\d/.test(normalized)) {
+    normalized = '+' + normalized;
+  }
+
+  // E.164: + followed by 8-15 digits, no spaces or dashes
+  if (!/^\+\d{8,15}$/.test(normalized)) return null;
+
+  return normalized;
+}
+
+/**
+ * Validate a specialization string (e.g., "Cardiologist", "General Physician").
+ * @param {string} input
+ * @returns {string|null} trimmed specialization or null
+ */
+function validateSpecialization(input) {
+  const trimmed = (input || '').trim();
+  if (trimmed.length < 3 || trimmed.length > 80) return null;
+  return trimmed;
+}
+
+module.exports = {
+  validatePinCode,
+  validateDate,
+  validateName,
+  validateAdminPin,
+  validateMedicalRegNumber,
+  validatePhone,
+  validateSpecialization,
+};

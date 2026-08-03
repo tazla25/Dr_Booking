@@ -66,7 +66,7 @@ const emptyForm: ScheduleForm = {
 export function SchedulesView() {
   const { t, lang, user } = useApp()
   const router = useRouter()
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'DOCTOR'
 
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [doctors, setDoctors] = useState<Doctor[]>([])
@@ -82,7 +82,7 @@ export function SchedulesView() {
     try {
       const [schedData, docData] = await Promise.all([
         api<{ schedules: Schedule[] }>(
-          user?.doctorId ? `/api/schedules?doctorId=${user.doctorId}` : '/api/schedules'
+          user?.doctor?.id ? `/api/schedules?doctorId=${user.doctor.id}` : '/api/schedules'
         ),
         api<{ doctors: Doctor[] }>('/api/doctors'),
       ])
@@ -93,7 +93,7 @@ export function SchedulesView() {
     } finally {
       setLoading(false)
     }
-  }, [user?.doctorId, t])
+  }, [user, t])
 
   useEffect(() => {
     fetchAll()

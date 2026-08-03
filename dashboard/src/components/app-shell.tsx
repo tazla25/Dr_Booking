@@ -26,6 +26,7 @@ export type ViewKey =
   | 'analytics'
   | 'tracker'
   | 'settings'
+  | 'admin-verification'
 
 export function AppShell() {
   const { user, loadingAuth } = useApp()
