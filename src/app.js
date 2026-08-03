@@ -67,6 +67,35 @@ app.use('/api', rateLimiter);
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
-
+// ── Bot-internal notification endpoint (called by dashboard to send
+//    patient notifications when a schedule is closed, etc.) ──────────
+//    Header: Authorization: Bearer <BOT_API_SECRET>
+//    Body: { chatIds: string[], text: string }
+app.post('/api/notify', async (req, res) => {
+  const auth = req.headers.authorization || '';
+  const expected = `Bearer ${process.env.BOT_API_SECRET}`;
+  if (auth !== expected) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  const { chatIds, text } = req.body || {};
+  if (!Array.isArray(chatIds) || chatIds.length === 0 || typeof text !== 'string') {
+    return res.status(400).json({ error: 'invalid_input', message: 'chatIds (string[]) and text (string) required' });
+  }
+  // The bot instance is attached to req.app by index.js
+  const bot = req.app.get('bot');
+  if (!bot) {
+    return res.status(503).json({ error: 'bot_unavailable', message: 'Bot instance not attached to app' });
+  }
+  const results = [];
+  for (const chatId of chatIds) {
+    try {
+      await bot.sendMessage(String(chatId), text, { parse_mode: 'Markdown' });
+      results.push({ chatId, ok: true });
+    } catch (err) {
+      results.push({ chatId, ok: false, error: err.message });
+    }
+  }
+  return res.json({ ok: true, results });
+});
 
 module.exports = app;

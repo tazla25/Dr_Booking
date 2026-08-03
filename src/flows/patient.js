@@ -16,6 +16,7 @@ const {
   searchDoctorsBySpecialtyAndPin,
 } = require('../services/doctorService');
 const { createBooking } = require('../services/bookingService');
+const { isScheduleOpen } = require('../services/scheduleService');
 const { getSession, setSession, clearSession } = require('../bot/session');
 const {
   validatePinCode,
@@ -281,7 +282,9 @@ async function handlePatientFlow(chatId, text, isCallback = false, callbackData 
     const selected = session.schedules[idx];
     await setSession(chatId, { step: 'AWAITING_DATE', selectedSchedule: selected });
 
-    // Generate dates (14 days, filter by dayOfWeek, offer first 3)
+    // Generate dates: walk forward up to 14 days, filter by dayOfWeek AND by
+    // schedule override (skip dates where the chamber is marked CLOSED).
+    // Offer up to 3 open dates.
     const nextDays = [];
     const dayNameMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const targetDay = selected.dayOfWeek;
@@ -289,9 +292,24 @@ async function handlePatientFlow(chatId, text, isCallback = false, callbackData 
       const d = new Date();
       d.setDate(d.getDate() + i);
       if (dayNameMap[d.getDay()] === targetDay) {
-        nextDays.push(d.toISOString().split('T')[0]);
+        const dateStr = d.toISOString().split('T')[0];
+        // Skip closed dates (override type === 'CLOSED')
+        const open = await isScheduleOpen(selected.id, dateStr);
+        if (open) {
+          nextDays.push(dateStr);
+        }
       }
       if (nextDays.length === 3) break;
+    }
+
+    // If no open dates in the next 14 days, show a friendly message
+    if (nextDays.length === 0) {
+      return {
+        text: getMessage(lang, 'SEARCH_NO_RESULTS') + '\n\n' + getMessage(lang, 'BTN_BACK'),
+        options: {
+          reply_markup: { inline_keyboard: getBackButton('back_doc') },
+        },
+      };
     }
 
     const date_keyboard = nextDays.map((d) => [

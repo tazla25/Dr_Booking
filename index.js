@@ -29,6 +29,9 @@ const crypto = require('crypto');
 const webhookSecret = process.env.WEBHOOK_SECRET || process.env.BOT_API_SECRET || crypto.createHash('sha256').update(process.env.TELEGRAM_BOT_TOKEN).digest('hex');
 
 const bot = createBot();
+// Attach the bot instance to the app so internal endpoints (e.g. /api/notify)
+// can use it to send messages without needing a separate bot reference.
+app.set('bot', bot);
 registerWebhook(bot, app, webhookSecret);
 initReminderJob(bot);
 

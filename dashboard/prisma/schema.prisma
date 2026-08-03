@@ -77,10 +77,31 @@ model Schedule {
   updatedAt            DateTime @updatedAt
 
   appointments Appointment[]
+  overrides   ScheduleOverride[]
 
   @@index([pinCode])
   @@index([doctorId])
   @@map("schedules")
+}
+
+// Phase 1 reform (Task 1.4) — schedule overrides.
+// Allows compounders/doctors to mark a chamber closed or modify hours for a
+// specific date without touching the regular weekly schedule.
+model ScheduleOverride {
+  id            String   @id @default(cuid())
+  scheduleId    String
+  schedule      Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  date          String // 'YYYY-MM-DD'
+  type          String // 'CLOSED' | 'MODIFIED_HOURS' | 'SPECIAL'
+  newStartTime  String? // null when type = CLOSED
+  newEndTime    String? // null when type = CLOSED
+  reason        String? // 'অসুস্থ', 'পূজা', etc.
+  createdBy     String  // AdminUser.id
+  createdAt     DateTime @default(now())
+
+  @@unique([scheduleId, date])
+  @@index([scheduleId, date])
+  @@map("schedule_overrides")
 }
 
 model Appointment {
