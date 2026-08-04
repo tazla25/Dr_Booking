@@ -340,6 +340,36 @@ async function handleMessage(bot, msg) {
       }
     }
 
+    // ── Text-based language selection (WhatsApp fallback) ────────────
+    // WhatsApp interactive buttons may not render on all devices or older
+    // WhatsApp versions. Accept text input as a fallback so users can type
+    // "English", "বাংলা", "hindi", "bn", "en", "hi", etc. to select language.
+    if (session.step === 'AWAITING_LANG') {
+      const lowerText = text.toLowerCase().trim();
+      let selectedLang = null;
+      if (['bn', 'bangla', 'বাংলা', 'bengali', 'বাংলা'].includes(lowerText)) selectedLang = 'bn';
+      else if (['en', 'english', 'ইংরেজি', 'eng'].includes(lowerText)) selectedLang = 'en';
+      else if (['hi', 'hindi', 'हिन्दी', 'হিন্দি'].includes(lowerText)) selectedLang = 'hi';
+
+      if (selectedLang) {
+        await setSession(chatId, { lang: selectedLang, step: 'MAIN_MENU' });
+        const menu = buildMainMenu(selectedLang);
+        // Confirm language selection then show the main menu in one message
+        const confirmation =
+          selectedLang === 'bn' ? '✅ বাংলা নির্বাচিত।\n\n' :
+          selectedLang === 'hi' ? '✅ हिन्दी चुनी गई।\n\n' :
+          '✅ English selected.\n\n';
+        return send(confirmation + menu.text, menu.options);
+      }
+      // Text didn't match a language — re-show the picker with a hint
+      const hint =
+        lang === 'bn' ? '⚠️ বুঝতে পারিনি। ভাষা নির্বাচন করুন:\n\n' :
+        lang === 'hi' ? '⚠️ समझ नहीं आया। भाषा चुनें:\n\n' :
+        '⚠️ Did not understand. Please select a language:\n\n';
+      const picker = buildLanguagePicker();
+      return send(hint + picker.text, picker.options);
+    }
+
     // ── Flow routing ──────────────────────────────────────────
     let replyObj;
 
@@ -361,6 +391,27 @@ async function handleMessage(bot, msg) {
     } else if (replyObj) {
         return send(replyObj.text, replyObj.options);
     }
+
+    // ── Helpful fallback for unrecognized input ────────────────────
+    // If we got here, the user sent text that didn't match any command
+    // and no flow produced a reply. Show a helpful menu instead of leaving
+    // them with no response.
+    const helpLang = session.lang || 'bn';
+    const helpText =
+      helpLang === 'en'
+        ? '🤔 I did not understand that. What would you like to do?'
+        : helpLang === 'hi'
+        ? '🤔 समझ नहीं आया। आप क्या करना चाहते हैं?'
+        : '🤔 বুঝতে পারিনি। আপনি কী করতে চান?';
+    return send(helpText, {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: getMessage(helpLang, 'BTN_BOOK'), callback_data: 'menu_book' }],
+          [{ text: getMessage(helpLang, 'BTN_STATUS'), callback_data: 'menu_status' }],
+          [{ text: '🌐 ' + (helpLang === 'en' ? 'Change Language' : helpLang === 'hi' ? 'भाषा बदलें' : 'ভাষা পরিবর্তন'), callback_data: 'change_lang' }],
+        ]
+      }
+    });
   } catch (err) {
     if (err.name === 'AppointmentError') {
       logger.error({ chatId, code: err.code, err: err.message }, 'AppointmentError occurred');
