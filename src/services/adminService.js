@@ -141,27 +141,34 @@ async function authenticateUser(phone, password) {
     return { ok: false, reason: 'INVALID_PASSWORD' };
   }
 
-  // Password verified — generate a dashboard link via the magic-link endpoint.
-  // The link is one-time-use and expires in 2 hours (set by MAGIC_LINK_TTL_MINUTES).
-  const baseUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
-  let dashboardUrl;
+  // Password verified — create a Session directly in the DB (Feature 1).
+  // This replaces the old flow that called /api/auth/generate-magic-link.
+  // The bot has DATABASE_URL access, so it can write to the sessions table
+  // directly. The dashboard's /auth/session page then validates this session
+  // and sets the cookie.
+  const crypto = require('crypto');
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  // HMAC the token with BOT_API_SECRET (same secret the dashboard uses)
+  const tokenHash = crypto
+    .createHmac('sha256', process.env.BOT_API_SECRET || 'dev-session-secret')
+    .update(rawToken)
+    .digest('hex');
+
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+
+  let session;
   try {
-    const response = await fetch(`${baseUrl}/api/auth/generate-magic-link`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.BOT_API_SECRET}`,
+    session = await prisma.session.create({
+      data: {
+        adminUserId: user.id,
+        tokenHash,
+        expiresAt,
+        userAgent: 'whatsapp-bot',
       },
-      body: JSON.stringify({ whatsappNumber: user.whatsappNumber || user.phone }),
     });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to generate dashboard link');
-    }
-    dashboardUrl = data.magicLink;
-  } catch (error) {
+  } catch (err) {
     const logger = require('../utils/logger');
-    logger.error({ err: error.message, userId: user.id }, 'Failed to generate dashboard link after password verification');
+    logger.error({ err: err.message, userId: user.id }, 'Failed to create session for user');
     return { ok: false, reason: 'LINK_FAILED' };
   }
 
@@ -170,6 +177,10 @@ async function authenticateUser(phone, password) {
     where: { id: user.id },
     data: { lastLoginAt: new Date() },
   }).catch(() => {});
+
+  // Build the dashboard URL with session ID + raw token
+  const baseUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
+  const dashboardUrl = `${baseUrl}/auth/session?sid=${session.id}&token=${rawToken}`;
 
   return { ok: true, user, dashboardUrl };
 }

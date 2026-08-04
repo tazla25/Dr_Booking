@@ -146,13 +146,14 @@ export function BotAccessRequiredView() {
               <div className="w-14 h-14 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
                 <ShieldCheck className="w-7 h-7 text-primary" />
               </div>
-              <h2 className="text-lg font-semibold text-foreground">
-                Access via WhatsApp Bot
-              </h2>
-              <p className="text-sm text-muted-foreground">
+            <h2 className="text-lg font-semibold text-foreground">
+              Access via WhatsApp Bot
+            </h2>
+            <p className="text-sm text-muted-foreground">
                 For security, the admin dashboard is not accessible by typing a URL or
-                password. Please open your WhatsApp bot and tap
-                &ldquo;Open Dashboard&rdquo; to receive a secure magic link.
+                password directly in the browser. Open your WhatsApp bot and send
+                &ldquo;/login&rdquo; — you will be asked for your phone number and password,
+                then receive a one-click dashboard link.
               </p>
             </div>
 
@@ -171,8 +172,8 @@ export function BotAccessRequiredView() {
                   2
                 </div>
                 <p className="text-muted-foreground">
-                  Tap <strong className="text-foreground">&ldquo;Open Dashboard&rdquo;</strong> —
-                  the bot will send you a one-time magic link.
+                  Send <strong className="text-foreground">&ldquo;/login&rdquo;</strong> — the bot will ask
+                  for your phone number and password.
                 </p>
               </div>
               <div className="flex items-start gap-3">
@@ -180,8 +181,17 @@ export function BotAccessRequiredView() {
                   3
                 </div>
                 <p className="text-muted-foreground">
-                  Click the link — you&rsquo;ll land here, get authenticated, and be redirected
-                  to your dashboard.
+                  After successful login, you&apos;ll receive a one-click dashboard link.
+                  Click it — you&apos;ll land here authenticated.
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-amber-500/15 text-amber-600 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                  ?
+                </div>
+                <p className="text-muted-foreground">
+                  Forgot your password? Send <strong className="text-foreground">&ldquo;/forgot&rdquo;</strong> to the bot
+                  to reset via OTP.
                 </p>
               </div>
             </div>
@@ -190,18 +200,18 @@ export function BotAccessRequiredView() {
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="bg-card border border-border rounded-lg p-2.5">
                 <Clock className="w-4 h-4 mx-auto text-primary mb-1" />
-                <p className="text-[10px] text-muted-foreground">2-hour</p>
-                <p className="text-[10px] text-muted-foreground">expiry</p>
+                <p className="text-[10px] text-muted-foreground">30-min</p>
+                <p className="text-[10px] text-muted-foreground">link expiry</p>
               </div>
               <div className="bg-card border border-border rounded-lg p-2.5">
                 <KeyRound className="w-4 h-4 mx-auto text-primary mb-1" />
-                <p className="text-[10px] text-muted-foreground">Single</p>
-                <p className="text-[10px] text-muted-foreground">use only</p>
+                <p className="text-[10px] text-muted-foreground">Phone +</p>
+                <p className="text-[10px] text-muted-foreground">password</p>
               </div>
               <div className="bg-card border border-border rounded-lg p-2.5">
                 <Smartphone className="w-4 h-4 mx-auto text-primary mb-1" />
-                <p className="text-[10px] text-muted-foreground">No</p>
-                <p className="text-[10px] text-muted-foreground">passwords</p>
+                <p className="text-[10px] text-muted-foreground">In-chat</p>
+                <p className="text-[10px] text-muted-foreground">login</p>
               </div>
             </div>
 
@@ -220,7 +230,8 @@ export function BotAccessRequiredView() {
             <div className="text-center text-xs text-muted-foreground bg-muted/40 rounded-lg p-3">
               <p>
                 Are you a doctor? Send <code className="px-1 py-0.5 bg-background rounded border border-border">/register</code> to the bot
-                to create an account. After super admin verification, you can invite compounders and manage your chambers.
+                to create an account. After super admin verification, you can log in with
+                &ldquo;/login&rdquo; and invite compounders with &ldquo;/invite&rdquo;.
               </p>
             </div>
 

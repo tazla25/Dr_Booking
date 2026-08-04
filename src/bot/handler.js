@@ -115,7 +115,8 @@ function buildMainMenu(lang) {
           [{ text: getMessage(lang, 'BTN_CANCEL'), callback_data: 'menu_cancel' }],
           [{ text: getMessage(lang, 'BTN_ADMIN'), callback_data: 'menu_admin' }],
           [{ text: getMessage(lang, 'BTN_REGISTER'), callback_data: 'menu_register' }],
-          [{ text: '🌐 Change Language', callback_data: 'change_lang' }]
+          [{ text: '🔑 ' + (lang === 'en' ? 'Forgot Password' : lang === 'hi' ? 'पासवर्ड भूल गए?' : 'পাসওয়ার্ড ভুলে গেছেন?'), callback_data: 'menu_forgot' }],
+          [{ text: '🌐 ' + (lang === 'en' ? 'Change Language' : lang === 'hi' ? 'भाषा बदलें' : 'ভাষা পরিবর্তন'), callback_data: 'change_lang' }]
         ]
       }
     }
@@ -219,6 +220,12 @@ async function handleMessage(bot, msg) {
       return typeof replyObj === 'string' ? send(replyObj) : send(replyObj.text, replyObj.options);
     }
 
+    // /forgot — password reset flow (Feature 2)
+    if (text === '/forgot' || text === '/reset') {
+      await setSession(chatId, { step: 'FORGOT_PHONE' });
+      return send(getMessage(lang, 'FORGOT_ASK_PHONE'));
+    }
+
     // /register — new doctor onboarding (Phase 1 reform)
     if (text === '/register') {
       await setSession(chatId, { step: 'REGISTER_NAME' });
@@ -259,6 +266,12 @@ async function handleMessage(bot, msg) {
         data: { whatsappNumber: chatId },
       });
       const doctorName = compounder.delegatedDoctor?.ownerAdmin?.name || 'your doctor';
+      // Feature 4: If compounder has no password, ask them to set one
+      if (!compounder.passwordHash) {
+        await setSession(chatId, { step: 'COMPOUNDER_SET_PASSWORD', compounderId: compounder.id });
+        return send(getMessage(lang, 'LINK_SUCCESS_SET_PASSWORD', doctorName));
+      }
+      // Already has password — just confirm
       return send(getMessage(lang, 'LINK_SUCCESS', doctorName));
     }
 
@@ -411,7 +424,7 @@ async function handleMessage(bot, msg) {
     // ── Flow routing ──────────────────────────────────────────
     let replyObj;
 
-    if (session.step.startsWith('ADMIN') || session.step.startsWith('LOGIN') || session.step.startsWith('REGISTER') || session.step.startsWith('INVITE')) {
+    if (session.step.startsWith('ADMIN') || session.step.startsWith('LOGIN') || session.step.startsWith('REGISTER') || session.step.startsWith('INVITE') || session.step.startsWith('COMPOUNDER') || session.step.startsWith('FORGOT')) {
       // /back works in any of these flows
       const lowerText = text.toLowerCase().trim();
       const cmd = (lowerText === '/back' || lowerText === 'back' || lowerText === '↩️') ? '/back' : text;
@@ -518,6 +531,12 @@ async function handleCallbackQuery(bot, query) {
     if (data === 'menu_register') {
       await setSession(chatId, { step: 'REGISTER_NAME' });
       return send(getMessage(lang, 'REGISTER_ASK_NAME'));
+    }
+
+    // Forgot Password — starts the /forgot password reset flow
+    if (data === 'menu_forgot') {
+      await setSession(chatId, { step: 'FORGOT_PHONE' });
+      return send(getMessage(lang, 'FORGOT_ASK_PHONE'));
     }
 
     // ── Feedback rating callback (Task 2.1) ────────────────────────────

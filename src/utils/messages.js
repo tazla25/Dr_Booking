@@ -71,6 +71,21 @@ const translations = {
     ADMIN_NOT_REGISTERED: '🚫 এই ফোন নম্বরে কোনো অ্যাকাউন্ট নেই।\n\nডাক্তার হিসেবে নিবন্ধন করতে /register দিন।\n\nকম্পাউন্ডার হিসেবে যুক্ত হতে /link <phone> দিন।',
     ADMIN_LINK_FAILED: '⚠️ ড্যাশবোর্ড লিঙ্ক তৈরি করতে সমস্যা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।\n\nযদি সমস্যা চলতে থাকে, নিশ্চিত করুন যে আপনার অ্যাকাউন্ট অ্যাডমিন দ্বারা যাচাই হয়েছে।',
 
+    // ── Compounder password setup (Feature 4) ─────────────────────────
+    LINK_SUCCESS_SET_PASSWORD: (doctorName) =>
+      `✅ অ্যাকাউন্ট যুক্ত হয়েছে! আপনি ${doctorName} এর কম্পাউন্ডার।\n\n🔑 এখন একটি পাসওয়ার্ড সেট করুন (কমপক্ষে ৮ অক্ষর, ১টি অক্ষর + ১টি সংখ্যা):`,
+    COMPOUNDER_PASSWORD_SET: '✅ পাসওয়ার্ড সেট হয়েছে। এখন /login দিয়ে লগইন করতে পারবেন।',
+
+    // ── Password reset flow (Feature 2) ────────────────────────────────
+    FORGOT_ASK_PHONE: '📱 পাসওয়ার্ড পরিবর্তন করতে আপনার ফোন নম্বর দিন:',
+    FORGOT_INVALID_PHONE: '❌ ফোন নম্বর সঠিক নয়। আবার দিন:',
+    FORGOT_USER_NOT_FOUND: '❌ এই নম্বরে কোনো অ্যাকাউন্ট নেই।',
+    FORGOT_OTP_SENT: '🔢 আপনার WhatsApp এ একটি OTP পাঠানো হয়েছে। OTP দিন:',
+    FORGOT_OTP_EXPIRED: '⏰ OTP এর মেয়াদ শেষ। আবার চেষ্টা করুন।',
+    FORGOT_OTP_INVALID: '❌ ভুল OTP। আবার দিন:',
+    FORGOT_ASK_NEW_PASSWORD: '✅ OTP সঠিক। নতুন পাসওয়ার্ড দিন (কমপক্ষে ৮ অক্ষর, ১টি অক্ষর + ১টি সংখ্যা):',
+    FORGOT_SUCCESS: '✅ পাসওয়ার্ড পরিবর্তন হয়েছে। /login দিয়ে লগইন করুন।',
+
     // ── Phone + Password login flow (v11) ─────────────────────────────
     LOGIN_ASK_PHONE: '🔑 লগইন করুন\n\nআপনার ফোন নম্বর দিন (E.164 ফরম্যাটে):\n\nযেমন: +919876543210 বা 9876543210',
     LOGIN_ASK_PASSWORD: '🔑 আপনার পাসওয়ার্ড দিন:',
@@ -190,7 +205,22 @@ const translations = {
     VERIFICATION_APPROVED: '✅ *Congratulations!*\n\nYour doctor account has been approved. You can now log in with /login and invite compounders with /invite.',
 
     // Bug 1 + Bug 2 fixes
-    ADMIN_LINK_FAILED: '⚠️ Failed to generate dashboard link. Please try again later.',
+    ADMIN_LINK_FAILED: '⚠️ Failed to generate dashboard link. Please try again later.\n\nIf the problem persists, make sure your account has been verified by the admin.',
+
+    // ── Compounder password setup (Feature 4) ─────────────────────────
+    LINK_SUCCESS_SET_PASSWORD: (doctorName) =>
+      `✅ Account linked! You are now a compounder for ${doctorName}.\n\n🔑 Now set a password (at least 8 chars, 1 letter + 1 digit):`,
+    COMPOUNDER_PASSWORD_SET: '✅ Password set. You can now log in with /login.',
+
+    // ── Password reset flow (Feature 2) ────────────────────────────────
+    FORGOT_ASK_PHONE: '📱 To reset your password, enter your phone number:',
+    FORGOT_INVALID_PHONE: '❌ Invalid phone number. Try again:',
+    FORGOT_USER_NOT_FOUND: '❌ No account found with this phone.',
+    FORGOT_OTP_SENT: '🔢 An OTP has been sent to your WhatsApp. Enter the OTP:',
+    FORGOT_OTP_EXPIRED: '⏰ OTP expired. Please try again.',
+    FORGOT_OTP_INVALID: '❌ Wrong OTP. Try again:',
+    FORGOT_ASK_NEW_PASSWORD: '✅ OTP verified. Enter a new password (at least 8 chars, 1 letter + 1 digit):',
+    FORGOT_SUCCESS: '✅ Password changed. Login with /login.',
 
     // /link command for compounders (V8-3 fix)
     LINK_INVALID_PHONE: '❌ Invalid phone number. Use E.164 format (e.g., +919876543210).',
@@ -282,6 +312,21 @@ const translations = {
     REGISTER_SUCCESS_PENDING: '✅ *पंजीकरण पूर्ण!*\n\nआपका खाता अब *सत्यापन की प्रतीक्षा में* है। सुपर एडमिन आपके मेडिकल पंजीकरण को सत्यापित कर स्वीकृत करेगा। एक बार स्वीकृत होने पर आपको एक संदेश मिलेगा।\n\nधन्यवाद! 🙏',
     ADMIN_NOT_REGISTERED: '🚫 इस फोन नंबर पर कोई खाता नहीं है।\n\nडॉक्टर के रूप में पंजीकरण के लिए /register दबाएं।\n\nकंपाउंडर के रूप में जुड़ने के लिए /link <phone> दबाएं।',
     ADMIN_LINK_FAILED: '⚠️ डैशबोर्ड लिंक बनाने में समस्या हुई है। कृपया बाद में पुनः प्रयास करें।\n\nयदि समस्या बनी रहती है, तो सुनिश्चित करें कि आपका खाता व्यवस्थापक द्वारा सत्यापित है।',
+
+    // ── Compounder password setup (Feature 4) ─────────────────────────
+    LINK_SUCCESS_SET_PASSWORD: (doctorName) =>
+      `✅ खाता जुड़ा! आप ${doctorName} के कंपाउंडर हैं।\n\n🔑 अब एक पासवर्ड सेट करें (कम से कम 8 अक्षर, 1 अक्षर + 1 अंक):`,
+    COMPOUNDER_PASSWORD_SET: '✅ पासवर्ड सेट हो गया। अब /login से लॉगिन कर सकते हैं।',
+
+    // ── Password reset flow (Feature 2) ────────────────────────────────
+    FORGOT_ASK_PHONE: '📱 पासवर्ड बदलने के लिए अपना फोन नंबर दें:',
+    FORGOT_INVALID_PHONE: '❌ फोन नंबर गलत है। फिर दें:',
+    FORGOT_USER_NOT_FOUND: '❌ इस नंबर पर कोई खाता नहीं है।',
+    FORGOT_OTP_SENT: '🔢 आपके WhatsApp पर OTP भेजा गया है। OTP दर्ज करें:',
+    FORGOT_OTP_EXPIRED: '⏰ OTP समाप्त हो गया। पुनः प्रयास करें।',
+    FORGOT_OTP_INVALID: '❌ गलत OTP। फिर दें:',
+    FORGOT_ASK_NEW_PASSWORD: '✅ OTP सही है। नया पासवर्ड दें (कम से कम 8 अक्षर, 1 अक्षर + 1 अंक):',
+    FORGOT_SUCCESS: '✅ पासवर्ड बदल गया। /login से लॉगिन करें।',
 
     // ── Phone + Password login flow (v11) ─────────────────────────────
     LOGIN_ASK_PHONE: '🔑 लॉगिन\n\nअपना फोन नंबर दें (E.164 प्रारूप):\n\nउदाहरण: +919876543210 या 9876543210',

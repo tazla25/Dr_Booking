@@ -16,20 +16,31 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 const { formatInTimeZone } = require('date-fns-tz');
+const bcrypt = require('bcryptjs');
+
+// Default password for all seed users. Change in production.
+// Using a pre-computed hash avoids per-user hashing during seed (faster).
+const DEFAULT_SEED_PASSWORD = 'password123';
+let DEFAULT_PASSWORD_HASH = null;
 
 async function main() {
   console.log('Starting comprehensive seed...');
 
+  // Pre-compute the password hash once (bcrypt is slow by design)
+  DEFAULT_PASSWORD_HASH = await bcrypt.hash(DEFAULT_SEED_PASSWORD, 10);
+  console.log(`🔑 Default seed password: "${DEFAULT_SEED_PASSWORD}" (hash: ${DEFAULT_PASSWORD_HASH.substring(0, 20)}...)`);
+
   // ── 1. SUPER_ADMIN (founder) ───────────────────────────────────────
   const superAdmin = await prisma.adminUser.upsert({
     where: { phone: '+910000000001' },
-    update: { role: 'SUPER_ADMIN', verificationStatus: 'VERIFIED', isActive: true, name: 'Founder (Super Admin)', whatsappNumber: '+910000000001' },
+    update: { role: 'SUPER_ADMIN', verificationStatus: 'VERIFIED', isActive: true, name: 'Founder (Super Admin)', whatsappNumber: '+910000000001', passwordHash: DEFAULT_PASSWORD_HASH },
     create: {
       phone: '+910000000001', name: 'Founder (Super Admin)', role: 'SUPER_ADMIN',
       verificationStatus: 'VERIFIED', whatsappNumber: '+910000000001', isActive: true,
+      passwordHash: DEFAULT_PASSWORD_HASH,
     },
   });
-  console.log(`✅ Super admin: ${superAdmin.name} (whatsappNumber: +910000000001)`);
+  console.log(`✅ Super admin: ${superAdmin.name} (whatsappNumber: +910000000001, password: ${DEFAULT_SEED_PASSWORD})`);
 
   // ── 2. VERIFIED DOCTORS ────────────────────────────────────────────
   const doctorsData = [
@@ -68,11 +79,12 @@ async function main() {
     // Create the AdminUser (doctor)
     const adminUser = await prisma.adminUser.upsert({
       where: { phone: dd.phone },
-      update: { whatsappNumber: dd.whatsappNumber },
+      update: { whatsappNumber: dd.whatsappNumber, passwordHash: DEFAULT_PASSWORD_HASH },
       create: {
         phone: dd.phone, name: dd.name, role: 'DOCTOR', verificationStatus: 'VERIFIED',
         medicalRegNumber: dd.medReg, specialization: dd.spec, whatsappNumber: dd.whatsappNumber,
         verifiedAt: new Date(), verifiedBy: superAdmin.id, isActive: true,
+        passwordHash: DEFAULT_PASSWORD_HASH,
       },
     });
 
@@ -101,29 +113,31 @@ async function main() {
   // ── 3. PENDING DOCTOR (for testing verification flow) ─────────────
   const pendingDoctor = await prisma.adminUser.upsert({
     where: { phone: '+919876543299' },
-    update: { whatsappNumber: '+919876543299' },
+    update: { whatsappNumber: '+919876543299', passwordHash: DEFAULT_PASSWORD_HASH },
     create: {
       phone: '+919876543299', name: 'Dr. Pending Applicant', role: 'DOCTOR',
       verificationStatus: 'PENDING', medicalRegNumber: 'WBMC99999', specialization: 'Dermatologist',
       whatsappNumber: '+919876543299', isActive: true,
+      passwordHash: DEFAULT_PASSWORD_HASH,
       verificationDocs: { chamberAddress: '123 Salt Lake, Kolkata' },
     },
   });
-  console.log(`✅ Pending doctor: ${pendingDoctor.name} (whatsappNumber: +919876543299)`);
+  console.log(`✅ Pending doctor: ${pendingDoctor.name} (whatsappNumber: +919876543299, password: ${DEFAULT_SEED_PASSWORD})`);
 
   // ── 4. COMPOUNDER (delegated to Dr. Arjun Sen) ─────────────────────
   const arjunDoctor = createdDoctors[0].doctor;
   const compounder = await prisma.adminUser.upsert({
     where: { phone: '+919876543220' },
-    update: { whatsappNumber: '+919876543220' },
+    update: { whatsappNumber: '+919876543220', passwordHash: DEFAULT_PASSWORD_HASH },
     create: {
       phone: '+919876543220', name: 'Ramesh (Compounder for Dr. Arjun Sen)',
       role: 'COMPOUNDER', verificationStatus: 'VERIFIED',
       delegatedDoctorId: arjunDoctor.id, invitedBy: '+919876543210', invitedAt: new Date(),
       whatsappNumber: '+919876543220', isActive: true,
+      passwordHash: DEFAULT_PASSWORD_HASH,
     },
   });
-  console.log(`✅ Compounder: ${compounder.name} (whatsappNumber: +919876543220, delegated to Dr. Arjun Sen)`);
+  console.log(`✅ Compounder: ${compounder.name} (whatsappNumber: +919876543220, password: ${DEFAULT_SEED_PASSWORD})`);
 
   // ── 5. SAMPLE APPOINTMENTS ─────────────────────────────────────────
   // Create some appointments for today and recent days
@@ -227,6 +241,8 @@ async function main() {
   console.log('\n═══════════════════════════════════════════════════════════');
   console.log('SEED COMPLETE — TEST ACCOUNTS');
   console.log('═══════════════════════════════════════════════════════════');
+  console.log('All passwords: ' + DEFAULT_SEED_PASSWORD);
+  console.log('');
   console.log('Role                | Name                    | whatsappNumber');
   console.log('────────────────────|─────────────────────────|─────────────────');
   console.log('SUPER_ADMIN         | Founder                 | +910000000001');
@@ -241,10 +257,8 @@ async function main() {
   console.log('  +9100000102 — Sita Roy');
   console.log('  +9100000103 — Amit Khan');
   console.log('═══════════════════════════════════════════════════════════');
-  console.log('To test via the dashboard dev panel:');
-  console.log('  1. Open the dashboard URL');
-  console.log('  2. Click any demo user button in the Dev Panel');
-  console.log('  3. Or use the bot: send /admin from the WhatsApp number above');
+  console.log('To login: send /login to the bot from the WhatsApp number above,');
+  console.log('          enter the phone, then enter password: ' + DEFAULT_SEED_PASSWORD);
   console.log('═══════════════════════════════════════════════════════════');
 }
 

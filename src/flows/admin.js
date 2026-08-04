@@ -39,6 +39,9 @@ const PREVIOUS_STEP = {
   REGISTER_CHAMBER: 'REGISTER_SPECIALIZATION',
   REGISTER_PASSWORD: 'REGISTER_CHAMBER',
   LOGIN_PASSWORD: 'LOGIN_PHONE',
+  FORGOT_OTP: 'FORGOT_PHONE',
+  FORGOT_NEW_PASSWORD: 'FORGOT_OTP',
+  // COMPOUNDER_SET_PASSWORD and FORGOT_PHONE have no previous step
 };
 
 // Friendly step names for the "↩️ went back to" message
@@ -267,6 +270,96 @@ async function handleAdminFlow(bot, chatId, text, _scheduleId, _isCallback = fal
     }
   }
 
+  // ── Feature 2: Password reset flow (/forgot) ──────────────────────
+  if (session.step === 'FORGOT_PHONE') {
+    const phone = validatePhone(text);
+    if (!phone) return getMessage(lang, 'FORGOT_INVALID_PHONE');
+
+    const user = await prisma.adminUser.findUnique({ where: { phone } });
+    if (!user) return getMessage(lang, 'FORGOT_USER_NOT_FOUND');
+
+    // Generate 6-digit OTP
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const bcrypt = require('bcryptjs');
+    const otpHash = await bcrypt.hash(otp, 10);
+
+    // Store OTP hash + expiry in session (10 min validity)
+    await setSession(chatId, {
+      step: 'FORGOT_OTP',
+      forgotPhone: phone,
+      forgotOtpHash: otpHash,
+      forgotOtpExpiry: Date.now() + 10 * 60 * 1000,
+    });
+
+    // Send OTP to the user via WhatsApp (the bot is already talking to them)
+    try {
+      await bot.sendMessage(
+        chatId,
+        `🔢 আপনার OTP: ${otp}\n\nএই OTP ১০ মিনিটের জন্য বৈধ।`
+      );
+    } catch (err) {
+      logger.error({ err: err.message }, 'Failed to send OTP via WhatsApp');
+      return getMessage(lang, 'ERROR');
+    }
+
+    return getMessage(lang, 'FORGOT_OTP_SENT');
+  }
+
+  if (session.step === 'FORGOT_OTP') {
+    const s = await getSession(chatId);
+
+    // Check expiry
+    if (Date.now() > (s.forgotOtpExpiry || 0)) {
+      await setSession(chatId, { step: 'FORGOT_PHONE' });
+      return getMessage(lang, 'FORGOT_OTP_EXPIRED');
+    }
+
+    // Verify OTP using bcrypt compare
+    const bcrypt = require('bcryptjs');
+    let valid;
+    try {
+      valid = await bcrypt.compare((text || '').trim(), s.forgotOtpHash);
+    } catch (err) {
+      logger.error({ err: err.message }, 'bcrypt compare failed for OTP');
+      return getMessage(lang, 'ERROR');
+    }
+
+    if (!valid) return getMessage(lang, 'FORGOT_OTP_INVALID');
+
+    // OTP verified — move to new password step
+    await setSession(chatId, { step: 'FORGOT_NEW_PASSWORD' });
+    return getMessage(lang, 'FORGOT_ASK_NEW_PASSWORD');
+  }
+
+  if (session.step === 'FORGOT_NEW_PASSWORD') {
+    const password = validatePassword(text);
+    if (!password) return getMessage(lang, 'REGISTER_INVALID_PASSWORD');
+
+    const bcrypt = require('bcryptjs');
+    let passwordHash;
+    try {
+      passwordHash = await bcrypt.hash(password, 10);
+    } catch (err) {
+      logger.error({ err: err.message }, 'bcrypt hash failed during password reset');
+      return getMessage(lang, 'ERROR');
+    }
+
+    const s = await getSession(chatId);
+    try {
+      await prisma.adminUser.update({
+        where: { phone: s.forgotPhone },
+        data: { passwordHash },
+      });
+      await clearSession(chatId);
+      await setSession(chatId, { step: 'IDLE', lang });
+      return getMessage(lang, 'FORGOT_SUCCESS');
+    } catch (err) {
+      logger.error({ err: err.message, code: err.code }, 'Password reset failed');
+      // Don't clear session — let user retry
+      return getMessage(lang, 'ERROR');
+    }
+  }
+
   // ── Compounder invitation flow (/invite) ──────────────────────────
   if (session.step === 'INVITE_PHONE') {
     const phone = validatePhone(text);
@@ -283,6 +376,37 @@ async function handleAdminFlow(bot, chatId, text, _scheduleId, _isCallback = fal
       }
       logger.error({ err: err.message }, 'Compounder invitation failed');
       // Don't clear session — user can retry
+      return getMessage(lang, 'ERROR');
+    }
+  }
+
+  // ── Feature 4: Compounder password setup (after /link) ───────────
+  // Triggered by handler.js /link command when compounder has no passwordHash.
+  if (session.step === 'COMPOUNDER_SET_PASSWORD') {
+    const password = validatePassword(text);
+    if (!password) return getMessage(lang, 'REGISTER_INVALID_PASSWORD');
+
+    const bcrypt = require('bcryptjs');
+    let passwordHash;
+    try {
+      passwordHash = await bcrypt.hash(password, 10);
+    } catch (err) {
+      logger.error({ err: err.message }, 'bcrypt hash failed during compounder password setup');
+      return getMessage(lang, 'ERROR');
+    }
+
+    const s = await getSession(chatId);
+    try {
+      await prisma.adminUser.update({
+        where: { id: s.compounderId },
+        data: { passwordHash },
+      });
+      await clearSession(chatId);
+      await setSession(chatId, { step: 'IDLE', lang });
+      return getMessage(lang, 'COMPOUNDER_PASSWORD_SET');
+    } catch (err) {
+      logger.error({ err: err.message, code: err.code }, 'Compounder password set failed');
+      // Don't clear session — let user retry
       return getMessage(lang, 'ERROR');
     }
   }

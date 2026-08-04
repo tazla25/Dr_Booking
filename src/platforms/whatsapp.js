@@ -107,6 +107,31 @@ class WhatsAppPlatform extends Platform {
     return this._send(body);
   }
 
+  // ── Send a pre-approved template message (Feature 3) ──────────────
+  //
+  // Use this for business-initiated messages outside the 24-hour window.
+  // The template must be created and approved in Meta Business Manager.
+  //
+  // @param {string} userId - phone number (E.164 or digits-only)
+  // @param {string} templateName - e.g. 'appointment_reminder_1h'
+  // @param {string} language - 'bn' or 'en'
+  // @param {Array} components - Prisma-shaped components array:
+  //   [{ type: 'body', parameters: [{ type: 'text', text: 'value' }, ...] }]
+  //   Optional: also include a 'header' component if the template has a header.
+  async sendTemplate(userId, templateName, language, components = []) {
+    const body = {
+      messaging_product: 'whatsapp',
+      to: this.normalizePhone(userId),
+      type: 'template',
+      template: {
+        name: templateName,
+        language: { code: language },
+        components,
+      },
+    };
+    return this._send(body);
+  }
+
   // ── Callbacks (no-op — WhatsApp handles these inline) ─────────────
   async answerCallback(_callbackId) {
     // WhatsApp has no separate "answer callback query" call — the reply
