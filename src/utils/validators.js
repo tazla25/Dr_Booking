@@ -47,41 +47,102 @@ function validateName(input) {
 
 /**
  * Validate an Indian medical registration number.
- * Format: 2-3 uppercase letters followed by 4-8 digits (e.g., WBMC12345, MCI987654).
+ * Format: 2-5 uppercase letters followed by 4-10 digits.
+ *
+ * Covers all Indian state medical councils:
+ *   - WBMC (West Bengal Medical Council, 4 letters)
+ *   - MCI  (Medical Council of India, 3 letters)
+ *   - KMC  (Karnataka Medical Council, 3 letters)
+ *   - TSMC (Telangana State Medical Council, 4 letters)
+ *   - AP MC (Andhra Pradesh, varies — typically normalized to APMC)
+ *   - etc.
+ *
+ * Bug fix (v11): previous regex was `^[A-Z]{2,3}\d{4,8}$` which rejected
+ * `WBMC25836` (4 letters). Now accepts 2-5 letters + 4-10 digits.
+ *
  * This is a FORMAT check only — actual registry lookup is done by super admin manually.
  *
  * @param {string} input
  * @returns {string|null} normalized reg number or null if invalid format
  */
 function validateMedicalRegNumber(input) {
-  const trimmed = (input || '').trim().toUpperCase();
-  if (!/^[A-Z]{2,3}\d{4,8}$/.test(trimmed)) return null;
+  const trimmed = (input || '').trim().toUpperCase().replace(/\s/g, '');
+  if (!/^[A-Z]{2,5}\d{4,10}$/.test(trimmed)) return null;
   return trimmed;
 }
 
 /**
- * Validate a phone number in E.164 format (+CCNNNNNNNNNN).
- * Accepts:
- *   - +91XXXXXXXXXX (India, 12 digits total with +)
- *   - +880XXXXXXXXX (Bangladesh)
- *   - General E.164: + followed by 8-15 digits
+ * Validate a phone number, accepting common Indian formats and normalizing to E.164.
+ *
+ * Bug fix (v11): previously only accepted strict E.164 (+CC followed by 8-15 digits).
+ * Indian users often type:
+ *   - 9876543210       (10 digits, no country code)
+ *   - 09876543210      (leading 0, domestic)
+ *   - +91 98765 43210  (spaces)
+ *   - 91-98765-43210   (dashes)
+ *
+ * Now: strips spaces/dashes, auto-prepends +91 for 10-digit Indian mobiles,
+ * auto-prepends +91 for 11-digit numbers starting with 0, and otherwise
+ * falls back to strict E.164 validation.
  *
  * @param {string} input
- * @returns {string|null} normalized phone (with leading +) or null if invalid
+ * @returns {string|null} normalized phone in E.164 format (with leading +) or null
  */
 function validatePhone(input) {
-  const trimmed = (input || '').trim();
+  let trimmed = (input || '').trim().replace(/[\s-]/g, '');
+  if (!trimmed) return null;
 
-  // Allow user to type without leading +, normalize it
-  let normalized = trimmed;
-  if (/^\d/.test(normalized)) {
-    normalized = '+' + normalized;
+  // Indian domestic format: 10 digits → +91 + 10 digits
+  if (/^\d{10}$/.test(trimmed)) {
+    return '+91' + trimmed;
+  }
+  // Indian domestic with leading 0: 0 + 10 digits → +91 + 10 digits
+  if (/^0\d{10}$/.test(trimmed)) {
+    return '+91' + trimmed.substring(1);
   }
 
-  // E.164: + followed by 8-15 digits, no spaces or dashes
-  if (!/^\+\d{8,15}$/.test(normalized)) return null;
+  // Already E.164-style: prepend + if user forgot
+  if (/^\d/.test(trimmed)) {
+    trimmed = '+' + trimmed;
+  }
 
-  return normalized;
+  // E.164: + followed by 8-15 digits
+  if (!/^\+\d{8,15}$/.test(trimmed)) return null;
+
+  return trimmed;
+}
+
+/**
+ * Validate a chamber/street address.
+ * Allows 5-300 chars (addresses are longer than names).
+ *
+ * Bug fix (v11): the chamber step was re-using validateName which caps at 100 chars,
+ * rejecting longer addresses and silently failing.
+ *
+ * @param {string} input
+ * @returns {string|null} trimmed address or null if invalid
+ */
+function validateAddress(input) {
+  const trimmed = (input || '').trim();
+  if (trimmed.length < 5 || trimmed.length > 300) return null;
+  return trimmed;
+}
+
+/**
+ * Validate a password.
+ * Rules: 8-128 chars, no whitespace at start/end, must contain at least one letter and one digit.
+ *
+ * Bug fix (v11): new for phone+password login flow.
+ *
+ * @param {string} input
+ * @returns {string|null} the password if valid, or null
+ */
+function validatePassword(input) {
+  const trimmed = (input || '').trim();
+  if (trimmed.length < 8 || trimmed.length > 128) return null;
+  if (!/[a-zA-Z]/.test(trimmed)) return null;
+  if (!/\d/.test(trimmed)) return null;
+  return trimmed;
 }
 
 /**
@@ -102,4 +163,6 @@ module.exports = {
   validateMedicalRegNumber,
   validatePhone,
   validateSpecialization,
+  validateAddress,
+  validatePassword,
 };

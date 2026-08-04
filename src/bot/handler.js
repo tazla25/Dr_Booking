@@ -26,6 +26,12 @@ const { getMessage } = require('../utils/messages');
  * (which uses WhatsApp "button" type for ≤3 buttons and "list" type for >3).
  * If no reply_markup is present, falls back to plain bot.sendMessage().
  *
+ * Bug fix (v11 / Bug 9): after sending an interactive message, ALSO send a
+ * plain-text fallback telling the user what to type if buttons don't render
+ * on their device. This handles older WhatsApp clients that don't support
+ * interactive buttons. The fallback is auto-derived from the callback_data
+ * values in the keyboard.
+ *
  * Both calls catch errors so a failed WhatsApp API send doesn't crash the
  * webhook handler (Meta requires a 200 response regardless).
  */
@@ -34,7 +40,39 @@ function makeSend(bot, chatId, errorLabel) {
     try {
       const keyboard = options.reply_markup?.inline_keyboard;
       if (keyboard && Array.isArray(keyboard) && keyboard.length > 0) {
-        return await bot.sendInlineKeyboard(chatId, reply, keyboard, options);
+        await bot.sendInlineKeyboard(chatId, reply, keyboard, options);
+
+        // Build a plain-text fallback listing the button labels + their
+        // callback_data shortcuts so users on older WhatsApp clients can
+        // still interact by typing the command.
+        const allButtons = keyboard.flat();
+        if (allButtons.length > 0 && allButtons.length <= 6) {
+          // Only send fallback for small keyboards (main menu, language picker).
+          // Skip for doctor lists / date pickers where the labels are too long.
+          const lines = allButtons.map((b) => {
+            const cb = String(b.callback_data || '');
+            // Map common callback_data values to text commands users can type
+            let cmd = '';
+            if (cb === 'menu_book') cmd = 'book';
+            else if (cb === 'menu_status') cmd = 'status';
+            else if (cb === 'menu_cancel') cmd = 'cancel';
+            else if (cb === 'menu_admin' || cb === 'menu_login') cmd = 'login';
+            else if (cb === 'menu_register') cmd = 'register';
+            else if (cb === 'change_lang') cmd = 'lang';
+            else if (cb.startsWith('lang_')) cmd = cb.replace('lang_', '');
+            if (cmd) {
+              return `• ${b.text} → type "${cmd}"`;
+            }
+            return null;
+          }).filter(Boolean);
+
+          if (lines.length > 0) {
+            const fallback = '\n\n_কমান্ড টাইপ করেও করতে পারেন:_\n' + lines.join('\n');
+            // Send as a separate plain-text message (no buttons)
+            await bot.sendMessage(chatId, fallback).catch(() => {});
+          }
+        }
+        return;
       }
       return await bot.sendMessage(chatId, reply, options);
     } catch (err) {
@@ -175,9 +213,9 @@ async function handleMessage(bot, msg) {
       }
     }
 
-    if (text === '/admin') {
+    if (text === '/admin' || text === '/login') {
       await setSession(chatId, { step: 'ADMIN_START' });
-      const replyObj = await handleAdminFlow(bot, chatId, '/admin', null, false, null, lang);
+      const replyObj = await handleAdminFlow(bot, chatId, '/login', null, false, null, lang);
       return typeof replyObj === 'string' ? send(replyObj) : send(replyObj.text, replyObj.options);
     }
 
@@ -373,8 +411,11 @@ async function handleMessage(bot, msg) {
     // ── Flow routing ──────────────────────────────────────────
     let replyObj;
 
-    if (session.step.startsWith('ADMIN') || session.step.startsWith('REGISTER') || session.step.startsWith('INVITE')) {
-      replyObj = await handleAdminFlow(bot, chatId, text, session.currentScheduleId || '', false, null, lang);
+    if (session.step.startsWith('ADMIN') || session.step.startsWith('LOGIN') || session.step.startsWith('REGISTER') || session.step.startsWith('INVITE')) {
+      // /back works in any of these flows
+      const lowerText = text.toLowerCase().trim();
+      const cmd = (lowerText === '/back' || lowerText === 'back' || lowerText === '↩️') ? '/back' : text;
+      replyObj = await handleAdminFlow(bot, chatId, cmd, session.currentScheduleId || '', false, null, lang);
     } else if (session.step !== 'IDLE' && session.step !== 'AWAITING_LANG') {
       replyObj = await handlePatientFlow(chatId, text, false, null, lang);
     } else if (session.lang) {
@@ -469,7 +510,8 @@ async function handleCallbackQuery(bot, query) {
 
     if (data === 'menu_admin') {
       await setSession(chatId, { step: 'ADMIN_START' });
-      const replyObj = await handleAdminFlow(bot, chatId, '/admin', null, false, null, lang);
+      // /admin now triggers the phone+password login flow
+      const replyObj = await handleAdminFlow(bot, chatId, '/login', null, false, null, lang);
       return typeof replyObj === 'string' ? send(replyObj) : send(replyObj.text, replyObj.options);
     }
 

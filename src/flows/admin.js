@@ -1,13 +1,16 @@
 // src/flows/admin.js
 // Handles the doctor/compounder conversation flow.
-// Called by handler.js when session step is in ADMIN_* states.
+// Called by handler.js when session step is in ADMIN_*/LOGIN_*/REGISTER_*/INVITE_* states.
 //
-// Phase 1 reform:
-//   - /admin     → magic-link login for existing verified users
-//   - /register  → new doctor onboarding (PENDING → super admin approves)
-//   - /invite    → verified doctor invites a compounder by phone
+// v11 changes:
+//   - /admin and /login now both start a phone+password login flow (LOGIN_PHONE → LOGIN_PASSWORD)
+//   - Registration now has a REGISTER_PASSWORD step after REGISTER_CHAMBER
+//   - /back command lets users go to the previous step in any flow
+//   - Errors no longer clear the session — user can retry the current step
+//   - Rate limiter only counts INVALID_PASSWORD failures, not system errors
 const {
   handleAdminAuth,
+  authenticateUser,
   registerDoctor,
   inviteCompounder,
 } = require('../services/adminService');
@@ -18,120 +21,157 @@ const {
   validatePhone,
   validateMedicalRegNumber,
   validateSpecialization,
+  validateAddress,
+  validatePassword,
 } = require('../utils/validators');
 const logger = require('../utils/logger');
 const prisma = require('../database/prisma');
 
-const MAX_ATTEMPTS = 5;
+const MAX_PASSWORD_ATTEMPTS = 5;
 const LOCKOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+// ── /back command support ────────────────────────────────────────────
+// Maps each step to its predecessor so /back can navigate.
+const PREVIOUS_STEP = {
+  REGISTER_PHONE: 'REGISTER_NAME',
+  REGISTER_MEDICAL_REG: 'REGISTER_PHONE',
+  REGISTER_SPECIALIZATION: 'REGISTER_MEDICAL_REG',
+  REGISTER_CHAMBER: 'REGISTER_SPECIALIZATION',
+  REGISTER_PASSWORD: 'REGISTER_CHAMBER',
+  LOGIN_PASSWORD: 'LOGIN_PHONE',
+};
+
+// Friendly step names for the "↩️ went back to" message
+const STEP_LABELS = {
+  REGISTER_NAME: 'Name',
+  REGISTER_PHONE: 'Phone',
+  REGISTER_MEDICAL_REG: 'Medical Reg. Number',
+  REGISTER_SPECIALIZATION: 'Specialization',
+  REGISTER_CHAMBER: 'Chamber Address',
+  REGISTER_PASSWORD: 'Password',
+  LOGIN_PHONE: 'Phone Number',
+  LOGIN_PASSWORD: 'Password',
+};
+
+/**
+ * Get the message key for asking the user to enter a value for a given step.
+ */
+function getAskMessageKey(step) {
+  if (step.startsWith('REGISTER_')) {
+    return 'REGISTER_ASK_' + step.replace('REGISTER_', '');
+  }
+  if (step === 'LOGIN_PHONE') return 'LOGIN_ASK_PHONE';
+  if (step === 'LOGIN_PASSWORD') return 'LOGIN_ASK_PASSWORD';
+  return null;
+}
 
 /**
  * Handle an admin message based on current session step.
  *
- * Bug 7 fix: rate limiter only runs for the /admin login attempt, NOT for
- * registration or invitation steps (those were getting rate-limited after
- * 5 steps, breaking the registration flow).
+ * v11: replaces magic-link login with phone+password. The /admin and /login
+ * commands both start the LOGIN_PHONE step. After password verification,
+ * a one-time dashboard link is generated and returned to the user.
  *
- * Bug 8 fix: bot instance is passed in so notifySuperAdminsOfNewRegistration
- * can actually send messages to super admins.
- *
- * @param {Object|null} bot - the Telegram bot instance (for sending notifications)
+ * @param {Object|null} bot - the bot instance (for sending notifications)
  * @param {string} chatId
  * @param {string} text
- * @param {string} scheduleId
- * @param {boolean} isCallback
- * @param {string|null} callbackData
+ * @param {string} _scheduleId
+ * @param {boolean} _isCallback
+ * @param {string|null} _callbackData
  * @param {string} lang
  */
 async function handleAdminFlow(bot, chatId, text, _scheduleId, _isCallback = false, _callbackData = null, lang = 'bn') {
   const session = await getSession(chatId);
 
-  // ── Rate limit ONLY for /admin login attempt (Bug 7 fix) ───────────
-  if (session.step === 'ADMIN_START' || text === '/admin') {
-    const ip = String(chatId);
-    const endpoint = 'admin_login';
-    const now = new Date();
-
-    try {
-      if (Math.random() < 0.2) {
-        await prisma.rateLimitEntry.deleteMany({
-          where: { expiresAt: { lt: now } }
-        });
+  // ── /back command — go to previous step ───────────────────────────
+  const lowerText = (text || '').toLowerCase().trim();
+  if (lowerText === '/back' || lowerText === 'back' || lowerText === '↩️') {
+    const currentStep = session.step;
+    const prevStep = PREVIOUS_STEP[currentStep];
+    if (prevStep) {
+      await setSession(chatId, { step: prevStep });
+      const askKey = getAskMessageKey(prevStep);
+      if (askKey) {
+        const label = STEP_LABELS[prevStep] || prevStep;
+        return getMessage(lang, 'BACK_TO_PREVIOUS', label) + '\n\n' + getMessage(lang, askKey);
       }
-
-      let entry = await prisma.rateLimitEntry.upsert({
-        where: { ip_endpoint: { ip, endpoint } },
-        update: { hits: { increment: 1 } },
-        create: {
-          ip,
-          endpoint,
-          hits: 1,
-          expiresAt: new Date(now.getTime() + LOCKOUT_MS)
-        }
-      });
-
-      if (entry.hits > MAX_ATTEMPTS) {
-        if (entry.expiresAt < now) {
-          entry = await prisma.rateLimitEntry.update({
-            where: { ip_endpoint: { ip, endpoint } },
-            data: { hits: 1, expiresAt: new Date(now.getTime() + LOCKOUT_MS) }
-          });
-        } else {
-          const remainMin = Math.ceil((entry.expiresAt.getTime() - now.getTime()) / 60000);
-          return getMessage(lang, 'LOCKOUT', remainMin);
-        }
-      }
-    } catch (error) {
-      logger.error('Rate limit error:', error);
     }
+    return getMessage(lang, 'BACK_NO_PREVIOUS');
   }
 
-  // ── /admin login flow ──────────────────────────────────────────────
-  if (session.step === 'ADMIN_START' || text === '/admin') {
-    const authResult = await handleAdminAuth(chatId);
-
-    // Bug 1 fix: when user not found, show helpful "not registered" message
-    // instead of generic "Something went wrong"
-    if (!authResult) {
-      return getMessage(lang, 'ADMIN_NOT_REGISTERED');
-    }
-
-    const { adminUser, magicLink, reason } = authResult;
-
-    // If verification gate or link generation failed, show specific messages
-    if (!magicLink) {
-      if (reason === 'PENDING') return getMessage(lang, 'VERIFICATION_PENDING_LOGIN');
-      if (reason === 'REJECTED') return getMessage(lang, 'VERIFICATION_REJECTED_LOGIN');
-      if (reason === 'SUSPENDED') return getMessage(lang, 'VERIFICATION_SUSPENDED_LOGIN');
-      // Bug 2 fix: handle LINK_FAILED reason
-      if (reason === 'LINK_FAILED') return getMessage(lang, 'ADMIN_LINK_FAILED');
-      return getMessage(lang, 'ERROR');
-    }
-
-    // Reset rate limit on success
-    const ip = String(chatId);
-    const endpoint = 'admin_login';
-    await prisma.rateLimitEntry.delete({
-      where: { ip_endpoint: { ip, endpoint } }
-    }).catch(() => {});
-
-    await setSession(chatId, { step: 'ADMIN_DASHBOARD', doctorId: adminUser.ownedDoctor?.id || adminUser.delegatedDoctorId });
-
-    return {
-        text: `✅ *লগইন সফল!*\n\nড্যাশবোর্ড ওপেন করতে নিচের বাটনে ক্লিক করুন:`,
-        options: {
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: '🖥️ Open Web Dashboard', url: magicLink }]
-                ]
-            }
-        }
-    };
+  // ── /login flow (or /admin alias) — start phone+password login ────
+  // Both /admin and /login trigger the LOGIN_PHONE step. The legacy magic-link
+  // /admin flow is removed — login always requires phone + password now.
+  if (session.step === 'ADMIN_START' || text === '/admin' || text === '/login') {
+    await setSession(chatId, { step: 'LOGIN_PHONE' });
+    return getMessage(lang, 'LOGIN_ASK_PHONE');
   }
 
-  // Step 2: Admin Dashboard actions
-  if (session.step === 'ADMIN_DASHBOARD') {
-     return `✅ You are logged in. Open the Web Dashboard to manage patients. Use /admin to get a new link.`;
+  // ── LOGIN_PHONE step — user entered their phone number ────────────
+  if (session.step === 'LOGIN_PHONE') {
+    const phone = validatePhone(text);
+    if (!phone) return getMessage(lang, 'LOGIN_INVALID_PHONE');
+    // Look up user — if not found, show helpful message immediately
+    const user = await prisma.adminUser.findUnique({
+      where: { phone },
+      include: {
+        ownedDoctor: true,
+        delegatedDoctor: { include: { ownerAdmin: true } },
+      },
+    });
+    if (!user) return getMessage(lang, 'LOGIN_USER_NOT_FOUND');
+    if (user.isActive === false) return getMessage(lang, 'VERIFICATION_SUSPENDED_LOGIN');
+    if (!user.passwordHash) return getMessage(lang, 'LOGIN_NO_PASSWORD');
+    // Stash the phone and ask for password
+    await setSession(chatId, { step: 'LOGIN_PASSWORD', loginPhone: phone, loginAttempts: 0 });
+    return getMessage(lang, 'LOGIN_ASK_PASSWORD');
+  }
+
+  // ── LOGIN_PASSWORD step — user entered their password ─────────────
+  if (session.step === 'LOGIN_PASSWORD') {
+    const s = await getSession(chatId);
+    const attempts = (s.loginAttempts || 0) + 1;
+
+    // Rate limit check
+    if (attempts > MAX_PASSWORD_ATTEMPTS) {
+      const remainMin = Math.ceil(LOCKOUT_MS / 60000);
+      // Reset session so user has to start over after lockout
+      await clearSession(chatId);
+      await setSession(chatId, { step: 'IDLE', lang });
+      return getMessage(lang, 'LOGIN_RATE_LIMITED', remainMin);
+    }
+
+    const result = await authenticateUser(s.loginPhone, text);
+
+    if (result.ok && result.dashboardUrl) {
+      // Login successful — clear session and return the dashboard URL
+      await clearSession(chatId);
+      await setSession(chatId, { step: 'IDLE', lang });
+      return getMessage(lang, 'LOGIN_SUCCESS', result.dashboardUrl);
+    }
+
+    // On failure, increment attempt counter and stay on LOGIN_PASSWORD
+    // (don't clear session — user can retry)
+    await setSession(chatId, { loginAttempts: attempts });
+
+    if (result.reason === 'INVALID_PASSWORD') {
+      return getMessage(lang, 'LOGIN_INVALID_PASSWORD');
+    }
+    if (result.reason === 'USER_NOT_FOUND') {
+      // Phone was deleted between step 1 and step 2 (race) — restart
+      await setSession(chatId, { step: 'LOGIN_PHONE' });
+      return getMessage(lang, 'LOGIN_USER_NOT_FOUND');
+    }
+    if (result.reason === 'NO_PASSWORD') {
+      await setSession(chatId, { step: 'LOGIN_PHONE' });
+      return getMessage(lang, 'LOGIN_NO_PASSWORD');
+    }
+    if (result.reason === 'PENDING') return getMessage(lang, 'VERIFICATION_PENDING_LOGIN');
+    if (result.reason === 'REJECTED') return getMessage(lang, 'VERIFICATION_REJECTED_LOGIN');
+    if (result.reason === 'SUSPENDED') return getMessage(lang, 'VERIFICATION_SUSPENDED_LOGIN');
+    if (result.reason === 'LINK_FAILED') return getMessage(lang, 'ADMIN_LINK_FAILED');
+    // Generic fallback
+    return getMessage(lang, 'ERROR');
   }
 
   // ── Doctor registration flow (/register) ──────────────────────────
@@ -169,8 +209,28 @@ async function handleAdminFlow(bot, chatId, text, _scheduleId, _isCallback = fal
   }
 
   if (session.step === 'REGISTER_CHAMBER') {
-    const chamber = validateName(text); // re-use name validator (min 2 chars)
+    // Bug fix (v11): use dedicated validateAddress, not validateName
+    const chamber = validateAddress(text);
     if (!chamber) return getMessage(lang, 'INVALID_NAME');
+    await setSession(chatId, { step: 'REGISTER_PASSWORD', regChamber: chamber });
+    return getMessage(lang, 'REGISTER_ASK_PASSWORD');
+  }
+
+  if (session.step === 'REGISTER_PASSWORD') {
+    const password = validatePassword(text);
+    if (!password) return getMessage(lang, 'REGISTER_INVALID_PASSWORD');
+
+    // Hash the password (bcryptjs — pure JS, no native compile on Render)
+    const bcrypt = require('bcryptjs');
+    let passwordHash;
+    try {
+      passwordHash = await bcrypt.hash(password, 10);
+    } catch (err) {
+      logger.error({ err: err.message }, 'bcrypt hash failed during registration');
+      // Don't clear session — let user retry the password step
+      return getMessage(lang, 'ERROR');
+    }
+
     const s = await getSession(chatId);
     try {
       await registerDoctor({
@@ -178,18 +238,31 @@ async function handleAdminFlow(bot, chatId, text, _scheduleId, _isCallback = fal
         phone: s.regPhone,
         medicalRegNumber: s.regMedReg,
         specialization: s.regSpec,
-        chamberAddress: chamber,
+        chamberAddress: s.regChamber,
         whatsappNumber: chatId,
+        passwordHash,
       });
-      // Bug 8 fix: actually notify super admins via the bot
+      // Notify super admins via the bot
       await notifySuperAdminsOfNewRegistration(bot, s.regName, s.regPhone, s.regMedReg, s.regSpec, chatId);
       await clearSession(chatId);
       await setSession(chatId, { step: 'IDLE', lang });
       return getMessage(lang, 'REGISTER_SUCCESS_PENDING');
     } catch (err) {
-      logger.error({ err: err.message }, 'Doctor registration failed');
-      await clearSession(chatId);
-      await setSession(chatId, { step: 'IDLE', lang });
+      logger.error({ err: err.message, code: err.code }, 'Doctor registration failed');
+      // Bug fix (v11): DON'T clear session — let user retry or fix their input
+      if (err.code === 'DUPLICATE_PHONE') {
+        return getMessage(lang, 'REGISTER_ALREADY_EXISTS') + '\n\n' + getMessage(lang, 'REGISTER_ASK_PHONE');
+      }
+      if (err.code === 'DUPLICATE_REG') {
+        return getMessage(lang, 'REGISTER_ALREADY_EXISTS') + '\n\n' + getMessage(lang, 'REGISTER_ASK_MEDICAL_REG');
+      }
+      if (err.code === 'DUPLICATE_WHATSAPP') {
+        return '⚠️ এই WhatsApp নম্বর ইতিমধ্যে অন্য অ্যাকাউন্টের সাথে যুক্ত।\n\nযদি আপনার আগের অ্যাকাউন্ট থাকে, /login দিয়ে লগইন করুন।';
+      }
+      if (err.code === 'DB_ERROR') {
+        return '⚠️ ডাটাবেস সমস্যা। অ্যাডমিনের সাথে যোগাযোগ করুন।';
+      }
+      // Generic error — keep session so user can retry
       return getMessage(lang, 'ERROR');
     }
   }
@@ -209,8 +282,7 @@ async function handleAdminFlow(bot, chatId, text, _scheduleId, _isCallback = fal
         return getMessage(lang, 'INVITE_ALREADY_EXISTS');
       }
       logger.error({ err: err.message }, 'Compounder invitation failed');
-      await clearSession(chatId);
-      await setSession(chatId, { step: 'IDLE', lang });
+      // Don't clear session — user can retry
       return getMessage(lang, 'ERROR');
     }
   }

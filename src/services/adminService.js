@@ -4,18 +4,10 @@ const prisma = require('../database/prisma');
 /**
  * Handle admin authentication via WhatsApp number and generate magic link.
  *
- * Phase 2 (WhatsApp migration): Telegram is gone. The chatId passed in is
- * now a phone number in E.164 format (e.g., +919876543210). We look up
- * the AdminUser by whatsappNumber, falling back to phone for legacy
- * accounts that haven't been re-linked yet.
- *
- * Verification gates:
- *   - User exists with the given whatsappNumber (or phone fallback)
- *   - User is active
- *   - User has an approved role (DOCTOR / COMPOUNDER / SUPER_ADMIN)
- *   - DOCTOR users must have verificationStatus === VERIFIED
- *   - COMPOUNDER users must have a delegatedDoctor that is VERIFIED and active
- *   - SUPER_ADMIN users are always allowed (no verification needed)
+ * DEPRECATED (v11): This function is the legacy magic-link flow. The bot
+ * now uses phone + password login (see `authenticateUser` below). This is
+ * kept for backward compatibility with any code paths that still call /admin
+ * without going through the new login flow.
  *
  * @param {string} chatId - WhatsApp phone number in E.164 format
  * @returns {Object|null} { adminUser, magicLink } or null
@@ -35,7 +27,6 @@ async function handleAdminAuth(chatId) {
   });
 
   if (!adminUser) return null;
-  // Treat explicitly-false as inactive; undefined (legacy/mock) as active
   if (adminUser.isActive === false) return null;
 
   // Role-based verification gate
@@ -49,7 +40,6 @@ async function handleAdminAuth(chatId) {
       return { adminUser, magicLink: null, reason: adminUser.verificationStatus };
     }
   } else if (adminUser.role === 'COMPOUNDER') {
-    // Compounder must have an active, verified delegated doctor
     const doc = adminUser.delegatedDoctor;
     if (!doc || !doc.isActive) return { adminUser, magicLink: null, reason: 'SUSPENDED' };
     const owner = doc.ownerAdmin;
@@ -57,10 +47,9 @@ async function handleAdminAuth(chatId) {
       return { adminUser, magicLink: null, reason: 'SUSPENDED' };
     }
   }
-  // SUPER_ADMIN: no extra checks
 
+  // Generate dashboard link via the magic-link API endpoint
   const baseUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
-  // Send whatsappNumber to the magic-link endpoint (WhatsApp-only)
   const magicLinkBody = { whatsappNumber: String(chatId) };
 
   let magicLink;
@@ -76,16 +65,113 @@ async function handleAdminAuth(chatId) {
 
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to generate magic link');
+      throw new Error(data.message || 'Failed to generate dashboard link');
     }
     magicLink = data.magicLink;
   } catch (error) {
     const logger = require('../utils/logger');
-    logger.error({ err: error.message }, 'Error generating magic link');
+    logger.error({ err: error.message }, 'Error generating dashboard link');
     return { adminUser, magicLink: null, reason: 'LINK_FAILED' };
   }
 
   return { adminUser, magicLink };
+}
+
+/**
+ * Authenticate a user by phone + password (v11 login flow).
+ *
+ * Bug fix (v11): replaces the magic-link login. The entire flow happens in
+ * WhatsApp — the bot asks for phone, then password, then verifies with
+ * bcrypt, then generates a dashboard URL with a session token.
+ *
+ * @param {string} phone - phone number (E.164 or 10-digit Indian, will be normalized)
+ * @param {string} password - plaintext password from user input
+ * @returns {Object} { ok, user?, reason?, dashboardUrl? }
+ */
+async function authenticateUser(phone, password) {
+  const { validatePhone } = require('../utils/validators');
+  const normalizedPhone = validatePhone(phone);
+  if (!normalizedPhone) {
+    return { ok: false, reason: 'INVALID_PHONE' };
+  }
+
+  const user = await prisma.adminUser.findUnique({
+    where: { phone: normalizedPhone },
+    include: {
+      ownedDoctor: true,
+      delegatedDoctor: { include: { ownerAdmin: true } },
+    },
+  });
+
+  if (!user) {
+    return { ok: false, reason: 'USER_NOT_FOUND' };
+  }
+  if (user.isActive === false) {
+    return { ok: false, reason: 'SUSPENDED' };
+  }
+  if (!user.passwordHash) {
+    return { ok: false, reason: 'NO_PASSWORD' };
+  }
+
+  // Role-based verification gate
+  if (user.role === 'DOCTOR' && user.verificationStatus !== 'VERIFIED') {
+    return { ok: false, reason: user.verificationStatus };
+  }
+  if (user.role === 'COMPOUNDER') {
+    const doc = user.delegatedDoctor;
+    if (!doc || !doc.isActive) return { ok: false, reason: 'SUSPENDED' };
+    const owner = doc.ownerAdmin;
+    if (!owner || !owner.isActive || owner.verificationStatus !== 'VERIFIED') {
+      return { ok: false, reason: 'SUSPENDED' };
+    }
+  }
+
+  // Verify password (bcryptjs for cross-platform compat)
+  const bcrypt = require('bcryptjs');
+  let passwordValid;
+  try {
+    passwordValid = await bcrypt.compare(password, user.passwordHash);
+  } catch (err) {
+    const logger = require('../utils/logger');
+    logger.error({ err: err.message, userId: user.id }, 'bcrypt compare failed');
+    return { ok: false, reason: 'ERROR' };
+  }
+
+  if (!passwordValid) {
+    return { ok: false, reason: 'INVALID_PASSWORD' };
+  }
+
+  // Password verified — generate a dashboard link via the magic-link endpoint.
+  // The link is one-time-use and expires in 2 hours (set by MAGIC_LINK_TTL_MINUTES).
+  const baseUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
+  let dashboardUrl;
+  try {
+    const response = await fetch(`${baseUrl}/api/auth/generate-magic-link`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.BOT_API_SECRET}`,
+      },
+      body: JSON.stringify({ whatsappNumber: user.whatsappNumber || user.phone }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to generate dashboard link');
+    }
+    dashboardUrl = data.magicLink;
+  } catch (error) {
+    const logger = require('../utils/logger');
+    logger.error({ err: error.message, userId: user.id }, 'Failed to generate dashboard link after password verification');
+    return { ok: false, reason: 'LINK_FAILED' };
+  }
+
+  // Update lastLoginAt
+  await prisma.adminUser.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() },
+  }).catch(() => {});
+
+  return { ok: true, user, dashboardUrl };
 }
 
 const { formatInTimeZone } = require('date-fns-tz');
@@ -154,8 +240,13 @@ async function updateAppointmentStatus(bookingId, status, doctorId) {
  * Create a new doctor registration (pending verification).
  * Called by the bot when a doctor runs /register.
  *
- * @param {Object} params - { name, phone, medicalRegNumber, specialization, chamberAddress, whatsappNumber }
+ * Bug fix (v11): now accepts passwordHash (set by the bot after the new
+ * REGISTER_PASSWORD step). Also surfaces specific Prisma error codes so
+ * the caller can show a helpful message instead of "Something went wrong".
+ *
+ * @param {Object} params - { name, phone, medicalRegNumber, specialization, chamberAddress, whatsappNumber, passwordHash }
  * @returns {Object} the created AdminUser
+ * @throws {AppointmentError} with code DUPLICATE_PHONE, DUPLICATE_REG, or DB_ERROR
  */
 async function registerDoctor({
   name,
@@ -164,6 +255,7 @@ async function registerDoctor({
   specialization,
   chamberAddress,
   whatsappNumber,
+  passwordHash,
 }) {
   // Check for existing account with same phone
   const existing = await prisma.adminUser.findUnique({ where: { phone } });
@@ -185,22 +277,48 @@ async function registerDoctor({
 
   // Create the AdminUser (doctor, pending verification)
   // chamberAddress is stored in verificationDocs JSON for super admin review
-  // (it will be used to seed the doctor's first Schedule once approved)
-  const adminUser = await prisma.adminUser.create({
-    data: {
-      name,
-      phone,
-      medicalRegNumber,
-      specialization,
-      role: 'DOCTOR',
-      verificationStatus: 'PENDING',
-      whatsappNumber: whatsappNumber || null,
-      verificationDocs: chamberAddress ? { chamberAddress } : null,
-      isActive: true,
-    },
-  });
+  try {
+    const adminUser = await prisma.adminUser.create({
+      data: {
+        name,
+        phone,
+        medicalRegNumber,
+        specialization,
+        role: 'DOCTOR',
+        verificationStatus: 'PENDING',
+        whatsappNumber: whatsappNumber || null,
+        passwordHash: passwordHash || null,
+        verificationDocs: chamberAddress ? { chamberAddress } : null,
+        isActive: true,
+      },
+    });
 
-  return adminUser;
+    return adminUser;
+  } catch (err) {
+    // Surface specific Prisma error codes so the bot can show helpful messages
+    if (err.code === 'P2002') {
+      // Unique constraint violation — phone or medicalRegNumber already taken
+      const target = err.meta?.target || [];
+      if (target.includes('phone')) {
+        throw new AppointmentError('An account with this phone already exists', 'DUPLICATE_PHONE');
+      }
+      if (target.includes('medicalRegNumber')) {
+        throw new AppointmentError('This medical registration number is already registered', 'DUPLICATE_REG');
+      }
+      if (target.includes('whatsappNumber')) {
+        throw new AppointmentError('This WhatsApp number is already linked to another account', 'DUPLICATE_WHATSAPP');
+      }
+      throw new AppointmentError('An account with these details already exists', 'DUPLICATE');
+    }
+    // P2021: table doesn't exist — migration not run
+    // P2022: column doesn't exist
+    if (err.code === 'P2021' || err.code === 'P2022') {
+      const logger = require('../utils/logger');
+      logger.error({ code: err.code, err: err.message }, 'Database schema error — migration not run?');
+      throw new AppointmentError('Database error. Please contact the admin.', 'DB_ERROR');
+    }
+    throw err;
+  }
 }
 
 /**
@@ -322,6 +440,7 @@ async function approveDoctor({ doctorAdminId, superAdminId }) {
 
 module.exports = {
   handleAdminAuth,
+  authenticateUser,
   getTodaysPatients,
   updateAppointmentStatus,
   registerDoctor,

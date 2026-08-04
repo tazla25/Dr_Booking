@@ -194,6 +194,61 @@ Approve in the dashboard → Verify Doctors.
 📅 তারিখ: {{3}}
 ```
 
+## Template 8: Chamber Closed (schedule override notification)
+
+**Template name:** `chamber_closed`
+**Category:** Utility
+**Language:** Bengali (bn)
+
+**Body (Bengali):**
+```
+⚠️ চেম্বার বন্ধ
+
+ডাঃ {{1}}-এর চেম্বার আজ ({{2}}) বন্ধ। কারণ: {{3}}
+
+নতুন তারিখে বুক করতে এই বটে /book পাঠান।
+```
+
+**Parameters:**
+| # | Variable | Example |
+|---|---|---|
+| 1 | Doctor name | `অর্জুন সেন` |
+| 2 | Date (YYYY-MM-DD) | `2026-08-05` |
+| 3 | Reason | `অসুস্থ` / `পূজা` / `ব্যক্তিগত কারণ` |
+
+**When to use:** When a doctor/compounder creates a `ScheduleOverride` with `type: 'CLOSED'` for today or a near-future date. All patients with appointments on that date should be notified. Since this is a business-initiated message sent outside the 24-hour window, a pre-approved template is required.
+
+**Code update needed in `src/services/scheduleService.js`** (or wherever overrides are created):
+
+```javascript
+// After creating a ScheduleOverride of type CLOSED, notify all affected patients
+const affectedAppts = await prisma.appointment.findMany({
+  where: { scheduleId, appointmentDate: overrideDate, status: 'Confirmed' },
+  include: { schedule: { include: { doctor: true } } },
+});
+
+const platform = bot._platform;
+for (const appt of affectedAppts) {
+  await platform._send({
+    messaging_product: 'whatsapp',
+    to: platform.normalizePhone(appt.patientPhone),
+    type: 'template',
+    template: {
+      name: 'chamber_closed',
+      language: { code: 'bn' },
+      components: [{
+        type: 'body',
+        parameters: [
+          { type: 'text', text: appt.schedule.doctor.fullName },
+          { type: 'text', text: overrideDate },
+          { type: 'text', text: reason || 'অন্যান্য' },
+        ],
+      }],
+    },
+  });
+}
+```
+
 ---
 
 ## Updating the bot to use templates
@@ -301,6 +356,7 @@ Track each template's approval status in the table below. Update this file when 
 | `appointment_cancelled` | Utility | bn | ☐ | ☐ | ☐ |
 | `new_doctor_registration` | Utility | en | ☐ | ☐ | ☐ |
 | `walk_in_added` | Utility | bn | ☐ | ☐ | ☐ |
+| `chamber_closed` | Utility | bn | ☐ | ☐ | ☐ |
 
 ---
 
