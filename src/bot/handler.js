@@ -1,7 +1,16 @@
 const { AppointmentError } = require('../utils/errors');
 const logger = require('../utils/logger');
 // src/bot/handler.js
-// Routes all incoming Telegram messages to the correct flow.
+// Routes all incoming WhatsApp messages to the correct flow.
+//
+// WhatsApp-specific notes:
+//   - WhatsApp has no parse_mode. Use *bold* and _italic_ natively.
+//   - WhatsApp doesn't support Markdown links [text](url). Send URLs as plain text.
+//   - Inline keyboards with ≤3 buttons become WhatsApp "button" messages.
+//   - Inline keyboards with >3 buttons become WhatsApp "list" messages.
+//   - The send() helper below inspects options.reply_markup and routes
+//     to bot.sendInlineKeyboard() automatically — handlers/flows can keep
+//     using the Telegram-style reply_markup shape without knowing the difference.
 
 const { getSession, setSession, clearSession } = require('./session');
 const { handlePatientFlow } = require('../flows/patient');
@@ -10,12 +19,77 @@ const { cancelBookingByQueueNumber, rescheduleBookingByToken, getPatientHistory 
 const { validateDate } = require('../utils/validators');
 const { getMessage } = require('../utils/messages');
 
+/**
+ * Shared send helper for both handleMessage and handleCallbackQuery.
+ *
+ * Routes options.reply_markup.inline_keyboard to bot.sendInlineKeyboard()
+ * (which uses WhatsApp "button" type for ≤3 buttons and "list" type for >3).
+ * If no reply_markup is present, falls back to plain bot.sendMessage().
+ *
+ * Both calls catch errors so a failed WhatsApp API send doesn't crash the
+ * webhook handler (Meta requires a 200 response regardless).
+ */
+function makeSend(bot, chatId, errorLabel) {
+  return async (reply, options = {}) => {
+    try {
+      const keyboard = options.reply_markup?.inline_keyboard;
+      if (keyboard && Array.isArray(keyboard) && keyboard.length > 0) {
+        return await bot.sendInlineKeyboard(chatId, reply, keyboard, options);
+      }
+      return await bot.sendMessage(chatId, reply, options);
+    } catch (err) {
+      logger.error({ chatId, err: err.message }, errorLabel);
+    }
+  };
+}
 
 /**
- * Main message handler — called for every incoming Telegram message.
+ * Build the language picker reply (used in multiple places).
+ */
+function buildLanguagePicker() {
+  return {
+    text: getMessage('en', 'CHOOSE_LANG'),
+    options: {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '🇧🇩 বাংলা', callback_data: 'lang_bn' },
+            { text: '🇬🇧 English', callback_data: 'lang_en' },
+            { text: '🇮🇳 हिन्दी', callback_data: 'lang_hi' }
+          ]
+        ]
+      }
+    }
+  };
+}
+
+/**
+ * Build the main menu reply (used in multiple places).
+ */
+function buildMainMenu(lang) {
+  return {
+    text: getMessage(lang, 'WELCOME') + '\n\n' + getMessage(lang, 'MAIN_MENU'),
+    options: {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: getMessage(lang, 'BTN_BOOK'), callback_data: 'menu_book' }],
+          [{ text: getMessage(lang, 'BTN_STATUS'), callback_data: 'menu_status' }],
+          [{ text: getMessage(lang, 'BTN_CANCEL'), callback_data: 'menu_cancel' }],
+          [{ text: getMessage(lang, 'BTN_ADMIN'), callback_data: 'menu_admin' }],
+          [{ text: getMessage(lang, 'BTN_REGISTER'), callback_data: 'menu_register' }],
+          [{ text: '🌐 Change Language', callback_data: 'change_lang' }]
+        ]
+      }
+    }
+  };
+}
+
+
+/**
+ * Main message handler — called for every incoming WhatsApp message.
  *
- * @param {TelegramBot} bot
- * @param {Object} msg - Telegram message object
+ * @param {Object} bot - bot instance from createBot()
+ * @param {Object} msg - normalized message: { chat: { id }, text }
  */
 async function handleMessage(bot, msg) {
   const chatId = String(msg.chat.id);
@@ -23,12 +97,7 @@ async function handleMessage(bot, msg) {
   const session = await getSession(chatId);
   const lang = session.lang || 'bn';
 
-  const send = (reply, options = {}) => {
-    // WhatsApp doesn't use parse_mode — formatting is automatic (*bold*, _italic_)
-    return bot.sendMessage(chatId, reply, options).catch(err => {
-        logger.error({ chatId, err: err.message }, '[handler] Failed to send message');
-    });
-  };
+  const send = makeSend(bot, chatId, '[handler] Failed to send message');
 
   try {
     // ── Commands ──────────────────────────────────────────────
@@ -38,34 +107,14 @@ async function handleMessage(bot, msg) {
     if (lowerText === '/start' || lowerText === 'hi' || lowerText === 'hello' || lowerText === 'হ্যালো') {
       if (session && session.lang) {
         await setSession(chatId, { step: 'MAIN_MENU' });
-        const welcomeText = getMessage(session.lang, 'WELCOME') + '\n\n' + getMessage(session.lang, 'MAIN_MENU');
-        return send(welcomeText, {
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: getMessage(session.lang, 'BTN_BOOK'), callback_data: 'menu_book' }],
-              [{ text: getMessage(session.lang, 'BTN_STATUS'), callback_data: 'menu_status' }],
-              [{ text: getMessage(session.lang, 'BTN_CANCEL'), callback_data: 'menu_cancel' }],
-              [{ text: getMessage(session.lang, 'BTN_ADMIN'), callback_data: 'menu_admin' }],
-              [{ text: getMessage(session.lang, 'BTN_REGISTER'), callback_data: 'menu_register' }],
-              [{ text: '🌐 Change Language', callback_data: 'change_lang' }]
-            ]
-          }
-        });
+        const menu = buildMainMenu(session.lang);
+        return send(menu.text, menu.options);
       }
 
       await clearSession(chatId);
       await setSession(chatId, { step: 'AWAITING_LANG' });
-      return send(getMessage('en', 'CHOOSE_LANG'), {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: '🇧🇩 বাংলা', callback_data: 'lang_bn' },
-              { text: '🇬🇧 English', callback_data: 'lang_en' },
-              { text: '🇮🇳 हिन्दी', callback_data: 'lang_hi' }
-            ]
-          ]
-        }
-      });
+      const picker = buildLanguagePicker();
+      return send(picker.text, picker.options);
     }
 
     if (text === '/book' || text === '/search') {
@@ -298,8 +347,13 @@ async function handleMessage(bot, msg) {
       replyObj = await handleAdminFlow(bot, chatId, text, session.currentScheduleId || '', false, null, lang);
     } else if (session.step !== 'IDLE' && session.step !== 'AWAITING_LANG') {
       replyObj = await handlePatientFlow(chatId, text, false, null, lang);
+    } else if (session.lang) {
+      // User has a language set but is in IDLE/AWAITING_LANG — show main menu
+      replyObj = buildMainMenu(session.lang);
     } else {
-      replyObj = { text: getMessage(lang, 'WELCOME') };
+      // No language set and not a command — show language picker (fallback)
+      await setSession(chatId, { step: 'AWAITING_LANG' });
+      replyObj = buildLanguagePicker();
     }
 
     if (typeof replyObj === 'string') {
@@ -328,48 +382,21 @@ async function handleCallbackQuery(bot, query) {
   // Acknowledge the callback immediately
   bot.answerCallbackQuery(query.id).catch(() => {});
 
-  const send = (reply, options = {}) => {
-    // WhatsApp doesn't use parse_mode — formatting is automatic (*bold*, _italic_)
-    return bot.sendMessage(chatId, reply, options).catch(err => {
-        logger.error({ chatId, err: err.message }, '[handler] Failed to send callback message');
-    });
-  };
+  const send = makeSend(bot, chatId, '[handler] Failed to send callback message');
 
   try {
     // 1. Handle Language Selection
     if (data === 'change_lang') {
       await setSession(chatId, { step: 'AWAITING_LANG' });
-      return send(getMessage('en', 'CHOOSE_LANG'), {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: '🇧🇩 বাংলা', callback_data: 'lang_bn' },
-              { text: '🇬🇧 English', callback_data: 'lang_en' },
-              { text: '🇮🇳 हिन्दी', callback_data: 'lang_hi' }
-            ]
-          ]
-        }
-      });
+      const picker = buildLanguagePicker();
+      return send(picker.text, picker.options);
     }
 
     if (data.startsWith('lang_')) {
       const lang = data.split('_')[1];
       await setSession(chatId, { lang, step: 'MAIN_MENU' });
-
-      const welcomeText = getMessage(lang, 'WELCOME') + '\n\n' + getMessage(lang, 'MAIN_MENU');
-
-      return send(welcomeText, {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: getMessage(lang, 'BTN_BOOK'), callback_data: 'menu_book' }],
-            [{ text: getMessage(lang, 'BTN_STATUS'), callback_data: 'menu_status' }],
-            [{ text: getMessage(lang, 'BTN_CANCEL'), callback_data: 'menu_cancel' }],
-            [{ text: getMessage(lang, 'BTN_ADMIN'), callback_data: 'menu_admin' }],
-            [{ text: getMessage(lang, 'BTN_REGISTER'), callback_data: 'menu_register' }],
-            [{ text: '🌐 Change Language', callback_data: 'change_lang' }]
-          ]
-        }
-      });
+      const menu = buildMainMenu(lang);
+      return send(menu.text, menu.options);
     }
 
     const lang = session.lang || 'bn';
