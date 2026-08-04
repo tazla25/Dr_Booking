@@ -1,14 +1,19 @@
 // src/platforms/index.js
-// Platform abstraction base class (Task 3.1)
+// Abstract Platform base class.
+//
+// Phase 2 (WhatsApp migration): this used to dispatch between Telegram
+// and WhatsApp. Telegram is gone; the file now only exposes the abstract
+// base class that WhatsAppPlatform extends.
+
 class Platform {
-  async send(userId, text, options = {}) { throw new Error('Not implemented: send()') }
-  async sendInlineKeyboard(userId, text, keyboard, options = {}) { throw new Error('Not implemented: sendInlineKeyboard()') }
-  async sendPhoto(userId, photoUrl, caption) { throw new Error('Not implemented: sendPhoto()') }
-  async answerCallback(callbackId) { /* no-op default */ }
-  async registerWebhook(app, path, handler) { throw new Error('Not implemented: registerWebhook()') }
-  async setWebhook(url) { /* no-op default */ }
-  parseIncomingUpdate(update) { throw new Error('Not implemented: parseIncomingUpdate()') }
-  getMaxButtonsPerRow() { return 8 }
-  supportsUrlButtons() { return true }
+  async send(_userId, _text, _options) { throw new Error('Not implemented'); }
+  async sendInlineKeyboard(_userId, _text, _keyboard, _options) { throw new Error('Not implemented'); }
+  async sendPhoto(_userId, _photoUrl, _caption) { throw new Error('Not implemented'); }
+  async registerWebhook(_app, _path, _handler) { throw new Error('Not implemented'); }
+  async setWebhook(_url) { throw new Error('Not implemented'); }
+  parseIncomingUpdate(_update) { throw new Error('Not implemented'); }
+  async answerCallback(_callbackId) { throw new Error('Not implemented'); }
+  getMaxButtonsPerRow() { return 3; }
+  supportsUrlButtons() { return false; }
 }
 module.exports = Platform;

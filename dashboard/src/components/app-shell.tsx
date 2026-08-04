@@ -19,12 +19,16 @@ import { AdminVerificationView } from './views/admin-verification-view'
 import { PilotInsightsView } from './views/pilot-insights-view'
 import { DoctorReportView } from './views/doctor-report-view'
 import { AuditLogView } from './views/audit-log-view'
+import { PatientsView } from './views/patients-view'
+import { CalendarView } from './views/calendar-view'
 import { ErrorBoundary } from './error-boundary'
 import { Loader2 } from 'lucide-react'
 
 export type ViewKey =
   | 'dashboard'
   | 'appointments'
+  | 'patients'
+  | 'calendar'
   | 'doctors'
   | 'schedules'
   | 'analytics'
@@ -85,6 +89,8 @@ export function AppShell() {
             <ErrorBoundary>
               {view === 'dashboard' && <DashboardView />}
               {view === 'appointments' && <AppointmentsView />}
+              {view === 'patients' && <PatientsView />}
+              {view === 'calendar' && <CalendarView />}
               {view === 'doctors' && <DoctorsView />}
               {view === 'schedules' && <SchedulesView />}
               {view === 'analytics' && <AnalyticsView />}

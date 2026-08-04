@@ -4,7 +4,7 @@
 // ========================================
 //
 // Called by the /auth/verify page (client-side) after the user clicks
-// the magic link they received via Telegram.
+// the magic link they received via WhatsApp.
 //
 // Flow:
 //   1. User clicks https://our-domain.com/auth/verify?token=XYZ

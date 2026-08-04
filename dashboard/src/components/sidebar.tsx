@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import {
   LayoutDashboard,
   CalendarDays,
+  CalendarRange,
   Stethoscope,
   Clock,
   BarChart3,
@@ -16,6 +17,7 @@ import {
   TrendingUp,
   ScrollText,
   FileText,
+  Users,
   X,
 } from 'lucide-react'
 import { Button } from './ui/button'
@@ -30,9 +32,11 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { key: 'dashboard', icon: LayoutDashboard },
   { key: 'appointments', icon: CalendarDays },
+  { key: 'calendar', icon: CalendarRange },
+  { key: 'patients', icon: Users },
   { key: 'doctors', icon: Stethoscope, roles: ['DOCTOR', 'SUPER_ADMIN'] },
   { key: 'schedules', icon: Clock },
-  { key: 'analytics', icon: BarChart3, roles: ['DOCTOR', 'SUPER_ADMIN'] },
+  { key: 'analytics', icon: BarChart3, roles: ['DOCTOR', 'COMPOUNDER', 'SUPER_ADMIN'] },
   { key: 'doctor-report', icon: FileText, roles: ['DOCTOR', 'COMPOUNDER', 'SUPER_ADMIN'] },
   { key: 'pilot-insights', icon: TrendingUp, roles: ['SUPER_ADMIN'] },
   { key: 'admin-verification', icon: ShieldCheck, roles: ['SUPER_ADMIN'] },

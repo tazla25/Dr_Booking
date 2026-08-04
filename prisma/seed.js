@@ -2,12 +2,15 @@
 //
 // Comprehensive seed data for testing Dr_Booking.
 // Creates:
-//   - 1 SUPER_ADMIN (founder) with telegramChatId 100000001
-//   - 3 VERIFIED doctors with their own Doctor profiles + schedules + telegramChatIds
+//   - 1 SUPER_ADMIN (founder) with whatsappNumber +91 00 0000 0001
+//   - 3 VERIFIED doctors with their own Doctor profiles + schedules + whatsappNumbers
 //   - 1 PENDING doctor (for testing verification flow)
 //   - 1 COMPOUNDER delegated to Dr. Arjun Sen
 //   - Sample appointments (mix of online + walk-in, various statuses)
 //   - Sample feedback
+//
+// Phase 2 (WhatsApp migration): all identifiers are now E.164 phone numbers
+// suitable for WhatsApp Cloud API.
 
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
@@ -20,19 +23,19 @@ async function main() {
   // ── 1. SUPER_ADMIN (founder) ───────────────────────────────────────
   const superAdmin = await prisma.adminUser.upsert({
     where: { phone: '+910000000001' },
-    update: { role: 'SUPER_ADMIN', verificationStatus: 'VERIFIED', isActive: true, name: 'Founder (Super Admin)' },
+    update: { role: 'SUPER_ADMIN', verificationStatus: 'VERIFIED', isActive: true, name: 'Founder (Super Admin)', whatsappNumber: '+910000000001' },
     create: {
       phone: '+910000000001', name: 'Founder (Super Admin)', role: 'SUPER_ADMIN',
-      verificationStatus: 'VERIFIED', telegramChatId: '100000001', isActive: true,
+      verificationStatus: 'VERIFIED', whatsappNumber: '+910000000001', isActive: true,
     },
   });
-  console.log(`✅ Super admin: ${superAdmin.name} (telegramChatId: 100000001)`);
+  console.log(`✅ Super admin: ${superAdmin.name} (whatsappNumber: +910000000001)`);
 
   // ── 2. VERIFIED DOCTORS ────────────────────────────────────────────
   const doctorsData = [
     {
       phone: '+919876543210', name: 'Dr. Arjun Sen', medReg: 'WBMC12345', spec: 'General Physician',
-      telegramChatId: '100000002', fee: 500, rating: 4.8,
+      whatsappNumber: '+919876543210', fee: 500, rating: 4.8,
       yearsExperience: 15, isTopPick: false, specialties: ['Fever', 'Cold', 'BP', 'Diabetes'],
       schedules: [
         { pinCode: 721401, day: 'Monday', start: '09:00', end: '13:00', clinic: 'Health First Clinic', addr: '123 Main St, Contai, Purba Medinipur', landmark: 'Contai Bus Stand-এর পাশে', avg: 15 },
@@ -42,7 +45,7 @@ async function main() {
     },
     {
       phone: '+919876543211', name: 'Dr. Meera Chowdhury', medReg: 'WBMC67890', spec: 'Cardiologist',
-      telegramChatId: '100000004', fee: 1200, rating: 4.9,
+      whatsappNumber: '+919876543211', fee: 1200, rating: 4.9,
       yearsExperience: 20, isTopPick: true, specialties: ['Chest Pain', 'Heart Disease', 'BP Problems', 'Palpitation'],
       schedules: [
         { pinCode: 700001, day: 'Tuesday', start: '10:00', end: '14:00', clinic: 'Heart Care Center', addr: '45 Park Street, Kolkata', landmark: 'Park Street Metro-এর কাছে', avg: 20 },
@@ -51,7 +54,7 @@ async function main() {
     },
     {
       phone: '+919876543212', name: 'Dr. Rahul Pramanik', medReg: 'WBMC54321', spec: 'Pediatrician',
-      telegramChatId: '100000005', fee: 800, rating: 4.7,
+      whatsappNumber: '+919876543212', fee: 800, rating: 4.7,
       yearsExperience: 8, isTopPick: false, specialties: ['Child Fever', 'Vaccination', 'Child Nutrition'],
       schedules: [
         { pinCode: 721401, day: 'Thursday', start: '08:00', end: '12:00', clinic: 'Happy Kids Care', addr: '88 Market Rd, Contai, Purba Medinipur', landmark: 'Contai Market-এর পাশে', avg: 10 },
@@ -65,10 +68,10 @@ async function main() {
     // Create the AdminUser (doctor)
     const adminUser = await prisma.adminUser.upsert({
       where: { phone: dd.phone },
-      update: {},
+      update: { whatsappNumber: dd.whatsappNumber },
       create: {
         phone: dd.phone, name: dd.name, role: 'DOCTOR', verificationStatus: 'VERIFIED',
-        medicalRegNumber: dd.medReg, specialization: dd.spec, telegramChatId: dd.telegramChatId,
+        medicalRegNumber: dd.medReg, specialization: dd.spec, whatsappNumber: dd.whatsappNumber,
         verifiedAt: new Date(), verifiedBy: superAdmin.id, isActive: true,
       },
     });
@@ -91,36 +94,36 @@ async function main() {
       },
       include: { schedules: true },
     });
-    console.log(`✅ Doctor: ${doctor.fullName} (telegramChatId: ${dd.telegramChatId}, ${doctor.schedules.length} schedules)`);
+    console.log(`✅ Doctor: ${doctor.fullName} (whatsappNumber: ${dd.whatsappNumber}, ${doctor.schedules.length} schedules)`);
     createdDoctors.push({ adminUser, doctor, schedules: doctor.schedules });
   }
 
   // ── 3. PENDING DOCTOR (for testing verification flow) ─────────────
   const pendingDoctor = await prisma.adminUser.upsert({
     where: { phone: '+919876543299' },
-    update: {},
+    update: { whatsappNumber: '+919876543299' },
     create: {
       phone: '+919876543299', name: 'Dr. Pending Applicant', role: 'DOCTOR',
       verificationStatus: 'PENDING', medicalRegNumber: 'WBMC99999', specialization: 'Dermatologist',
-      telegramChatId: '100000099', isActive: true,
+      whatsappNumber: '+919876543299', isActive: true,
       verificationDocs: { chamberAddress: '123 Salt Lake, Kolkata' },
     },
   });
-  console.log(`✅ Pending doctor: ${pendingDoctor.name} (telegramChatId: 100000099)`);
+  console.log(`✅ Pending doctor: ${pendingDoctor.name} (whatsappNumber: +919876543299)`);
 
   // ── 4. COMPOUNDER (delegated to Dr. Arjun Sen) ─────────────────────
   const arjunDoctor = createdDoctors[0].doctor;
   const compounder = await prisma.adminUser.upsert({
     where: { phone: '+919876543220' },
-    update: {},
+    update: { whatsappNumber: '+919876543220' },
     create: {
       phone: '+919876543220', name: 'Ramesh (Compounder for Dr. Arjun Sen)',
       role: 'COMPOUNDER', verificationStatus: 'VERIFIED',
       delegatedDoctorId: arjunDoctor.id, invitedBy: '+919876543210', invitedAt: new Date(),
-      telegramChatId: '100000003', isActive: true,
+      whatsappNumber: '+919876543220', isActive: true,
     },
   });
-  console.log(`✅ Compounder: ${compounder.name} (telegramChatId: 100000003, delegated to Dr. Arjun Sen)`);
+  console.log(`✅ Compounder: ${compounder.name} (whatsappNumber: +919876543220, delegated to Dr. Arjun Sen)`);
 
   // ── 5. SAMPLE APPOINTMENTS ─────────────────────────────────────────
   // Create some appointments for today and recent days
@@ -224,24 +227,24 @@ async function main() {
   console.log('\n═══════════════════════════════════════════════════════════');
   console.log('SEED COMPLETE — TEST ACCOUNTS');
   console.log('═══════════════════════════════════════════════════════════');
-  console.log('Role          | Name                    | telegramChatId');
-  console.log('──────────────|─────────────────────────|────────────────');
-  console.log('SUPER_ADMIN   | Founder                 | 100000001');
-  console.log('DOCTOR (VERIFIED) | Dr. Arjun Sen       | 100000002');
-  console.log('COMPOUNDER    | Ramesh (for Dr. Arjun)  | 100000003');
-  console.log('DOCTOR (VERIFIED) | Dr. Meera Chowdhury | 100000004');
-  console.log('DOCTOR (VERIFIED) | Dr. Rahul Pramanik  | 100000005');
-  console.log('DOCTOR (PENDING)  | Dr. Pending Applicant | 100000099');
+  console.log('Role                | Name                    | whatsappNumber');
+  console.log('────────────────────|─────────────────────────|─────────────────');
+  console.log('SUPER_ADMIN         | Founder                 | +910000000001');
+  console.log('DOCTOR (VERIFIED)   | Dr. Arjun Sen           | +919876543210');
+  console.log('COMPOUNDER          | Ramesh (for Dr. Arjun)  | +919876543220');
+  console.log('DOCTOR (VERIFIED)   | Dr. Meera Chowdhury     | +919876543211');
+  console.log('DOCTOR (VERIFIED)   | Dr. Rahul Pramanik      | +919876543212');
+  console.log('DOCTOR (PENDING)    | Dr. Pending Applicant   | +919876543299');
   console.log('═══════════════════════════════════════════════════════════');
   console.log('Patients (for testing /history):');
-  console.log('  100000101 — Rahul Das (has appointments with Dr. Arjun Sen)');
-  console.log('  100000102 — Sita Roy');
-  console.log('  100000103 — Amit Khan');
+  console.log('  +9100000101 — Rahul Das (has appointments with Dr. Arjun Sen)');
+  console.log('  +9100000102 — Sita Roy');
+  console.log('  +9100000103 — Amit Khan');
   console.log('═══════════════════════════════════════════════════════════');
   console.log('To test via the dashboard dev panel:');
-  console.log('  1. Open https://dr-booking.vercel.app');
+  console.log('  1. Open the dashboard URL');
   console.log('  2. Click any demo user button in the Dev Panel');
-  console.log('  3. Or use the bot: send /admin with the telegramChatId above');
+  console.log('  3. Or use the bot: send /admin from the WhatsApp number above');
   console.log('═══════════════════════════════════════════════════════════');
 }
 

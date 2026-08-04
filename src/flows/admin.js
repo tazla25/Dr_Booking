@@ -179,7 +179,7 @@ async function handleAdminFlow(bot, chatId, text, _scheduleId, _isCallback = fal
         medicalRegNumber: s.regMedReg,
         specialization: s.regSpec,
         chamberAddress: chamber,
-        telegramChatId: chatId,
+        whatsappNumber: chatId,
       });
       // Bug 8 fix: actually notify super admins via the bot
       await notifySuperAdminsOfNewRegistration(bot, s.regName, s.regPhone, s.regMedReg, s.regSpec, chatId);
@@ -225,11 +225,18 @@ async function handleAdminFlow(bot, chatId, text, _scheduleId, _isCallback = fal
 async function notifySuperAdminsOfNewRegistration(bot, name, phone, reg, spec, _chatId) {
   try {
     const superAdmins = await prisma.adminUser.findMany({
-      where: { role: 'SUPER_ADMIN', isActive: true, telegramChatId: { not: null } },
+      where: {
+        role: 'SUPER_ADMIN',
+        isActive: true,
+        OR: [
+          { whatsappNumber: { not: null } },
+          { phone: { not: null } },
+        ],
+      },
     });
 
     if (superAdmins.length === 0) {
-      logger.warn('No super admins with telegramChatId found to notify');
+      logger.warn('No super admins with whatsappNumber found to notify');
       return;
     }
 
@@ -243,8 +250,11 @@ async function notifySuperAdminsOfNewRegistration(bot, name, phone, reg, spec, _
 
     for (const admin of superAdmins) {
       try {
-        await bot.sendMessage(admin.telegramChatId, message, { parse_mode: 'Markdown' });
-        logger.info({ superAdminId: admin.id, chatId: admin.telegramChatId }, 'Notified super admin of new registration');
+        // Prefer whatsappNumber; fall back to phone for legacy accounts
+        const target = admin.whatsappNumber || admin.phone;
+        if (!target) continue;
+        await bot.sendMessage(target, message);
+        logger.info({ superAdminId: admin.id, target }, 'Notified super admin of new registration');
       } catch (sendErr) {
         logger.error({ superAdminId: admin.id, err: sendErr.message }, 'Failed to send notification to super admin');
       }

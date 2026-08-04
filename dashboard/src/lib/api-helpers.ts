@@ -93,13 +93,17 @@ export async function requireSuperAdmin() {
 }
 
 /**
- * Returns the doctorId scope filter for the current user:
+ * Returns the doctorId scope filter for Appointment/Schedule/etc queries:
  *   - COMPOUNDER → { doctorId: delegatedDoctorId }
  *   - DOCTOR     → { doctorId: ownedDoctor.id }
  *   - SUPER_ADMIN→ {} (sees all)
  *
  * If compounder has no delegatedDoctorId or doctor has no ownedDoctor,
  * returns a filter that matches nothing ({ doctorId: '__none__' }).
+ *
+ * Use this for any model that references Doctor via a `doctorId` foreign key
+ * (Appointment, Schedule, ScheduleOverride). For direct Doctor model queries,
+ * use getDoctorIdScope() instead.
  */
 export async function getDoctorScope(user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>) {
   if (user.role === 'SUPER_ADMIN') return { filter: {} as Record<string, string> }
@@ -126,6 +130,40 @@ export async function getDoctorScope(user: NonNullable<Awaited<ReturnType<typeof
   }
 
   return { filter: { doctorId: '__none__' } as Record<string, string> }
+}
+
+/**
+ * Returns the Doctor.id scope filter for direct Doctor-model queries:
+ *   - COMPOUNDER → { id: delegatedDoctorId }
+ *   - DOCTOR     → { id: ownedDoctor.id }
+ *   - SUPER_ADMIN→ {} (sees all)
+ *
+ * Use this when querying db.doctor.* directly. For Appointment/Schedule/etc
+ * queries that go through a `doctorId` foreign key, use getDoctorScope().
+ */
+export async function getDoctorIdScope(user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>) {
+  if (user.role === 'SUPER_ADMIN') return { filter: {} as Record<string, string> }
+
+  if (user.role === 'COMPOUNDER') {
+    return {
+      filter: user.delegatedDoctorId
+        ? { id: user.delegatedDoctorId }
+        : { id: '__none__' },
+    }
+  }
+
+  if (user.role === 'DOCTOR') {
+    const ownedDoctorId = user.ownedDoctor?.id
+    if (ownedDoctorId) {
+      return { filter: { id: ownedDoctorId } }
+    }
+    const doctor = await db.doctor.findUnique({ where: { ownerAdminId: user.id } })
+    return {
+      filter: doctor ? { id: doctor.id } : { id: '__none__' },
+    }
+  }
+
+  return { filter: { id: '__none__' } as Record<string, string> }
 }
 
 /**

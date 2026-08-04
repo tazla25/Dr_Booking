@@ -2,28 +2,30 @@ const { AppointmentError } = require('../utils/errors');
 const prisma = require('../database/prisma');
 
 /**
- * Handle admin authentication via Telegram Chat ID and generate magic link.
+ * Handle admin authentication via WhatsApp number and generate magic link.
  *
- * Phase 1 reform: Account ownership is flipped. Doctors own their profile;
- * compounders are delegated. This function checks:
- *   - User exists with the given telegramChatId
+ * Phase 2 (WhatsApp migration): Telegram is gone. The chatId passed in is
+ * now a phone number in E.164 format (e.g., +919876543210). We look up
+ * the AdminUser by whatsappNumber, falling back to phone for legacy
+ * accounts that haven't been re-linked yet.
+ *
+ * Verification gates:
+ *   - User exists with the given whatsappNumber (or phone fallback)
  *   - User is active
  *   - User has an approved role (DOCTOR / COMPOUNDER / SUPER_ADMIN)
  *   - DOCTOR users must have verificationStatus === VERIFIED
  *   - COMPOUNDER users must have a delegatedDoctor that is VERIFIED and active
  *   - SUPER_ADMIN users are always allowed (no verification needed)
  *
- * @param {string} chatId
+ * @param {string} chatId - WhatsApp phone number in E.164 format
  * @returns {Object|null} { adminUser, magicLink } or null
  */
 async function handleAdminAuth(chatId) {
-  // V9-5 fix: platform-aware lookup — try both telegramChatId and whatsappNumber
-  // so the same code works whether PLATFORM=telegram or PLATFORM=whatsapp
   const adminUser = await prisma.adminUser.findFirst({
     where: {
       OR: [
-        { telegramChatId: String(chatId) },
         { whatsappNumber: String(chatId) },
+        { phone: String(chatId) },
       ],
     },
     include: {
@@ -58,11 +60,8 @@ async function handleAdminAuth(chatId) {
   // SUPER_ADMIN: no extra checks
 
   const baseUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
-  // V9-5 fix: platform-aware body — send whatsappNumber if PLATFORM=whatsapp
-  const platform = (process.env.PLATFORM || 'telegram').toLowerCase();
-  const magicLinkBody = platform === 'whatsapp'
-    ? { whatsappNumber: String(chatId) }
-    : { telegramChatId: String(chatId) };
+  // Send whatsappNumber to the magic-link endpoint (WhatsApp-only)
+  const magicLinkBody = { whatsappNumber: String(chatId) };
 
   let magicLink;
   try {
@@ -83,8 +82,6 @@ async function handleAdminAuth(chatId) {
   } catch (error) {
     const logger = require('../utils/logger');
     logger.error({ err: error.message }, 'Error generating magic link');
-    // Bug 2 fix: return structured result instead of throwing, so the flow
-    // can show a specific "link failed" message instead of generic ERROR.
     return { adminUser, magicLink: null, reason: 'LINK_FAILED' };
   }
 
@@ -157,7 +154,7 @@ async function updateAppointmentStatus(bookingId, status, doctorId) {
  * Create a new doctor registration (pending verification).
  * Called by the bot when a doctor runs /register.
  *
- * @param {Object} params - { name, phone, medicalRegNumber, specialization, chamberAddress, telegramChatId }
+ * @param {Object} params - { name, phone, medicalRegNumber, specialization, chamberAddress, whatsappNumber }
  * @returns {Object} the created AdminUser
  */
 async function registerDoctor({
@@ -166,7 +163,7 @@ async function registerDoctor({
   medicalRegNumber,
   specialization,
   chamberAddress,
-  telegramChatId,
+  whatsappNumber,
 }) {
   // Check for existing account with same phone
   const existing = await prisma.adminUser.findUnique({ where: { phone } });
@@ -197,7 +194,7 @@ async function registerDoctor({
       specialization,
       role: 'DOCTOR',
       verificationStatus: 'PENDING',
-      telegramChatId: telegramChatId || null,
+      whatsappNumber: whatsappNumber || null,
       verificationDocs: chamberAddress ? { chamberAddress } : null,
       isActive: true,
     },

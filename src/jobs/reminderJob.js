@@ -99,7 +99,7 @@ function initReminderJob(bot) {
           }
 
           try {
-             await bot.sendMessage(apt.patientPhone, message, { parse_mode: 'Markdown' });
+             await bot.sendMessage(apt.patientPhone, message);
              logger.info({ chatId: apt.patientPhone, appointmentId: apt.id, patientsAhead: waitInfo?.patientsAhead }, 'Sent smart reminder');
 
              await prisma.appointment.update({

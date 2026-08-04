@@ -8,7 +8,7 @@ export async function GET() {
   const pending = await db.adminUser.findMany({
     where: { role: 'DOCTOR', verificationStatus: 'PENDING' },
     orderBy: { createdAt: 'asc' },
-    select: { id: true, name: true, phone: true, medicalRegNumber: true, specialization: true, verificationDocs: true, telegramChatId: true, createdAt: true },
+    select: { id: true, name: true, phone: true, medicalRegNumber: true, specialization: true, verificationDocs: true, whatsappNumber: true, createdAt: true },
   })
   return Response.json({ pendingDoctors: pending })
 }

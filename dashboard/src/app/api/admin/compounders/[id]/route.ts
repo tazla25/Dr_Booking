@@ -21,7 +21,7 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   // Deactivate (don't delete — keep audit trail)
   await db.adminUser.update({
     where: { id },
-    data: { isActive: false, delegatedDoctorId: null, telegramChatId: null },
+    data: { isActive: false, delegatedDoctorId: null, whatsappNumber: null },
   })
 
   await audit(user, 'compounder.remove', id, `Removed compounder ${compounder.name}`)

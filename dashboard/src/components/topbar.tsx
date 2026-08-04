@@ -4,6 +4,7 @@
 import { useApp } from './providers'
 import { useTheme } from './theme-provider'
 import { Button } from './ui/button'
+import { NotificationBell } from './notification-bell'
 import {
   Menu,
   Sun,
@@ -79,6 +80,9 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           >
             {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
+
+          {/* Notification bell */}
+          <NotificationBell />
 
           {/* Sign out */}
           <Button

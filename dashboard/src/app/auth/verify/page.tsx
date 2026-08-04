@@ -3,7 +3,7 @@
 // Magic Link Verification Page
 // ============================
 //
-// This is the page users land on when they click a magic link from Telegram.
+// This is the page users land on when they click a magic link from WhatsApp.
 // URL shape: /auth/verify?token=XYZ
 //
 // Behaviour:
@@ -128,16 +128,16 @@ function VerifyInner() {
                 </div>
                 <div className="border-t border-border pt-4 mt-4">
                   <p className="text-xs text-muted-foreground mb-3">
-                    Please return to the Telegram bot and request a new dashboard link.
+                    Please return to the WhatsApp bot and request a new dashboard link.
                   </p>
                   <Button
                     className="w-full gap-2"
                     onClick={() => {
-                      window.location.href = process.env.NEXT_PUBLIC_BOT_URL || 'https://t.me/Ax_erax_bot'
+                      window.location.href = process.env.NEXT_PUBLIC_BOT_URL || 'https://wa.me/91XXXXXXXXXX'
                     }}
                   >
                     <MessageCircle className="w-4 h-4" />
-                    Open Telegram Bot
+                    Open WhatsApp Bot
                   </Button>
                   <Button
                     variant="ghost"

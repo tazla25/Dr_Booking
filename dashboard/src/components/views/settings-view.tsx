@@ -41,7 +41,7 @@ export function SettingsView() {
   const [loading, setLoading] = useState(true)
 
   // Compounder management state (V8-2 + V8-15)
-  const [compounders, setCompounders] = useState<Array<{ id: string; name: string; phone: string; telegramChatId: string | null; isActive: boolean; invitedAt: string; lastLoginAt: string | null }>>([])
+  const [compounders, setCompounders] = useState<Array<{ id: string; name: string; phone: string; whatsappNumber: string | null; isActive: boolean; invitedAt: string; lastLoginAt: string | null }>>([])
   const [inviteOpen, setInviteOpen] = useState(false)
   const [invitePhone, setInvitePhone] = useState('')
   const [inviting, setInviting] = useState(false)
@@ -81,7 +81,7 @@ export function SettingsView() {
     setInviting(true)
     try {
       await api('/api/admin/invite-compounder', { method: 'POST', body: JSON.stringify({ compounderPhone: invitePhone.trim() }) })
-      toast.success('Compounder invited! They need to send /link <phone> to the bot to connect their Telegram.')
+      toast.success('Compounder invited! They need to send /link <phone> to the bot to connect their WhatsApp.')
       setInviteOpen(false)
       setInvitePhone('')
       fetchAux()
@@ -210,7 +210,7 @@ export function SettingsView() {
                       <p className="text-sm font-medium truncate">{c.name}</p>
                       <p className="text-xs text-muted-foreground">{c.phone}</p>
                       <p className="text-[10px] text-muted-foreground">
-                        {c.telegramChatId ? '✅ Telegram linked' : '⏳ Waiting for /link'} ·
+                        {c.whatsappNumber ? '✅ WhatsApp linked' : '⏳ Waiting for /link'} ·
                         Invited {new Date(c.invitedAt).toLocaleDateString()}
                       </p>
                     </div>
@@ -238,7 +238,7 @@ export function SettingsView() {
             <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-md p-3 text-xs text-blue-700 dark:text-blue-400">
               <strong>How it works:</strong> After inviting a compounder, they need to send
               <code className="mx-1 px-1 py-0.5 bg-background rounded border border-border">/link {'<their-phone>'}</code>
-              to the bot from their Telegram to connect their account.
+              to the bot from their WhatsApp to connect their account.
             </div>
           </CardContent>
         </Card>
@@ -267,7 +267,7 @@ export function SettingsView() {
               />
             </div>
             <p className="text-xs text-muted-foreground bg-muted/40 rounded p-2">
-              After invitation, the compounder must send <code className="px-1 py-0.5 bg-background rounded border border-border">/link {invitePhone || '<their-phone>'}</code> to the bot to connect their Telegram account.
+              After invitation, the compounder must send <code className="px-1 py-0.5 bg-background rounded border border-border">/link {invitePhone || '<their-phone>'}</code> to the bot to connect their WhatsApp account.
             </p>
           </div>
           <DialogFooter>
@@ -367,13 +367,13 @@ export function SettingsView() {
             </div>
             <div className="bg-muted/40 rounded-lg p-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                Telegram Chat ID
+                WhatsApp Number
               </p>
               <p className="text-sm font-medium font-mono">
-                {user?.telegramChatId || t('none')}
+                {user?.whatsappNumber || t('none')}
               </p>
               <p className="text-[10px] text-muted-foreground mt-1">
-                {user?.telegramChatId ? 'Linked to Telegram' : 'Not linked — use /link in the bot'}
+                {user?.whatsappNumber ? 'Linked to WhatsApp' : 'Not linked — use /link in the bot'}
               </p>
             </div>
           </div>
@@ -384,7 +384,7 @@ export function SettingsView() {
                 Magic Link Authentication Active
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                To sign in, open the Telegram bot and tap &ldquo;Open Dashboard&rdquo;.
+                To sign in, open the WhatsApp bot and tap &ldquo;Open Dashboard&rdquo;.
                 Each magic link is single-use and expires after 2 hours.
               </p>
             </div>

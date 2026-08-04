@@ -33,7 +33,13 @@ function initFeedbackJob(bot) {
           { text: '⭐ 5', callback_data: `fb_${appt.id}_5` },
         ]] };
         try {
-          await bot.sendMessage(String(appt.patientPhone), message, { parse_mode: 'Markdown', reply_markup: keyboard });
+          // WhatsApp supports max 3 buttons per message via "button" type;
+          // for 5 options the platform automatically switches to "list" type.
+          await bot.sendInlineKeyboard(
+            String(appt.patientPhone),
+            message,
+            keyboard.reply_markup.inline_keyboard
+          );
           await markFeedbackSent(appt.id);
           logger.info({ appointmentId: appt.id }, 'Sent feedback request');
         } catch (err) {

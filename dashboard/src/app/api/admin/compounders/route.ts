@@ -12,7 +12,7 @@ export async function GET() {
 
   const compounders = await db.adminUser.findMany({
     where: { delegatedDoctorId: ownedDoctor.id, role: 'COMPOUNDER' },
-    select: { id: true, name: true, phone: true, telegramChatId: true, isActive: true, invitedAt: true, lastLoginAt: true },
+    select: { id: true, name: true, phone: true, whatsappNumber: true, isActive: true, invitedAt: true, lastLoginAt: true },
     orderBy: { invitedAt: 'desc' },
   })
 

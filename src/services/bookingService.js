@@ -232,7 +232,7 @@ const rescheduleBookingByToken = rescheduleBookingByQueueNumber;
 /**
  * Get a patient's booking history (last 10 appointments, excluding very old ones).
  *
- * @param {string} chatId - the patient's telegram chatId (used as patientPhone)
+ * @param {string} chatId - the patient's WhatsApp phone number (used as patientPhone)
  * @returns {Promise<Array>} appointment rows with doctor + schedule info
  */
 async function getPatientHistory(chatId) {

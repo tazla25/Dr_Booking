@@ -24,8 +24,8 @@ async function handleMessage(bot, msg) {
   const lang = session.lang || 'bn';
 
   const send = (reply, options = {}) => {
-    const opts = { parse_mode: 'Markdown', ...options };
-    return bot.sendMessage(chatId, reply, opts).catch(err => {
+    // WhatsApp doesn't use parse_mode — formatting is automatic (*bold*, _italic_)
+    return bot.sendMessage(chatId, reply, options).catch(err => {
         logger.error({ chatId, err: err.message }, '[handler] Failed to send message');
     });
   };
@@ -138,7 +138,7 @@ async function handleMessage(bot, msg) {
       return send(getMessage(lang, 'REGISTER_ASK_NAME'));
     }
 
-    // /link <phone> — compounder links their Telegram chat ID to their phone-based account (V8-3 fix)
+    // /link <phone> — compounder links their WhatsApp number to their phone-based account
     if (text.startsWith('/link')) {
       const { validatePhone } = require('../utils/validators');
       const parts = text.split(/\s+/);
@@ -163,13 +163,13 @@ async function handleMessage(bot, msg) {
       if (!compounder || compounder.role !== 'COMPOUNDER') {
         return send(getMessage(lang, 'LINK_NO_COMPOUNDER'));
       }
-      if (compounder.telegramChatId) {
+      if (compounder.whatsappNumber) {
         return send(getMessage(lang, 'LINK_ALREADY_LINKED'));
       }
-      // Link the chatId
+      // Link the whatsappNumber
       await prisma.adminUser.update({
         where: { id: compounder.id },
-        data: { telegramChatId: chatId },
+        data: { whatsappNumber: chatId },
       });
       const doctorName = compounder.delegatedDoctor?.ownerAdmin?.name || 'your doctor';
       return send(getMessage(lang, 'LINK_SUCCESS', doctorName));
@@ -179,8 +179,13 @@ async function handleMessage(bot, msg) {
     if (text === '/invite' || text.startsWith('/invite ')) {
       // Look up the current user — must be a verified doctor
       const prisma = require('../database/prisma');
-      const adminUser = await prisma.adminUser.findUnique({
-        where: { telegramChatId: chatId },
+      const adminUser = await prisma.adminUser.findFirst({
+        where: {
+          OR: [
+            { whatsappNumber: chatId },
+            { phone: chatId },
+          ],
+        },
         include: { ownedDoctor: true },
       });
       if (!adminUser || adminUser.role !== 'DOCTOR' || adminUser.verificationStatus !== 'VERIFIED') {
@@ -324,8 +329,8 @@ async function handleCallbackQuery(bot, query) {
   bot.answerCallbackQuery(query.id).catch(() => {});
 
   const send = (reply, options = {}) => {
-    const opts = { parse_mode: 'Markdown', ...options };
-    return bot.sendMessage(chatId, reply, opts).catch(err => {
+    // WhatsApp doesn't use parse_mode — formatting is automatic (*bold*, _italic_)
+    return bot.sendMessage(chatId, reply, options).catch(err => {
         logger.error({ chatId, err: err.message }, '[handler] Failed to send callback message');
     });
   };

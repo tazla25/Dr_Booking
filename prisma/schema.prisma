@@ -188,6 +188,8 @@ model AdminUser {
   // ── Identity (bot-first) ────────────────────────────────────────
   // At least one of these must be set (enforced at app level).
   // `phone` is now the PRIMARY identifier for doctors (used for /register and /invite).
+  // `whatsappNumber` is the primary bot identifier (WhatsApp Cloud API, E.164).
+  // `telegramChatId` is kept for backward compatibility with legacy accounts.
   phone           String?  @unique
   email           String?  @unique
   telegramChatId  String?  @unique
@@ -207,11 +209,31 @@ model AdminUser {
   auditLogs     AuditLog[]
   magicLinks    MagicLink[]
   sessions      Session[]
+  patientNotes  PatientNote[] @relation("PatientNoteAuthor")
 
   @@index([role])
   @@index([verificationStatus])
   @@index([delegatedDoctorId])
   @@map("admin_users")
+}
+
+// Patient notes — internal notes that doctors/compounders can add to patients.
+// Keyed by patient phone (the patient identifier) and scoped to the author
+// so compounders see notes from their delegated doctor's team.
+model PatientNote {
+  id           String   @id @default(cuid())
+  patientPhone String   // links to Appointment.patientPhone
+  authorId     String   // AdminUser.id of the note author
+  author       AdminUser @relation("PatientNoteAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  note         String   // the note content
+  isImportant  Boolean  @default(false) // pinned/flagged notes
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([patientPhone])
+  @@index([authorId])
+  @@index([isImportant])
+  @@map("patient_notes")
 }
 
 // Bot-driven Magic Link tokens — short-lived, single-use, hash-stored.

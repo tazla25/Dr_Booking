@@ -1,8 +1,8 @@
-// index.js — project root entry point
+// index.js — project root entry point (WhatsApp-only)
 require('dotenv').config();
 
 // ── Validate required environment variables ──────────────────────────
-const requiredEnvVars = ['DATABASE_URL', 'TELEGRAM_BOT_TOKEN'];
+const requiredEnvVars = ['DATABASE_URL', 'WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_ACCESS_TOKEN'];
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
     console.error(`❌ Missing required environment variable: ${envVar}`);
@@ -12,7 +12,7 @@ for (const envVar of requiredEnvVars) {
 }
 
 // Warn about optional but recommended vars
-const recommendedEnvVars = ['DASHBOARD_URL', 'BOT_API_SECRET', 'PUBLIC_URL'];
+const recommendedEnvVars = ['DASHBOARD_URL', 'BOT_API_SECRET', 'PUBLIC_URL', 'WHATSAPP_VERIFY_TOKEN'];
 for (const envVar of recommendedEnvVars) {
   if (!process.env[envVar]) {
     console.warn(`⚠️  Missing recommended environment variable: ${envVar}`);
@@ -26,25 +26,26 @@ const { initFeedbackJob } = require('./src/jobs/feedbackJob');
 
 const PORT = process.env.PORT || 3000;
 
-const crypto = require('crypto');
-const webhookSecret = process.env.WEBHOOK_SECRET || process.env.BOT_API_SECRET || crypto.createHash('sha256').update(process.env.TELEGRAM_BOT_TOKEN).digest('hex');
-
 const bot = createBot();
 // Attach the bot instance to the app so internal endpoints (e.g. /api/notify)
 // can use it to send messages without needing a separate bot reference.
 app.set('bot', bot);
-registerWebhook(bot, app, webhookSecret);
+registerWebhook(bot, app);
 initReminderJob(bot);
 initFeedbackJob(bot);
 
 const server = app.listen(PORT, () => {
-  console.log(`🚀 Smart Queue Bot running on port ${PORT}`);
+  console.log(`🚀 Dr_Booking WhatsApp Bot running on port ${PORT}`);
 
+  // Set WhatsApp webhook subscription (if PUBLIC_URL is set)
   if (process.env.PUBLIC_URL) {
-    bot
-      .setWebHook(`${process.env.PUBLIC_URL}/webhook`, { secret_token: webhookSecret })
-      .then(() => console.log(`✅ Webhook set: ${process.env.PUBLIC_URL}/webhook`))
-      .catch((err) => console.error('❌ Webhook error:', err.message));
+    const platform = bot._platform;
+    if (platform && typeof platform.setWebhook === 'function') {
+      platform
+        .setWebhook(`${process.env.PUBLIC_URL}/webhook`)
+        .then(() => console.log(`✅ WhatsApp webhook subscription checked: ${process.env.PUBLIC_URL}/webhook`))
+        .catch((err) => console.error('❌ Webhook subscription error:', err.message));
+    }
   }
 });
 

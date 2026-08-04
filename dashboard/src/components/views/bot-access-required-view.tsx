@@ -3,7 +3,7 @@
 // Bot-First Auth — Landing Page when no session is present.
 // Replaces the old email/password login.
 //
-// Message: "Please access your dashboard via the Telegram Bot."
+// Message: "Please access your dashboard via the WhatsApp Bot."
 // Includes a Dev Panel (visible only when NODE_ENV !== 'production') so the
 // magic link flow can be exercised end-to-end in the sandbox without a real bot.
 
@@ -46,31 +46,31 @@ const DEMO_USERS = [
   {
     label: 'Super Admin (Founder)',
     name: 'Founder',
-    telegramChatId: '100000001',
+    whatsappNumber: '+910000000001',
     role: 'SUPER_ADMIN',
   },
   {
     label: 'Doctor · Verified · Dr. Arjun Sen',
     name: 'Dr. Arjun Sen',
-    telegramChatId: '100000002',
+    whatsappNumber: '+919876543210',
     role: 'DOCTOR',
   },
   {
     label: 'Doctor · Verified · Dr. Meera Chowdhury',
     name: 'Dr. Meera Chowdhury',
-    telegramChatId: '100000004',
+    whatsappNumber: '+919876543211',
     role: 'DOCTOR',
   },
   {
     label: 'Doctor · Pending (not yet verified)',
     name: 'Dr. Pending Applicant',
-    telegramChatId: '100000099',
+    whatsappNumber: '+919876543299',
     role: 'DOCTOR',
   },
   {
     label: 'Compounder · Dr. Arjun Sen',
     name: 'Ramesh',
-    telegramChatId: '100000003',
+    whatsappNumber: '+919876543220',
     role: 'COMPOUNDER',
   },
 ]
@@ -86,7 +86,7 @@ export function BotAccessRequiredView() {
   const router = useRouter()
   const [generating, setGenerating] = useState<string | null>(null)
 
-  const generateLinkFor = async (telegramChatId: string, label: string) => {
+  const generateLinkFor = async (whatsappNumber: string, label: string) => {
     setGenerating(label)
     try {
       // Simulate the bot calling the API with BOT_API_SECRET
@@ -96,7 +96,7 @@ export function BotAccessRequiredView() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${DEMO_BOT_SECRET}`,
         },
-        body: JSON.stringify({ telegramChatId }),
+        body: JSON.stringify({ whatsappNumber }),
       })
 
       if (!res.ok) {
@@ -113,7 +113,7 @@ export function BotAccessRequiredView() {
       const data = (await res.json()) as MagicLinkResponse
       toast.success(`Magic link generated for ${data.user.name}`)
 
-      // Simulate the user clicking the link in Telegram
+      // Simulate the user clicking the link in WhatsApp
       const token = data.magicLink.split('token=')[1]
       if (token) {
         // Navigate to the verify page (which will call /api/auth/verify)
@@ -147,11 +147,11 @@ export function BotAccessRequiredView() {
                 <ShieldCheck className="w-7 h-7 text-primary" />
               </div>
               <h2 className="text-lg font-semibold text-foreground">
-                Access via {process.env.NEXT_PUBLIC_PLATFORM === 'whatsapp' ? 'WhatsApp' : 'Telegram'} Bot
+                Access via WhatsApp Bot
               </h2>
               <p className="text-sm text-muted-foreground">
                 For security, the admin dashboard is not accessible by typing a URL or
-                password. Please open your Telegram (or WhatsApp) bot and tap
+                password. Please open your WhatsApp bot and tap
                 &ldquo;Open Dashboard&rdquo; to receive a secure magic link.
               </p>
             </div>
@@ -163,8 +163,7 @@ export function BotAccessRequiredView() {
                   1
                 </div>
                 <p className="text-muted-foreground">
-                  Open the <strong className="text-foreground">Dr_Booking Bot</strong> in Telegram
-                  or WhatsApp.
+                  Open the <strong className="text-foreground">Dr_Booking Bot</strong> in WhatsApp.
                 </p>
               </div>
               <div className="flex items-start gap-3">
@@ -206,17 +205,15 @@ export function BotAccessRequiredView() {
               </div>
             </div>
 
-            {/* Open Bot button — platform-aware (V9-2 fix) */}
+            {/* Open Bot button — WhatsApp only after migration */}
             <Button
               className="w-full gap-2 h-11"
               onClick={() => {
-                const platform = process.env.NEXT_PUBLIC_PLATFORM || 'telegram'
-                const defaultUrl = platform === 'whatsapp' ? 'https://wa.me/91XXXXXXXXXX' : 'https://t.me/Ax_erax_bot'
-                window.location.href = process.env.NEXT_PUBLIC_BOT_URL || defaultUrl
+                window.location.href = process.env.NEXT_PUBLIC_BOT_URL || 'https://wa.me/91XXXXXXXXXX'
               }}
             >
               <MessageCircle className="w-4 h-4" />
-              Open Dr_Booking Bot in {process.env.NEXT_PUBLIC_PLATFORM === 'whatsapp' ? 'WhatsApp' : 'Telegram'}
+              Open Dr_Booking Bot in WhatsApp
             </Button>
 
             {/* Register as a doctor hint */}
@@ -246,17 +243,17 @@ export function BotAccessRequiredView() {
                   <div className="space-y-2">
                     {DEMO_USERS.map((u) => (
                       <Button
-                        key={u.telegramChatId}
+                        key={u.whatsappNumber}
                         variant="outline"
                         size="sm"
                         className="w-full justify-between gap-2"
                         disabled={generating !== null}
-                        onClick={() => generateLinkFor(u.telegramChatId, u.label)}
+                        onClick={() => generateLinkFor(u.whatsappNumber, u.label)}
                       >
                         <span className="text-left">
                           <span className="block text-xs font-medium">{u.label}</span>
                           <span className="block text-[10px] text-muted-foreground">
-                            telegramChatId: {u.telegramChatId}
+                            whatsappNumber: {u.whatsappNumber}
                           </span>
                         </span>
                         {generating === u.label ? (

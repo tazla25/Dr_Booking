@@ -20,7 +20,7 @@ const translations = {
     ASK_DATE: '📅 কোন তারিখে অ্যাপয়েন্টমেন্ট চান?\n\nনিচের তারিখগুলো থেকে বেছে নিন অথবা (YYYY-MM-DD) ফরম্যাটে লিখে দিন:',
     ASK_NAME: '👤 আপনার পুরো নাম লিখুন:',
     BOOKING_CONFIRMED: (name, queueNumber, date, scheduleId) =>
-      `✅ *বুকিং সম্পন্ন!*\n\n👤 নাম: ${name}\n📅 তারিখ: ${date}\n🔢 আপনার টোকেন: *${queueNumber}*\n\n[লাইভ স্ট্যাটাস দেখতে এখানে ক্লিক করুন](${process.env.DASHBOARD_URL || ''}/?view=tracker&scheduleId=${scheduleId}&date=${date})`,
+      `✅ *বুকিং সম্পন্ন!*\n\n👤 নাম: ${name}\n📅 তারিখ: ${date}\n🔢 আপনার টোকেন: *${queueNumber}*\n\nলাইভ স্ট্যাটাস দেখুন:\n${process.env.DASHBOARD_URL || ''}/?view=tracker&scheduleId=${scheduleId}&date=${date}`,
     ADMIN_ASK_PIN: '🔒 আপনার সিক্রেট PIN দিন:',
     ADMIN_INVALID_PIN: '❌ ভুল PIN। আবার চেষ্টা করুন।',
     ADMIN_DASHBOARD: (patients) => {
@@ -38,7 +38,7 @@ const translations = {
     BTN_BOOK: '📅 বুক অ্যাপয়েন্টমেন্ট',
     BTN_STATUS: '🔍 স্ট্যাটাস চেক',
     BTN_CANCEL: '❌ বাতিল করুন',
-    BTN_ADMIN: '👨‍⚕️ অ্যাডমিন / কম্পাউন্ডার লগইন',
+    BTN_ADMIN: '👨‍⚕️ লগইন করুন',
     BTN_BACK: '🔙 ব্যাক',
     STATUS_MSG: '🔗 আপনার বুকিং কনফার্মেশন মেসেজে দেওয়া লিংকটি চেক করুন।',
     CANCEL_MSG: '❌ বর্তমান কার্যক্রম বাতিল হয়েছে। /start দিয়ে আবার শুরু করুন।',
@@ -124,7 +124,7 @@ const translations = {
     ASK_DATE: '📅 Which date do you want the appointment for?\n\nChoose from the dates below or type in (YYYY-MM-DD) format:',
     ASK_NAME: '👤 Please type your full name:',
     BOOKING_CONFIRMED: (name, queueNumber, date, scheduleId) =>
-      `✅ *Booking Confirmed!*\n\n👤 Name: ${name}\n📅 Date: ${date}\n🔢 Your Token: *${queueNumber}*\n\n[Click here to see live status](${process.env.DASHBOARD_URL || ''}/?view=tracker&scheduleId=${scheduleId}&date=${date})`,
+      `✅ *Booking Confirmed!*\n\n👤 Name: ${name}\n📅 Date: ${date}\n🔢 Your Token: *${queueNumber}*\n\nSee live status:\n${process.env.DASHBOARD_URL || ''}/?view=tracker&scheduleId=${scheduleId}&date=${date}`,
     ADMIN_ASK_PIN: '🔒 Enter your secret PIN:',
     ADMIN_INVALID_PIN: '❌ Invalid PIN. Try again.',
     ADMIN_DASHBOARD: (patients) => {
@@ -142,7 +142,7 @@ const translations = {
     BTN_BOOK: '📅 Book Appointment',
     BTN_STATUS: '🔍 Check Status',
     BTN_CANCEL: '❌ Cancel',
-    BTN_ADMIN: '👨‍⚕️ Admin / Compounder Login',
+    BTN_ADMIN: '👨‍⚕️ Login',
     BTN_BACK: '🔙 Back',
     STATUS_MSG: '🔗 Please check the tracker link provided in your booking confirmation message.',
     CANCEL_MSG: '❌ Current process cancelled. Type /start to begin again.',
@@ -226,7 +226,7 @@ const translations = {
     ASK_DATE: '📅 आप किस तारीख के लिए अपॉइंटमेंट चाहते हैं?\n\nनीचे दी गई तारीखों में से चुनें या (YYYY-MM-DD) प्रारूप में टाइप करें:',
     ASK_NAME: '👤 कृपया अपना पूरा नाम टाइप करें:',
     BOOKING_CONFIRMED: (name, queueNumber, date, scheduleId) =>
-      `✅ *बुकिंग पक्की हो गई!*\n\n👤 नाम: ${name}\n📅 तारीख: ${date}\n🔢 आपका टोकन: *${queueNumber}*\n\n[लाइव स्थिति देखने के लिए यहां क्लिक करें](${process.env.DASHBOARD_URL || ''}/?view=tracker&scheduleId=${scheduleId}&date=${date})`,
+      `✅ *बुकिंग पक्की हो गई!*\n\n👤 नाम: ${name}\n📅 तारीख: ${date}\n🔢 आपका टोकन: *${queueNumber}*\n\nलाइव स्थिति देखें:\n${process.env.DASHBOARD_URL || ''}/?view=tracker&scheduleId=${scheduleId}&date=${date}`,
     ADMIN_ASK_PIN: '🔒 अपना गुप्त पिन दर्ज करें:',
     ADMIN_INVALID_PIN: '❌ अमान्य पिन। पुनः प्रयास करें।',
     ADMIN_DASHBOARD: (patients) => {
@@ -244,7 +244,7 @@ const translations = {
     BTN_BOOK: '📅 अपॉइंटमेंट बुक करें',
     BTN_STATUS: '🔍 स्थिति की जांच',
     BTN_CANCEL: '❌ रद्द करें',
-    BTN_ADMIN: '👨‍⚕️ एडमिन / कंपाउंडर लॉगिन',
+    BTN_ADMIN: '👨‍⚕️ लॉगिन करें',
     BTN_BACK: '🔙 वापस',
     STATUS_MSG: '🔗 कृपया अपने बुकिंग पुष्टिकरण संदेश में दिए गए ट्रैकर लिंक की जाँच करें।',
     CANCEL_MSG: '❌ वर्तमान प्रक्रिया रद्द कर दी गई। फिर से शुरू करने के लिए /start टाइप करें।',

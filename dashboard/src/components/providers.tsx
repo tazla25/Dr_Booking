@@ -18,7 +18,6 @@ export interface AuthUser {
   medicalRegNumber?: string | null
   specialization?: string | null
   phone?: string | null
-  telegramChatId?: string | null
   whatsappNumber?: string | null
   ownedDoctorId?: string | null
   delegatedDoctorId?: string | null

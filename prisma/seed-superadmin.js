@@ -26,6 +26,7 @@ async function main() {
       role: 'SUPER_ADMIN',
       verificationStatus: 'VERIFIED',
       isActive: true,
+      whatsappNumber: phone,
     },
     create: {
       phone,
@@ -33,6 +34,7 @@ async function main() {
       role: 'SUPER_ADMIN',
       verificationStatus: 'VERIFIED',
       isActive: true,
+      whatsappNumber: phone,
     },
   });
 
@@ -40,11 +42,11 @@ async function main() {
   console.log(`   ID: ${result.id}`);
   console.log(`   Role: ${result.role}`);
   console.log(`   Verification: ${result.verificationStatus}`);
+  console.log(`   WhatsApp Number: ${result.whatsappNumber}`);
   console.log('');
   console.log('To activate this account in the bot, the user should:');
-  console.log('  1. Send /start to the bot from their Telegram');
+  console.log('  1. Send /start to the bot from their WhatsApp');
   console.log('  2. Send /admin to receive a magic link');
-  console.log('  3. (If telegramChatId is not set, update the DB record manually)');
 }
 
 main()

@@ -3,25 +3,25 @@
 // Bot-First Auth — Magic Link Generation
 // =======================================
 //
-// This endpoint is called ONLY by the Telegram/WhatsApp bot backend.
+// This endpoint is called ONLY by the WhatsApp bot backend.
 // It is NOT callable from the browser — it requires BOT_API_SECRET in the
 // Authorization header.
 //
 // Flow:
-//   1. Patient/Compounder taps "Open Dashboard" in the Telegram bot.
-//   2. Bot backend POSTs to this endpoint with the user's telegramChatId
-//      (or whatsappNumber) and the BOT_API_SECRET.
+//   1. Patient/Compounder taps "Open Dashboard" in the WhatsApp bot.
+//   2. Bot backend POSTs to this endpoint with the user's whatsappNumber
+//      and the BOT_API_SECRET.
 //   3. This endpoint returns a one-time magic link URL.
-//   4. Bot forwards the link to the user via Telegram.
+//   4. Bot forwards the link to the user via WhatsApp.
 //   5. User clicks the link → /auth/verify?token=XYZ → cookie set → dashboard.
 //
 // Request:
 //   POST /api/auth/generate-magic-link
 //   Authorization: Bearer <BOT_API_SECRET>
 //   Content-Type: application/json
-//   { "telegramChatId": "100000001" }
-//   // OR
-//   { "whatsappNumber": "+8801711000001" }
+//   { "whatsappNumber": "+919876543210" }
+//   // OR (legacy fallback)
+//   { "phone": "+919876543210" }
 //
 // Response (200):
 //   {
@@ -45,12 +45,13 @@ import {
 
 const bodySchema = z
   .object({
-    telegramChatId: z.string().optional(),
     whatsappNumber: z.string().optional(),
+    phone: z.string().optional(),
+    telegramChatId: z.string().optional(), // legacy — accepted but not preferred
   })
   .refine(
-    (d) => d.telegramChatId || d.whatsappNumber,
-    { message: 'Either telegramChatId or whatsappNumber must be provided' }
+    (d) => d.whatsappNumber || d.phone || d.telegramChatId,
+    { message: 'whatsappNumber, phone, or telegramChatId must be provided' }
   )
 
 export async function POST(req: NextRequest) {
@@ -75,10 +76,26 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 3. Look up the AdminUser by telegramChatId OR whatsappNumber
-    const where = parsed.telegramChatId
-      ? { telegramChatId: parsed.telegramChatId }
-      : { whatsappNumber: parsed.whatsappNumber }
+    // 3. Look up the AdminUser by whatsappNumber (preferred), phone (fallback),
+    //    or telegramChatId (legacy).
+    type AdminUserWhereUnique =
+      | { whatsappNumber: string }
+      | { phone: string }
+      | { telegramChatId: string }
+
+    let where: AdminUserWhereUnique;
+    if (parsed.whatsappNumber) {
+      where = { whatsappNumber: parsed.whatsappNumber };
+    } else if (parsed.phone) {
+      where = { phone: parsed.phone };
+    } else if (parsed.telegramChatId) {
+      where = { telegramChatId: parsed.telegramChatId };
+    } else {
+      return Response.json(
+        { error: 'invalid_input', message: 'No identifier provided' },
+        { status: 400 }
+      );
+    }
 
     const user = await db.adminUser.findUnique({
       where,
@@ -93,7 +110,7 @@ export async function POST(req: NextRequest) {
         {
           error: 'user_not_found',
           message:
-            'No admin user is linked to this Telegram chat ID / WhatsApp number. The bot should run onboarding first.',
+            'No admin user is linked to this WhatsApp number. The bot should run onboarding first.',
         },
         { status: 404 }
       )

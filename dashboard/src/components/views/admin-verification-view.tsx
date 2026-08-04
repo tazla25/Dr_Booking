@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ShieldCheck, Loader2, CheckCircle2, XCircle, Phone, Award, Stethoscope, Calendar, FileText, RefreshCw, Inbox } from 'lucide-react'
 import { toast } from 'sonner'
 
-interface PendingDoctor { id: string; name: string; phone: string; medicalRegNumber: string | null; specialization: string | null; verificationDocs: unknown; telegramChatId: string | null; createdAt: string }
+interface PendingDoctor { id: string; name: string; phone: string; medicalRegNumber: string | null; specialization: string | null; verificationDocs: unknown; whatsappNumber: string | null; createdAt: string }
 
 export function AdminVerificationView() {
   const { user } = useApp()
@@ -61,7 +61,7 @@ export function AdminVerificationView() {
                 <div className="flex items-start gap-2"><Phone className="w-4 h-4 text-muted-foreground mt-0.5" /><div><p className="text-xs text-muted-foreground">Phone</p><p className="font-medium">{doc.phone}</p></div></div>
                 <div className="flex items-start gap-2"><Award className="w-4 h-4 text-muted-foreground mt-0.5" /><div><p className="text-xs text-muted-foreground">Medical Reg. Number</p><p className="font-medium font-mono">{doc.medicalRegNumber}</p></div></div>
                 <div className="flex items-start gap-2"><Stethoscope className="w-4 h-4 text-muted-foreground mt-0.5" /><div><p className="text-xs text-muted-foreground">Specialization</p><p className="font-medium">{doc.specialization || '—'}</p></div></div>
-                <div className="flex items-start gap-2"><Calendar className="w-4 h-4 text-muted-foreground mt-0.5" /><div><p className="text-xs text-muted-foreground">Telegram Chat ID</p><p className="font-medium font-mono text-xs">{doc.telegramChatId || '—'}</p></div></div>
+                <div className="flex items-start gap-2"><Calendar className="w-4 h-4 text-muted-foreground mt-0.5" /><div><p className="text-xs text-muted-foreground">WhatsApp Number</p><p className="font-medium font-mono text-xs">{doc.whatsappNumber || '—'}</p></div></div>
                 {chamber && (<div className="flex items-start gap-2 sm:col-span-2"><FileText className="w-4 h-4 text-muted-foreground mt-0.5" /><div><p className="text-xs text-muted-foreground">Chamber Address</p><p className="font-medium">{chamber}</p></div></div>)}
               </div>
               <div className="flex flex-wrap gap-2 pt-2 border-t border-border">

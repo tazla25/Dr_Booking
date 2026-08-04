@@ -24,6 +24,8 @@ export const STRINGS = {
   // Nav
   dashboard: { bn: 'ড্যাশবোর্ড', en: 'Dashboard' },
   appointments: { bn: 'অ্যাপয়েন্টমেন্ট', en: 'Appointments' },
+  calendar: { bn: 'ক্যালেন্ডার', en: 'Calendar' },
+  patients: { bn: 'রোগী', en: 'Patients' },
   doctors: { bn: 'ডাক্তারগণ', en: 'Doctors' },
   schedules: { bn: 'সিডিউল', en: 'Schedules' },
   analytics: { bn: 'অ্যানালিটিক্স', en: 'Analytics' },

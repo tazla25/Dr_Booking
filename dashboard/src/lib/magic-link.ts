@@ -97,7 +97,7 @@ export function constantTimeCompare(a: string, b: string): boolean {
   return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))
 }
 
-/** Validate the BOT_API_SECRET sent by the Telegram/WhatsApp bot. */
+/** Validate the BOT_API_SECRET sent by the WhatsApp bot. */
 export function validateBotSecret(authHeader: string | null): boolean {
   const expected = process.env.BOT_API_SECRET
   if (!expected) return false

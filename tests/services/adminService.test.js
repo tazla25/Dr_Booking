@@ -32,6 +32,7 @@ describe('handleAdminAuth', () => {
     prisma.adminUser.findFirst.mockResolvedValueOnce({
       id: 'au-1',
       telegramChatId: 'chat-1',
+      whatsappNumber: '+910000000001',
       isActive: true,
       role: 'SUPER_ADMIN',
     });
