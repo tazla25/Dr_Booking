@@ -41,12 +41,22 @@ async function setSession(chatId, data) {
         }
     }
 
+    // Keep the `lang` column in sync with sessionData.lang so that
+    // reminderJob.js (which reads the column for performance) and any
+    // other code that reads the column sees the user's current language
+    // preference. Without this, the column stays at the default 'bn'
+    // forever even after the user switches to English/Hindi.
+    const updatePayload = {
+      step: nextStep,
+      sessionData: JSON.stringify(newData),
+    };
+    if (newData.lang) {
+      updatePayload.lang = newData.lang;
+    }
+
     await prisma.botSession.upsert({
       where: { chatId: String(chatId) },
-      update: {
-        step: nextStep,
-        sessionData: JSON.stringify(newData)
-      },
+      update: updatePayload,
       create: {
         chatId: String(chatId),
         step: nextStep,

@@ -21,6 +21,15 @@ const translations = {
     ASK_NAME: '👤 আপনার পুরো নাম লিখুন:',
     BOOKING_CONFIRMED: (name, queueNumber, date, scheduleId) =>
       `✅ *বুকিং সম্পন্ন!*\n\n👤 নাম: ${name}\n📅 তারিখ: ${date}\n🔢 আপনার টোকেন: *${queueNumber}*\n\nলাইভ স্ট্যাটাস দেখুন:\n${process.env.DASHBOARD_URL || ''}/?view=tracker&scheduleId=${scheduleId}&date=${date}`,
+    // Immediate confirmation sent right after a patient books — queue number
+    // is NOT assigned yet (doctor/compounder will confirm availability and
+    // assign the token). No tracking link in this message.
+    BOOKING_RECEIVED: (name, date) =>
+      `📅 *বুকিং গ্রহণ করা হয়েছে!*\n\n👤 নাম: ${name}\n📅 তারিখ: ${date}\n\n⏳ ডাক্তার/কম্পাউন্ডার আপনার অ্যাপয়েন্টমেন্ট নিশ্চিত করছেন। কনফার্ম হওয়ার পর আপনার টোকেন নম্বর এবং লাইভ ট্র্যাকিং লিংক পাবেন।\n\nধন্যবাদ! 🙏`,
+    // Sent AFTER the doctor/compounder confirms the appointment and assigns
+    // a queue/token number. Includes the live tracking link.
+    APPT_CONFIRMED_TRACKER: (name, queueNumber, date, scheduleId) =>
+      `✅ *অ্যাপয়েন্টমেন্ট নিশ্চিত!*\n\n👤 নাম: ${name}\n📅 তারিখ: ${date}\n🔢 আপনার টোকেন: *#${queueNumber}*\n\nলাইভ কিউ স্ট্যাটাস দেখুন:\n${process.env.DASHBOARD_URL || ''}/?view=tracker&scheduleId=${scheduleId}&date=${date}`,
     ADMIN_ASK_PIN: '🔒 আপনার সিক্রেট PIN দিন:',
     ADMIN_INVALID_PIN: '❌ ভুল PIN। আবার চেষ্টা করুন।',
     ADMIN_DASHBOARD: (patients) => {
@@ -158,6 +167,15 @@ const translations = {
     ASK_NAME: '👤 Please type your full name:',
     BOOKING_CONFIRMED: (name, queueNumber, date, scheduleId) =>
       `✅ *Booking Confirmed!*\n\n👤 Name: ${name}\n📅 Date: ${date}\n🔢 Your Token: *${queueNumber}*\n\nSee live status:\n${process.env.DASHBOARD_URL || ''}/?view=tracker&scheduleId=${scheduleId}&date=${date}`,
+    // Immediate confirmation sent right after a patient books — queue number
+    // is NOT assigned yet (doctor/compounder will confirm availability and
+    // assign the token). No tracking link in this message.
+    BOOKING_RECEIVED: (name, date) =>
+      `📅 *Booking Received!*\n\n👤 Name: ${name}\n📅 Date: ${date}\n\n⏳ The doctor/compounder is confirming your appointment. Once confirmed, you will receive your token number and a live tracking link.\n\nThank you! 🙏`,
+    // Sent AFTER the doctor/compounder confirms the appointment and assigns
+    // a queue/token number. Includes the live tracking link.
+    APPT_CONFIRMED_TRACKER: (name, queueNumber, date, scheduleId) =>
+      `✅ *Appointment Confirmed!*\n\n👤 Name: ${name}\n📅 Date: ${date}\n🔢 Your Token: *#${queueNumber}*\n\nSee live queue status:\n${process.env.DASHBOARD_URL || ''}/?view=tracker&scheduleId=${scheduleId}&date=${date}`,
     ADMIN_ASK_PIN: '🔒 Enter your secret PIN:',
     ADMIN_INVALID_PIN: '❌ Invalid PIN. Try again.',
     ADMIN_DASHBOARD: (patients) => {
@@ -275,6 +293,15 @@ const translations = {
     ASK_NAME: '👤 कृपया अपना पूरा नाम टाइप करें:',
     BOOKING_CONFIRMED: (name, queueNumber, date, scheduleId) =>
       `✅ *बुकिंग पक्की हो गई!*\n\n👤 नाम: ${name}\n📅 तारीख: ${date}\n🔢 आपका टोकन: *${queueNumber}*\n\nलाइव स्थिति देखें:\n${process.env.DASHBOARD_URL || ''}/?view=tracker&scheduleId=${scheduleId}&date=${date}`,
+    // Immediate confirmation sent right after a patient books — queue number
+    // is NOT assigned yet (doctor/compounder will confirm availability and
+    // assign the token). No tracking link in this message.
+    BOOKING_RECEIVED: (name, date) =>
+      `📅 *बुकिंग प्राप्त हुई!*\n\n👤 नाम: ${name}\n📅 तारीख: ${date}\n\n⏳ डॉक्टर/कंपाउंडर आपके अपॉइंटमेंट की पुष्टि कर रहे हैं। पुष्टि होने पर आपको टोकन नंबर और लाइव ट्रैकिंग लिंक मिलेगा।\n\nधन्यवाद! 🙏`,
+    // Sent AFTER the doctor/compounder confirms the appointment and assigns
+    // a queue/token number. Includes the live tracking link.
+    APPT_CONFIRMED_TRACKER: (name, queueNumber, date, scheduleId) =>
+      `✅ *अपॉइंटमेंट की पुष्टि हुई!*\n\n👤 नाम: ${name}\n📅 तारीख: ${date}\n🔢 आपका टोकन: *#${queueNumber}*\n\nलाइव कतार स्थिति देखें:\n${process.env.DASHBOARD_URL || ''}/?view=tracker&scheduleId=${scheduleId}&date=${date}`,
     ADMIN_ASK_PIN: '🔒 अपना गुप्त पिन दर्ज करें:',
     ADMIN_INVALID_PIN: '❌ अमान्य पिन। पुनः प्रयास करें।',
     ADMIN_DASHBOARD: (patients) => {

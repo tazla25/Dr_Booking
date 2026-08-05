@@ -6,7 +6,17 @@ const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 
 
 /**
  * Create a new appointment booking.
- * Automatically generates the next queue number for that schedule+date.
+ *
+ * Patient-initiated bookings are created with status='Pending' (NOT
+ * 'Confirmed'). The queue number IS assigned at creation time (race-safe),
+ * but the patient does NOT receive the queue number or tracking link yet.
+ * The doctor/compounder must confirm availability via the dashboard, which:
+ *   - sets status='Confirmed'
+ *   - sends the patient their token number + live tracking link
+ *
+ * Walk-in appointments created by the doctor/compounder via the dashboard
+ * bypass this flow — they are created directly as 'Confirmed' (see
+ * /api/appointments/walk-in/route.ts).
  *
  * @param {Object} params
  * @param {string} params.patientName
@@ -25,7 +35,9 @@ async function createBooking({ patientName, patientPhone, scheduleId, appointmen
     throw new AppointmentError('Schedule not found', 'NOT_FOUND');
   }
 
-  // Race-condition safe queue number assignment with retry
+  // Race-condition safe queue number assignment with retry.
+  // The queue number is assigned now (so the unique constraint holds), but
+  // the patient won't see it until the doctor confirms the appointment.
   let attempts = 0;
   while (attempts < 3) {
     try {
@@ -47,7 +59,9 @@ async function createBooking({ patientName, patientPhone, scheduleId, appointmen
           doctorId: schedule.doctorId,
           appointmentDate: appointmentDate,
           queueNumber: queueNumber,
-          status: 'Confirmed',
+          // Patient-initiated bookings start as 'Pending' — the doctor must
+          // confirm availability before the patient gets their token/tracker.
+          status: 'Pending',
         }
       });
 

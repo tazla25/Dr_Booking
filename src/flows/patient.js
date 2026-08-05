@@ -403,13 +403,15 @@ async function handlePatientFlow(chatId, text, isCallback = false, callbackData 
     });
 
     await clearSession(chatId);
+    // Send immediate confirmation WITHOUT the queue number or tracking link.
+    // The doctor/compounder will confirm availability via the dashboard, at
+    // which point the patient receives their token + live tracking link
+    // (APPT_CONFIRMED_TRACKER message, sent by the dashboard's confirm endpoint).
     return getMessage(
       lang,
-      'BOOKING_CONFIRMED',
+      'BOOKING_RECEIVED',
       booking.patientName,
-      booking.queueNumber,
-      booking.appointmentDate,
-      session.selectedSchedule.id
+      booking.appointmentDate
     );
   }
 

@@ -77,6 +77,8 @@ export function AppointmentsView() {
   const [rescheduleDate, setRescheduleDate] = useState('')
   const [cancelId, setCancelId] = useState<string | null>(null)
   const [noShowId, setNoShowId] = useState<string | null>(null)
+  const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState(false)
 
   // Walk-in dialog
   const [walkInOpen, setWalkInOpen] = useState(false)
@@ -170,6 +172,25 @@ export function AppointmentsView() {
       fetchAppointments()
     } catch {
       toast.error(t('error'))
+    }
+  }
+
+  // Confirm a Pending appointment: sets status='Confirmed' AND sends the
+  // patient their token number + live tracking link via WhatsApp. This is
+  // the second half of the two-step booking flow — the patient booked via
+  // the bot (got BOOKING_RECEIVED, no token), and now the doctor confirms
+  // availability which triggers the tracker message.
+  const confirmAppointment = async (id: string) => {
+    setConfirming(true)
+    try {
+      await api(`/api/appointments/${id}/confirm`, { method: 'POST' })
+      toast.success(t('appointmentConfirmed'))
+      setConfirmId(null)
+      fetchAppointments()
+    } catch {
+      toast.error(t('error'))
+    } finally {
+      setConfirming(false)
     }
   }
 
@@ -364,6 +385,7 @@ export function AppointmentsView() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{t('allStatuses')}</SelectItem>
+                <SelectItem value="Pending">{t('statusPending')}</SelectItem>
                 <SelectItem value="Confirmed">{t('statusConfirmed')}</SelectItem>
                 <SelectItem value="Completed">{t('statusCompleted')}</SelectItem>
                 <SelectItem value="Cancelled">{t('statusCancelled')}</SelectItem>
@@ -441,6 +463,29 @@ export function AppointmentsView() {
                       </td>
                       <td className="px-3 sm:px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
+                          {a.status === 'Pending' && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 px-3 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-semibold"
+                                onClick={() => setConfirmId(a.id)}
+                                title={t('confirmAppointment')}
+                              >
+                                <CheckCircle2 className="w-4 h-4 mr-1" />
+                                {t('confirmBtn')}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                                onClick={() => setCancelId(a.id)}
+                                title={t('cancel')}
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </Button>
+                            </>
+                          )}
                           {a.status === 'Confirmed' && (
                             <>
                               <Button
@@ -525,6 +570,29 @@ export function AppointmentsView() {
               className="bg-rose-600 hover:bg-rose-700 text-white"
             >
               {t('confirmBtn')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirm Pending appointment — sends token + tracker to patient */}
+      <AlertDialog open={!!confirmId} onOpenChange={(o) => !o && setConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('confirmAppointment')}?</AlertDialogTitle>
+            <AlertDialogDescription>{t('confirmAppointmentDesc')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={confirming}>{t('cancelBtn')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                if (confirmId) confirmAppointment(confirmId)
+              }}
+              disabled={confirming}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {confirming ? t('loading') : t('confirmBtn')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

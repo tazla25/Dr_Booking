@@ -44,10 +44,22 @@ function initReminderJob(bot) {
         const currentMinute = parseInt(formatInTimeZone(now, tz, 'mm'), 10);
         const currentTimeInMinutes = currentHour * 60 + currentMinute;
         // Get user's language preference
+        // Read from sessionData JSON first (most up-to-date source), then
+        // fall back to the `lang` column. The column is kept in sync by
+        // setSession, but reading JSON here too makes us resilient to any
+        // future drift between the two.
         let lang = 'bn';
         try {
           const session = await prisma.botSession.findUnique({ where: { chatId: String(apt.patientPhone) } });
-          if (session && session.lang) lang = session.lang;
+          if (session) {
+            if (session.sessionData) {
+              try {
+                const parsed = JSON.parse(session.sessionData);
+                if (parsed.lang) lang = parsed.lang;
+              } catch (e) { /* ignore parse error, fall back to column */ }
+            }
+            if (lang === 'bn' && session.lang) lang = session.lang;
+          }
         } catch (e) { /* ignore - default to bn */ }
 
         const startTimeStr = apt.schedule.startTime; // e.g. '10:00'

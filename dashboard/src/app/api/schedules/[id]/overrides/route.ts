@@ -123,22 +123,59 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       if (affectedAppointments.length > 0) {
         const botUrl = process.env.BOT_API_URL || process.env.PUBLIC_URL || process.env.DASHBOARD_URL
         if (botUrl && process.env.BOT_API_SECRET) {
-          const chatIds = affectedAppointments.map((a) => a.patientPhone)
-          const message =
-            (parsed.reason
-              ? `⚠️ *চেম্বার বন্ধ*\n\nআজ (${parsed.date}) চেম্বার বন্ধ থাকবে।\nকারণ: ${parsed.reason}\n\nনতুন তারিখে বুক করতে /book পাঠান।`
-              : `⚠️ *চেম্বার বন্ধ*\n\nআজ (${parsed.date}) চেম্বার বন্ধ থাকবে।\n\nনতুন তারিখে বুক করতে /book পাঠান।`)
-          // Fire-and-forget — don't block the API response on notifications
-          fetch(`${botUrl.replace(/\/$/, '')}/api/notify`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${process.env.BOT_API_SECRET}`,
-            },
-            body: JSON.stringify({ chatIds, text: message }),
-          }).catch((err) => {
-            console.error('Failed to notify patients of closure:', err)
-          })
+          // Fetch each patient's language preference so we can send the
+          // closure notice in their chosen language instead of always Bengali.
+          const phoneToLang: Record<string, string> = {}
+          try {
+            const sessions = await db.botSession.findMany({
+              where: { chatId: { in: affectedAppointments.map((a) => a.patientPhone) } },
+              select: { chatId: true, lang: true, sessionData: true },
+            })
+            for (const s of sessions) {
+              let l = s.lang || 'bn'
+              if (s.sessionData) {
+                try {
+                  const parsed = JSON.parse(s.sessionData)
+                  if (parsed.lang) l = parsed.lang
+                } catch { /* ignore */ }
+              }
+              phoneToLang[s.chatId] = l
+            }
+          } catch { /* ignore — fall back to 'bn' for everyone */ }
+
+          const buildClosureMessage = (lang: string) => {
+            const reasonLine = parsed.reason
+              ? (lang === 'en'
+                  ? `\nReason: ${parsed.reason}`
+                  : lang === 'hi'
+                  ? `\nकारण: ${parsed.reason}`
+                  : `\nকারণ: ${parsed.reason}`)
+              : ''
+            if (lang === 'en') {
+              return `⚠️ *Chamber Closed*\n\nThe chamber will be closed today (${parsed.date}).${reasonLine}\n\nSend /book to book for a new date.`
+            }
+            if (lang === 'hi') {
+              return `⚠️ *चैंबर बंद*\n\nआज (${parsed.date}) चैंबर बंद रहेगा।${reasonLine}\n\nनई तारीख के लिए /book भेजें।`
+            }
+            return `⚠️ *চেম্বার বন্ধ*\n\nআজ (${parsed.date}) চেম্বার বন্ধ থাকবে।${reasonLine}\n\nনতুন তারিখে বুক করতে /book পাঠান।`
+          }
+
+          // Group recipients by language so we send one localized message per patient
+          for (const appt of affectedAppointments) {
+            const lang = phoneToLang[appt.patientPhone] || 'bn'
+            const message = buildClosureMessage(lang)
+            // Fire-and-forget — don't block the API response on notifications
+            fetch(`${botUrl.replace(/\/$/, '')}/api/notify`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${process.env.BOT_API_SECRET}`,
+              },
+              body: JSON.stringify({ chatIds: [appt.patientPhone], text: message }),
+            }).catch((err) => {
+              console.error(`Failed to notify patient ${appt.patientPhone} of closure:`, err)
+            })
+          }
         }
       }
     }

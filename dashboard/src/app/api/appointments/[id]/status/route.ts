@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { audit, canAccessDoctor } from '@/lib/api-helpers'
 import { db } from '@/lib/db'
 import { appointmentStatusSchema } from '@/lib/validators'
+import { notifyPatients, getPatientLang } from '@/lib/bot-notify'
 import { z } from 'zod'
 
 const bodySchema = z.object({ status: appointmentStatusSchema })
@@ -20,7 +21,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return Response.json({ error: 'invalid_input', details: (e as Error).message }, { status: 400 })
   }
 
-  const existing = await db.appointment.findUnique({ where: { id } })
+  const existing = await db.appointment.findUnique({
+    where: { id },
+    include: { schedule: { include: { doctor: true } } },
+  })
   if (!existing) return Response.json({ error: 'not_found' }, { status: 404 })
 
   // Verify ownership using the new role-based scoping
@@ -33,5 +37,27 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     data: { status: parsed.status },
   })
   await audit(user, 'appointment.status', id, `Marked as ${parsed.status}`)
+
+  // When a doctor/compounder cancels a patient's appointment, notify the
+  // patient via WhatsApp so they don't show up expecting to be seen.
+  // (Other status transitions — Completed, NoShow — don't need a patient
+  // notification; the patient already knows they were seen / didn't show.)
+  if (parsed.status === 'Cancelled' && existing.status !== 'Cancelled') {
+    const lang = await getPatientLang(existing.patientPhone, db)
+    const doctorName = existing.schedule?.doctor?.fullName || ''
+    const doctorLine = doctorName ? ` (${doctorName})` : ''
+    const dateLine = existing.appointmentDate
+    let msg: string
+    if (lang === 'en') {
+      msg = `❌ *Appointment Cancelled*\n\nYour appointment${doctorLine} on ${dateLine} has been cancelled by the clinic.\n\nSend /book to schedule a new appointment.`
+    } else if (lang === 'hi') {
+      msg = `❌ *अपॉइंटमेंट रद्द*\n\nआपका अपॉइंटमेंट${doctorLine} (${dateLine}) क्लिनिक द्वारा रद्द कर दिया गया है।\n\nनया अपॉइंटमेंट बुक करने के लिए /book भेजें।`
+    } else {
+      msg = `❌ *অ্যাপয়েন্টমেন্ট বাতিল*\n\nআপনার অ্যাপয়েন্টমেন্ট${doctorLine} (${dateLine}) ক্লিনিক কর্তৃক বাতিল করা হয়েছে।\n\nনতুন অ্যাপয়েন্টমেন্ট বুক করতে /book পাঠান।`
+    }
+    // Fire-and-forget — don't block the API response on the notification
+    notifyPatients([existing.patientPhone], msg).catch(() => {})
+  }
+
   return Response.json({ appointment: updated })
 }
