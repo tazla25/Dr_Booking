@@ -70,16 +70,17 @@ async function clearSession(chatId) {
       where: { chatId: String(chatId) }
     });
 
-    let preservedLang = 'bn';
+    // Read lang from sessionData JSON first (most up-to-date source),
+    // then fall back to the lang column, then default to 'bn'.
+    let preservedLang = null;
     if (existing) {
-      // Try to read lang from sessionData JSON first
       try {
         const parsed = JSON.parse(existing.sessionData || '{}');
         if (parsed.lang) preservedLang = parsed.lang;
       } catch (e) { /* ignore */ }
-      // Fall back to the lang column if sessionData didn't have it
-      if (existing.lang && !preservedLang) preservedLang = existing.lang;
+      if (!preservedLang && existing.lang) preservedLang = existing.lang;
     }
+    if (!preservedLang) preservedLang = 'bn';
 
     await prisma.botSession.upsert({
       where: { chatId: String(chatId) },
