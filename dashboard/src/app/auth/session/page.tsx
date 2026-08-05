@@ -23,16 +23,17 @@
 'use client'
 
 import { useEffect, useState, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { api } from '@/lib/api-client'
+import { useApp } from '@/components/providers'
 import { Card, CardContent } from '@/components/ui/card'
 import { Loader2, CheckCircle2, XCircle, Activity } from 'lucide-react'
 
 function SessionInner() {
-  const router = useRouter()
   const search = useSearchParams()
   const sessionId = search.get('sid')
   const token = search.get('token')
+  const { refreshUser } = useApp()
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying')
   const [errorMsg, setErrorMsg] = useState('')
 
@@ -47,15 +48,26 @@ function SessionInner() {
       method: 'POST',
       body: JSON.stringify({ sessionId, token }),
     })
-      .then(() => {
+      .then(async () => {
         setStatus('success')
-        setTimeout(() => router.push('/?view=dashboard'), 800)
+        // Bug 2 fix: refresh the auth state BEFORE redirecting so the
+        // Providers component has the user data and doesn't show the
+        // login page (BotAccessRequiredView) for a split second.
+        await refreshUser()
+        // Bug 3 fix: use window.location.href instead of router.push()
+        // to force a full page reload. This ensures the Providers
+        // component re-mounts and reads the new session cookie, which
+        // prevents showing stale data from a previous login (e.g.,
+        // compounder seeing doctor's dashboard).
+        setTimeout(() => {
+          window.location.href = '/?view=dashboard'
+        }, 800)
       })
       .catch((e: Error) => {
         setStatus('error')
         setErrorMsg(e.message || 'Session verification failed. Please login again.')
       })
-  }, [sessionId, token, router])
+  }, [sessionId, token, refreshUser])
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-primary/5 via-background to-accent/10">
@@ -87,7 +99,7 @@ function SessionInner() {
                 <XCircle className="w-12 h-12 text-red-500 mb-3" />
                 <p className="text-sm text-muted-foreground mt-2">{errorMsg}</p>
                 <button
-                  onClick={() => router.push('/')}
+                  onClick={() => { window.location.href = '/' }}
                   className="mt-4 text-sm text-primary hover:underline"
                 >
                   Return to login

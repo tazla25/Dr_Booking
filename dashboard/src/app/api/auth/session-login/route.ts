@@ -84,8 +84,13 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Session is valid — delete it (single-use) and create a new dashboard session
-  await db.session.delete({ where: { id: session.id } }).catch(() => {})
+  // Session is valid — delete it (single-use) and create a new dashboard session.
+  // Bug 3 fix: also delete any OTHER existing sessions for this user to prevent
+  // stale sessions from a previous login (e.g., a doctor's session) from
+  // interfering with the new login (e.g., a compounder on the same browser).
+  await db.session.deleteMany({
+    where: { adminUserId: session.adminUser.id },
+  }).catch(() => {})
 
   const user = await createSessionForUser(session.adminUser.id, {
     ipAddress: getIpAddress(req),

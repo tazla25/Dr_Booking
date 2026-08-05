@@ -61,16 +61,38 @@ async function setSession(chatId, data) {
 
 async function clearSession(chatId) {
   try {
+    // Bug 1 fix: preserve the user's language preference when clearing session.
+    // Previously, clearSession set sessionData: '{}' which wiped lang from the
+    // JSON blob. The next getSession() call would then return no lang, causing
+    // the handler to default to 'bn' (Bengali) — even if the user had selected
+    // English or Hindi.
+    const existing = await prisma.botSession.findUnique({
+      where: { chatId: String(chatId) }
+    });
+
+    let preservedLang = 'bn';
+    if (existing) {
+      // Try to read lang from sessionData JSON first
+      try {
+        const parsed = JSON.parse(existing.sessionData || '{}');
+        if (parsed.lang) preservedLang = parsed.lang;
+      } catch (e) { /* ignore */ }
+      // Fall back to the lang column if sessionData didn't have it
+      if (existing.lang && !preservedLang) preservedLang = existing.lang;
+    }
+
     await prisma.botSession.upsert({
       where: { chatId: String(chatId) },
       update: {
         step: 'IDLE',
-        sessionData: '{}'
+        sessionData: JSON.stringify({ lang: preservedLang }),
+        lang: preservedLang,
       },
       create: {
         chatId: String(chatId),
         step: 'IDLE',
-        sessionData: '{}'
+        sessionData: JSON.stringify({ lang: preservedLang }),
+        lang: preservedLang,
       }
     });
   } catch (error) {
