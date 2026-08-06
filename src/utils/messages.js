@@ -69,6 +69,7 @@ const translations = {
     REGISTER_INVALID_PHONE: '❌ ফোন নম্বর সঠিক নয়। E.164 ফরম্যাটে দিন (যেমন: +919876543210)। আবার চেষ্টা করুন:',
     REGISTER_INVALID_MEDICAL_REG: '❌ মেডিকেল রেজিস্ট্রেশন নম্বর সঠিক নয়। ফরম্যাট: ২-৫টি অক্ষর + ৪-১০টি সংখ্যা (যেমন: WBMC12345, TSMC123456)। আবার চেষ্টা করুন:',
     REGISTER_INVALID_SPECIALIZATION: '❌ স্পেশালাইজেশন কমপক্ষে ৩ অক্ষরের হতে হবে। আবার চেষ্টা করুন:',
+    REGISTER_INVALID_CHAMBER: '❌ চেম্বারের ঠিকানা কমপক্ষে ৫ অক্ষরের হতে হবে (শহর সহ)। আবার চেষ্টা করুন:',
     REGISTER_ALREADY_EXISTS: '⚠️ এই ফোন নম্বর দিয়ে ইতিমধ্যে একটি অ্যাকাউন্ট রয়েছে। যদি এটি আপনার অ্যাকাউন্ট হয়, /login দিয়ে লগইন করুন।',
 
     VERIFICATION_PENDING_LOGIN: '⏳ আপনার অ্যাকাউন্ট এখনও যাচাই হয়নি। সুপার অ্যাডমিন অনুমোদন করা পর্যন্ত অপেক্ষা করুন।',
@@ -215,6 +216,7 @@ const translations = {
     REGISTER_INVALID_PHONE: '❌ Invalid phone number. Use E.164 format (e.g., +919876543210). Try again:',
     REGISTER_INVALID_MEDICAL_REG: '❌ Invalid medical registration number. Format: 2-5 letters + 4-10 digits (e.g., WBMC12345, TSMC123456). Try again:',
     REGISTER_INVALID_SPECIALIZATION: '❌ Specialization must be at least 3 characters. Try again:',
+    REGISTER_INVALID_CHAMBER: '❌ Chamber address must be at least 5 characters (include the city). Try again:',
     REGISTER_ALREADY_EXISTS: '⚠️ An account with this phone number already exists. If it is yours, log in with /login.',
 
     ADMIN_NOT_REGISTERED: '🚫 You are not registered.\n\nSend /register to register as a doctor.\n\nIf you are a compounder, send /link <phone> after your doctor invites you.',
@@ -395,6 +397,7 @@ const translations = {
     REGISTER_INVALID_PHONE: '❌ अमान्य फोन नंबर। E.164 प्रारूप का उपयोग करें (जैसे, +919876543210)। पुनः प्रयास करें:',
     REGISTER_INVALID_MEDICAL_REG: '❌ अमान्य मेडिकल पंजीकरण नंबर। प्रारूप: 2-5 अक्षर + 4-10 अंक (जैसे, WBMC12345, TSMC123456)। पुनः प्रयास करें:',
     REGISTER_INVALID_SPECIALIZATION: '❌ विशेषज्ञता कम से कम 3 अक्षरों की होनी चाहिए। पुनः प्रयास करें:',
+    REGISTER_INVALID_CHAMBER: '❌ चैंबर पता कम से कम 5 अक्षरों का होना चाहिए (शहर सहित)। पुनः प्रयास करें:',
     REGISTER_ALREADY_EXISTS: '⚠️ इस फोन नंबर के साथ पहले से एक खाता मौजूद है। यदि यह आपका है, तो /login से लॉगिन करें।',
 
     VERIFICATION_PENDING_LOGIN: '⏳ आपका खाता अभी तक सत्यापित नहीं हुआ है। कृपया सुपर एडमिन स्वीकृति की प्रतीक्षा करें।',

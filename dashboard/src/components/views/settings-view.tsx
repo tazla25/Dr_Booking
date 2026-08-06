@@ -77,16 +77,16 @@ export function SettingsView() {
 
   // V8-2: Invite compounder
   const inviteCompounder = async () => {
-    if (!invitePhone.trim()) { toast.error('Phone number required'); return }
+    if (!invitePhone.trim()) { toast.error(t('phoneNumberRequired')); return }
     setInviting(true)
     try {
       await api('/api/admin/invite-compounder', { method: 'POST', body: JSON.stringify({ compounderPhone: invitePhone.trim() }) })
-      toast.success('Compounder invited! They need to send /link <phone> to the bot to connect their WhatsApp.')
+      toast.success(t('compounderInvited'))
       setInviteOpen(false)
       setInvitePhone('')
       fetchAux()
     } catch (e) {
-      toast.error((e as Error).message || 'Failed to invite compounder')
+      toast.error((e as Error).message || t('failedToInvite'))
     } finally {
       setInviting(false)
     }
@@ -97,10 +97,10 @@ export function SettingsView() {
     setRemovingId(id)
     try {
       await api(`/api/admin/compounders/${id}`, { method: 'DELETE' })
-      toast.success('Compounder access removed')
+      toast.success(t('accessRemoved'))
       fetchAux()
     } catch (e) {
-      toast.error((e as Error).message || 'Failed to remove compounder')
+      toast.error((e as Error).message || t('failedToRemove'))
     } finally {
       setRemovingId(null)
     }
@@ -143,7 +143,7 @@ export function SettingsView() {
             </div>
             {user?.role === 'DOCTOR' && (
               <div>
-                <Label className="text-xs text-muted-foreground">Verification Status</Label>
+                <Label className="text-xs text-muted-foreground">{t('verificationStatus')}</Label>
                 <p>
                   <Badge
                     variant={user.verificationStatus === 'VERIFIED' ? 'default' : 'secondary'}
@@ -156,13 +156,13 @@ export function SettingsView() {
             )}
             {user?.role === 'DOCTOR' && user.medicalRegNumber && (
               <div>
-                <Label className="text-xs text-muted-foreground">Medical Reg. Number</Label>
+                <Label className="text-xs text-muted-foreground">{t('medicalRegNumber')}</Label>
                 <p className="text-sm font-medium">{user.medicalRegNumber}</p>
               </div>
             )}
             {user?.role === 'DOCTOR' && user.specialization && (
               <div>
-                <Label className="text-xs text-muted-foreground">Specialization</Label>
+                <Label className="text-xs text-muted-foreground">{t('specialization')}</Label>
                 <p className="text-sm font-medium">{user.specialization}</p>
               </div>
             )}
@@ -188,19 +188,19 @@ export function SettingsView() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Users className="w-4 h-4 text-primary" />
-              Team Management
+              {t('teamManagement')}
             </CardTitle>
-            <CardDescription>Invite and manage compounders for your chambers.</CardDescription>
+            <CardDescription>{t('teamManagementDesc')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Button onClick={() => setInviteOpen(true)} className="gap-2">
               <UserPlus className="w-4 h-4" />
-              Invite Compounder
+              {t('inviteCompounder')}
             </Button>
 
             {compounders.length > 0 ? (
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider">Current Compounders</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">{t('currentCompounders')}</p>
                 {compounders.map((c) => (
                   <div key={c.id} className="flex items-center gap-3 p-3 rounded-md bg-muted/40">
                     <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -210,12 +210,12 @@ export function SettingsView() {
                       <p className="text-sm font-medium truncate">{c.name}</p>
                       <p className="text-xs text-muted-foreground">{c.phone}</p>
                       <p className="text-[10px] text-muted-foreground">
-                        {c.whatsappNumber ? '✅ WhatsApp linked' : '⏳ Waiting for /link'} ·
-                        Invited {new Date(c.invitedAt).toLocaleDateString()}
+                        {c.whatsappNumber ? `✅ ${t('whatsappLinked')}` : `⏳ ${t('waitingForLink')}`} ·
+                        {t('invitedOn')} {new Date(c.invitedAt).toLocaleDateString()}
                       </p>
                     </div>
                     <Badge variant={c.isActive ? 'default' : 'secondary'} className="text-[10px]">
-                      {c.isActive ? 'Active' : 'Inactive'}
+                      {c.isActive ? t('active') : t('inactive')}
                     </Badge>
                     <Button
                       size="sm"
@@ -231,14 +231,14 @@ export function SettingsView() {
               </div>
             ) : (
               <p className="text-sm text-muted-foreground text-center py-4">
-                No compounders yet. Invite one to help manage your appointments.
+                {t('noCompounders')}
               </p>
             )}
 
             <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-md p-3 text-xs text-blue-700 dark:text-blue-400">
-              <strong>How it works:</strong> After inviting a compounder, they need to send
+              <strong>{t('howItWorks')}:</strong> {t('howItWorksDesc')}
               <code className="mx-1 px-1 py-0.5 bg-background rounded border border-border">/link {'<their-phone>'}</code>
-              to the bot from their WhatsApp to connect their account.
+              {t('howItWorksDesc2')}
             </div>
           </CardContent>
         </Card>
@@ -250,15 +250,15 @@ export function SettingsView() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="w-4 h-4 text-primary" />
-              Invite Compounder
+              {t('inviteCompounder')}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <p className="text-xs text-muted-foreground">
-              Enter the compounder&apos;s phone number in E.164 format. They will be linked to your doctor profile.
+              {t('inviteCompounderDesc')}
             </p>
             <div className="space-y-2">
-              <Label>Compounder phone number</Label>
+              <Label>{t('compounderPhone')}</Label>
               <Input
                 value={invitePhone}
                 onChange={(e) => setInvitePhone(e.target.value)}
@@ -267,14 +267,16 @@ export function SettingsView() {
               />
             </div>
             <p className="text-xs text-muted-foreground bg-muted/40 rounded p-2">
-              After invitation, the compounder must send <code className="px-1 py-0.5 bg-background rounded border border-border">/link {invitePhone || '<their-phone>'}</code> to the bot to connect their WhatsApp account.
+              {t('howItWorksDesc')}
+              <code className="px-1 py-0.5 bg-background rounded border border-border">/link {invitePhone || '<their-phone>'}</code>
+              {t('howItWorksDesc2')}
             </p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setInviteOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setInviteOpen(false)}>{t('cancelBtn')}</Button>
             <Button onClick={inviteCompounder} disabled={inviting || !invitePhone.trim()} className="gap-2">
               {inviting ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
-              Invite
+              {t('invite')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -341,51 +343,53 @@ export function SettingsView() {
         </CardContent>
       </Card>
 
-      {/* Security: Bot identity & magic link auth */}
+      {/* Security: Phone + Password authentication (v11) */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <KeyRound className="w-4 h-4 text-primary" />
-            Authentication Method
+            {t('authenticationMethod')}
           </CardTitle>
           <CardDescription className="text-xs">
-            You authenticate via bot-issued Magic Links — no password is set on this account.
+            {t('authMethodDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="bg-muted/40 rounded-lg p-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                Phone Number
+                {t('phoneNumber')}
               </p>
               <p className="text-sm font-medium font-mono">
                 {user?.phone || t('none')}
               </p>
               <p className="text-[10px] text-muted-foreground mt-1">
-                Primary account identifier
+                {t('primaryLoginIdentifier')}
               </p>
             </div>
             <div className="bg-muted/40 rounded-lg p-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                WhatsApp Number
+                {t('whatsappNumber')}
               </p>
               <p className="text-sm font-medium font-mono">
                 {user?.whatsappNumber || t('none')}
               </p>
               <p className="text-[10px] text-muted-foreground mt-1">
-                {user?.whatsappNumber ? 'Linked to WhatsApp' : 'Not linked — use /link in the bot'}
+                {user?.whatsappNumber ? t('linkedToWhatsapp') : t('notLinkedUseLink')}
               </p>
             </div>
           </div>
           <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex items-start gap-3">
             <KeyRound className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-            <div>
+            <div className="space-y-1">
               <p className="text-sm font-medium text-foreground">
-                Magic Link Authentication Active
+                {t('phonePasswordAuthActive')}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                To sign in, open the WhatsApp bot and tap &ldquo;Open Dashboard&rdquo;.
-                Each magic link is single-use and expires after 2 hours.
+              <p className="text-xs text-muted-foreground">
+                {t('authMethodHelp1')}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t('authMethodHelp2')}
               </p>
             </div>
           </div>

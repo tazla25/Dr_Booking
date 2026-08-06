@@ -365,6 +365,9 @@ async function handlePatientFlow(chatId, text, isCallback = false, callbackData 
     if (isCallback && callbackData === 'back_date') {
       await setSession(chatId, { step: 'AWAITING_DATE' });
 
+      // BUG-012 fix: regenerate the date options through isScheduleOpen()
+      // so closed/override dates stay hidden when the user navigates back
+      // (the forward path already does this; the back path didn't).
       const nextDays = [];
       const dayNameMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const targetDay = session.selectedSchedule.dayOfWeek;
@@ -372,9 +375,28 @@ async function handlePatientFlow(chatId, text, isCallback = false, callbackData 
         const d = new Date();
         d.setDate(d.getDate() + i);
         if (dayNameMap[d.getDay()] === targetDay) {
-          nextDays.push(d.toISOString().split('T')[0]);
+          const dateStr = d.toISOString().split('T')[0];
+          // Skip closed dates (override type === 'CLOSED')
+          try {
+            const open = await isScheduleOpen(session.selectedSchedule.id, dateStr);
+            if (open) nextDays.push(dateStr);
+          } catch {
+            // If the override check fails, fall back to including the date
+            // so the user can still proceed (better than a dead-end).
+            nextDays.push(dateStr);
+          }
         }
         if (nextDays.length === 3) break;
+      }
+
+      // If every upcoming date is closed, show a friendly no-results message
+      if (nextDays.length === 0) {
+        return {
+          text: getMessage(lang, 'SEARCH_NO_RESULTS') + '\n\n' + getMessage(lang, 'BTN_BACK'),
+          options: {
+            reply_markup: { inline_keyboard: getBackButton('back_doc') },
+          },
+        };
       }
 
       const date_keyboard = nextDays.map((d) => [

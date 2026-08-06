@@ -15,6 +15,13 @@ function initReminderJob(bot) {
       // Bug 12 fix: only fetch today's appointments (in the doctor's timezone).
       // Previously, the query fetched ALL future appointments with reminderSent=false,
       // which would try to send reminders for next week/month appointments too.
+      //
+      // BUG-006 fix: we use Asia/Kolkata here as a coarse filter (the DB
+      // query). The per-doctor check below uses the doctor's actual timezone
+      // and skips appointments that aren't "today" in that timezone. Renamed
+      // the inner variable to `doctorTodayStr` so it no longer shadows this
+      // outer `todayStr` — shadowing made the code hard to read and could
+      // mask future regressions.
       const todayStr = formatInTimeZone(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
 
       const data = await prisma.appointment.findMany({
@@ -36,9 +43,9 @@ function initReminderJob(bot) {
 
       for (const apt of data) {
         const tz = apt.schedule.doctor?.timezone || 'Asia/Kolkata';
-        const todayStr = formatInTimeZone(now, tz, 'yyyy-MM-dd');
+        const doctorTodayStr = formatInTimeZone(now, tz, 'yyyy-MM-dd');
 
-        if (apt.appointmentDate !== todayStr) continue;
+        if (apt.appointmentDate !== doctorTodayStr) continue;
 
         const currentHour = parseInt(formatInTimeZone(now, tz, 'HH'), 10);
         const currentMinute = parseInt(formatInTimeZone(now, tz, 'mm'), 10);

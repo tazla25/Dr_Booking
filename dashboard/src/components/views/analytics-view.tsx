@@ -11,7 +11,7 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
-import { Users, CheckCircle2, UserX, TrendingUp, BarChart3, Star } from 'lucide-react'
+import { Users, CheckCircle2, UserX, TrendingUp, BarChart3, Star, AlertCircle } from 'lucide-react'
 import { FeedbackWidget } from './feedback-widget'
 
 interface AnalyticsData {
@@ -42,15 +42,20 @@ export function AnalyticsView() {
   const { t, lang } = useApp()
   const [data, setData] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
+  // IMP-006 fix: surface a real error state instead of swallowing the
+  // error and leaving the user staring at an infinite skeleton.
+  const [error, setError] = useState<string | null>(null)
   const [days, setDays] = useState(30)
 
   const fetch = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
       const d = await api<AnalyticsData>(`/api/analytics?days=${days}`)
       setData(d)
-    } catch {
-      // ignore
+    } catch (e) {
+      setData(null)
+      setError((e as Error)?.message || 'Failed to load analytics. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -85,7 +90,7 @@ export function AnalyticsView() {
         </div>
       </div>
 
-      {loading || !data ? (
+      {loading || (!data && !error) ? (
         <div className="space-y-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
@@ -96,14 +101,27 @@ export function AnalyticsView() {
             <Skeleton className="h-72 rounded-xl" />
           </div>
         </div>
-      ) : data.kpis.total === 0 ? (
+      ) : error ? (
+        // IMP-006 fix: show a real error card with a retry button instead of
+        // staying on the skeleton forever when the API call fails.
+        <Card className="border-dashed border-rose-200 dark:border-rose-900">
+          <CardContent className="p-12 text-center space-y-3">
+            <AlertCircle className="w-12 h-12 mx-auto text-rose-500 mb-2" />
+            <h3 className="text-lg font-semibold">{t('error')}</h3>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">{error}</p>
+            <Button onClick={fetch} variant="outline" size="sm" className="mt-2">
+              {t('refresh')}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : data && data.kpis.total === 0 ? (
         <Card className="border-dashed">
           <CardContent className="p-12 text-center">
             <BarChart3 className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
             <p className="text-muted-foreground">{t('noAnalyticsData')}</p>
           </CardContent>
         </Card>
-      ) : (
+      ) : data ? (
         <>
           {/* KPIs */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -278,7 +296,7 @@ export function AnalyticsView() {
             </CardContent>
           </Card>
         </>
-      )}
+      ) : null}
 
       {/* Patient Feedback / NPS widget (Task 2.1) */}
       <FeedbackWidget days={days} />

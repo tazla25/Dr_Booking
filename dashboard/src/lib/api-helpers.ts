@@ -12,6 +12,7 @@
 import { NextResponse } from 'next/server'
 import { getCurrentUser, getIpAddress } from './auth'
 import { db } from './db'
+import { rateLimit, rateLimitedResponse, RATE_LIMITS } from './rate-limit'
 
 // ---------- Auth helpers ----------
 
@@ -203,4 +204,34 @@ export function fail(error: string, status = 400, extra?: Record<string, unknown
 
 export function extractIp(req: Request): string | undefined {
   return getIpAddress(req)
+}
+
+// ---------- Rate limiting (IMP-005) ----------
+//
+// Wraps the rate-limit.ts primitives so any API route can opt-in with a
+// single call. Returns a 429 Response if the bucket is exhausted, or
+// `null` if the request is allowed. Bucket key is `<bucketName>:<ip>:<userId>`
+// so per-user limits are enforced even when several users share an IP (e.g.
+// office NAT) and per-IP limits catch unauthenticated abuse.
+//
+// Usage:
+//   const limited = await applyRateLimit(req, 'appointmentCreate', user?.id)
+//   if (limited) return limited
+//
+// (route the request normally from here)
+
+export async function applyRateLimit(
+  req: Request,
+  bucketName: keyof typeof RATE_LIMITS,
+  userId?: string
+): Promise<Response | null> {
+  const cfg = RATE_LIMITS[bucketName]
+  if (!cfg) return null
+  const ip = getIpAddress(req) || 'unknown'
+  const identifier = `${bucketName}:${ip}:${userId || 'anon'}`
+  const result = await rateLimit(identifier, cfg.limit, cfg.windowMs)
+  if (!result.allowed) {
+    return rateLimitedResponse(result.resetAt)
+  }
+  return null
 }

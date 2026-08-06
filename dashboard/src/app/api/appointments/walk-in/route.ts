@@ -1,7 +1,7 @@
 // /home/z/my-project/src/app/api/appointments/walk-in/route.ts
 import { NextRequest } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
-import { audit, canAccessDoctor } from '@/lib/api-helpers'
+import { audit, canAccessDoctor, applyRateLimit } from '@/lib/api-helpers'
 import { db } from '@/lib/db'
 import { z } from 'zod'
 
@@ -22,6 +22,12 @@ const bodySchema = z.object({
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return Response.json({ error: 'unauthorized' }, { status: 401 })
+
+  // IMP-005 fix: throttle walk-in creation per user (30/min by default — see
+  // RATE_LIMITS.appointmentWalkIn). Walk-ins are the most write-heavy action
+  // a compounder takes, so this is the highest-value place to enforce a cap.
+  const limited = await applyRateLimit(req, 'appointmentWalkIn', user.id)
+  if (limited) return limited
 
   let parsed
   try {
@@ -59,6 +65,9 @@ export async function POST(req: NextRequest) {
           appointmentDate: parsed.appointmentDate,
           queueNumber: nextQueue,
           status: 'Confirmed',
+          // BUG-011 fix: explicit source so the dashboard doesn't have to
+          // sniff the sentinel phone number ('+0000000000') to detect walk-ins.
+          source: 'WALK_IN',
           notes: parsed.notes || null,
         },
         include: { doctor: true, schedule: true },

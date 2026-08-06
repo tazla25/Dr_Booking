@@ -392,15 +392,34 @@ export function AppointmentsView() {
                 <SelectItem value="NoShow">{t('statusNoShow')}</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={dateFilter} onValueChange={(v) => { setDateFilter(v) }}>
+            <Select value={dateFilter === 'all' || dateFilter === 'today' ? dateFilter : 'custom'} onValueChange={(v) => {
+              if (v === 'custom') {
+                // Keep whatever custom date is already set (or default to today)
+                setDateFilter((prev) => (prev === 'all' || prev === 'today') ? formatInTimeZone(new Date(), IST, 'yyyy-MM-dd') : prev)
+              } else {
+                setDateFilter(v)
+              }
+            }}>
               <SelectTrigger>
                 <SelectValue placeholder={t('allDates')} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{t('allDates')}</SelectItem>
                 <SelectItem value="today">{t('today')}</SelectItem>
+                {/* BUG-014 fix: custom date picker as a third filter option.
+                    Selecting it reveals the date input below. */}
+                <SelectItem value="custom">Custom date…</SelectItem>
               </SelectContent>
             </Select>
+            {/* Custom date input — only visible when "Custom date…" is selected. */}
+            {dateFilter !== 'all' && dateFilter !== 'today' && (
+              <Input
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value || 'all')}
+                aria-label="Custom appointment date"
+              />
+            )}
           </div>
         </CardContent>
       </Card>
@@ -419,7 +438,107 @@ export function AppointmentsView() {
               <p className="text-muted-foreground text-sm">{t('noResultsDesc')}</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              {/* IMP-004 fix: mobile card-based layout (below md breakpoint).
+                  The horizontal-scrolling table is hard to use on small
+                  screens, so we render a vertical card list instead. Each
+                  card surfaces the same status + actions as the table row. */}
+              <div className="md:hidden divide-y divide-border">
+                {appointments.map((a) => (
+                  <div key={a.id} className="p-4 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary/15 text-primary font-bold text-xs flex-shrink-0">
+                          #{a.queueNumber}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground truncate">{a.patientName}</p>
+                          {a.notes && (
+                            <p className="text-xs text-muted-foreground truncate">{a.notes}</p>
+                          )}
+                        </div>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0 ${statusClass(a.status)}`}>
+                        {statusLabel(a.status)}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground grid grid-cols-2 gap-1">
+                      <span className="truncate">📞 {a.patientPhone}</span>
+                      <span className="truncate">📅 {new Date(a.appointmentDate).toLocaleDateString(lang === 'bn' ? 'bn-BD' : 'en-US', { day: '2-digit', month: 'short' })}</span>
+                      <span className="truncate col-span-2">🩺 {a.doctor.fullName} · {a.doctor.specialization}</span>
+                    </div>
+                    <div className="flex items-center gap-1 flex-wrap pt-1">
+                      {a.status === 'Pending' && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 px-3 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-semibold"
+                            onClick={() => setConfirmId(a.id)}
+                          >
+                            <CheckCircle2 className="w-4 h-4 mr-1" />
+                            {t('confirmBtn')}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                            onClick={() => setCancelId(a.id)}
+                            title={t('cancel')}
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </Button>
+                        </>
+                      )}
+                      {a.status === 'Confirmed' && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                            onClick={() => updateStatus(a.id, 'Completed')}
+                            title={t('markCompleted')}
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 text-zinc-600 hover:text-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                            onClick={() => setNoShowId(a.id)}
+                            title={t('markNoShow')}
+                          >
+                            <UserX className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                            onClick={() => setCancelId(a.id)}
+                            title={t('cancel')}
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 text-sky-600 hover:text-sky-700 hover:bg-sky-50 dark:hover:bg-sky-950/30"
+                            onClick={() => {
+                              setRescheduleId(a.id)
+                              setRescheduleDate(a.appointmentDate)
+                            }}
+                            title={t('reschedule')}
+                          >
+                            <CalendarClock className="w-4 h-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Table — hidden on mobile (use the card layout above), shown on md+ */}
+              <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 text-muted-foreground">
                   <tr>
@@ -535,7 +654,8 @@ export function AppointmentsView() {
                   ))}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

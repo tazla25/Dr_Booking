@@ -33,6 +33,10 @@ interface Appointment {
   queueNumber: number
   status: string
   appointmentDate: string
+  // BUG-011 fix: the appointments API now returns the source field. Old rows
+  // (or rows from a not-yet-migrated DB) will have source === undefined and
+  // we fall back to the legacy sentinel-phone check.
+  source?: string
   doctor: { id: string; fullName: string; specialization: string }
   schedule: { id: string; clinicName: string | null; startTime: string; endTime: string }
 }
@@ -145,14 +149,17 @@ export function DashboardView() {
       </div>
 
       {/* Today's queue breakdown — online vs walk-in (Task 1.5) */}
+      {/* BUG-011 fix: prefer the explicit `source` field on the appointment.
+          Fall back to the sentinel-phone check for rows created before the
+          migration so the count never goes negative or zero by accident. */}
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <Badge variant="outline" className="gap-1.5 py-1 px-2.5">
           <Globe className="w-3 h-3 text-blue-600" />
-          Online: <strong className="ml-1">{appointments.filter((a) => a.patientPhone !== '+0000000000').length}</strong>
+          Online: <strong className="ml-1">{appointments.filter((a) => (a.source ? a.source === 'ONLINE' : a.patientPhone !== '+0000000000')).length}</strong>
         </Badge>
         <Badge variant="outline" className="gap-1.5 py-1 px-2.5">
           <Zap className="w-3 h-3 text-amber-600" />
-          Walk-in: <strong className="ml-1">{appointments.filter((a) => a.patientPhone === '+0000000000').length}</strong>
+          Walk-in: <strong className="ml-1">{appointments.filter((a) => (a.source ? a.source === 'WALK_IN' : a.patientPhone === '+0000000000')).length}</strong>
         </Badge>
         <Badge variant="secondary" className="gap-1.5 py-1 px-2.5">
           Total: <strong className="ml-1">{appointments.length}</strong>

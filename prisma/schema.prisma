@@ -129,6 +129,12 @@ model Appointment {
   appointmentDate String // 'YYYY-MM-DD'
   queueNumber     Int
   status          String   @default("Confirmed") // Pending | Confirmed | Completed | Cancelled | NoShow
+  // BUG-011 fix: explicit source field so the dashboard doesn't have to rely
+  // on a sentinel phone number ('+0000000000') to tell walk-ins from online
+  // bookings. Backward compatible — old rows default to 'ONLINE' which is
+  // the correct value for every pre-existing row (the sentinel-phone walk-ins
+  // are a small set that we'll patch at migration time).
+  source          String   @default("ONLINE") // 'ONLINE' | 'WALK_IN'
   token           String   @unique @default(cuid())
   notes           String?
   reminderSent    Boolean  @default(false)
@@ -143,6 +149,7 @@ model Appointment {
   @@index([scheduleId, appointmentDate])
   @@index([status])
   @@index([doctorId, appointmentDate])
+  @@index([source])
   @@map("appointments")
 }
 

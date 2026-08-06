@@ -62,6 +62,9 @@ async function createBooking({ patientName, patientPhone, scheduleId, appointmen
           // Patient-initiated bookings start as 'Pending' — the doctor must
           // confirm availability before the patient gets their token/tracker.
           status: 'Pending',
+          // BUG-011 fix: explicit source so the dashboard doesn't have to
+          // sniff the sentinel phone number to detect walk-ins.
+          source: 'ONLINE',
         }
       });
 

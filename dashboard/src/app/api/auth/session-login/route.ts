@@ -27,6 +27,7 @@ import { z } from 'zod'
 import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { createSessionForUser, getIpAddress, getUserAgent } from '@/lib/auth'
+import { applyRateLimit } from '@/lib/api-helpers'
 
 const bodySchema = z.object({
   sessionId: z.string().min(1),
@@ -41,6 +42,13 @@ function hmacToken(token: string): string {
 }
 
 export async function POST(req: NextRequest) {
+  // IMP-005 fix: throttle session-login attempts per IP. The bot already
+  // rate-limits password attempts, but this endpoint is publicly reachable
+  // and could be abused to enumerate valid session IDs. Limit to 5 per
+  // 10 minutes per IP (see RATE_LIMITS.authVerify).
+  const limited = await applyRateLimit(req, 'authVerify')
+  if (limited) return limited
+
   let parsed
   try {
     parsed = bodySchema.parse(await req.json())

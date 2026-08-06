@@ -9,7 +9,10 @@
 //   - Errors no longer clear the session — user can retry the current step
 //   - Rate limiter only counts INVALID_PASSWORD failures, not system errors
 const {
-  handleAdminAuth,
+  // handleAdminAuth is intentionally NOT imported — it is the legacy
+  // magic-link flow that was replaced by authenticateUser (phone + password)
+  // in v11. Kept exported from adminService.js only for backward-compat
+  // with external callers; the bot no longer uses it. (BUG-009)
   authenticateUser,
   registerDoctor,
   inviteCompounder,
@@ -212,9 +215,11 @@ async function handleAdminFlow(bot, chatId, text, _scheduleId, _isCallback = fal
   }
 
   if (session.step === 'REGISTER_CHAMBER') {
-    // Bug fix (v11): use dedicated validateAddress, not validateName
+    // Bug fix (v11): use dedicated validateAddress for chamber, and the
+    // matching REGISTER_INVALID_CHAMBER message key (was INVALID_NAME which
+    // showed a confusing "name not valid" error to the user — BUG-005).
     const chamber = validateAddress(text);
-    if (!chamber) return getMessage(lang, 'INVALID_NAME');
+    if (!chamber) return getMessage(lang, 'REGISTER_INVALID_CHAMBER');
     await setSession(chatId, { step: 'REGISTER_PASSWORD', regChamber: chamber });
     return getMessage(lang, 'REGISTER_ASK_PASSWORD');
   }
@@ -291,15 +296,43 @@ async function handleAdminFlow(bot, chatId, text, _scheduleId, _isCallback = fal
       forgotOtpExpiry: Date.now() + 10 * 60 * 1000,
     });
 
-    // Send OTP to the user via WhatsApp (the bot is already talking to them)
+    // Send OTP to the user via WhatsApp.
+    // BUG-002 hardening: the user just messaged the bot in the FORGOT_PHONE
+    // step, so the 24-hour conversation window is open — bot.sendMessage()
+    // (which delegates to WhatsApp Cloud API text messages) will work.
+    // If it does fail for any reason (network blip, recipient phone not in
+    // allowed list during testing, etc.), fall back to a pre-approved
+    // template message the same way reminderJob.js does.
     try {
       await bot.sendMessage(
         chatId,
         `🔢 আপনার OTP: ${otp}\n\nএই OTP ১০ মিনিটের জন্য বৈধ।`
       );
     } catch (err) {
-      logger.error({ err: err.message }, 'Failed to send OTP via WhatsApp');
-      return getMessage(lang, 'ERROR');
+      logger.warn({ err: err.message, chatId }, 'Free-text OTP send failed — trying template fallback');
+      const isWindowError =
+        String(err.message || '').includes('24-hour') ||
+        String(err.message || '').includes('window') ||
+        String(err.message || '').includes('not in allowed list');
+      if (
+        isWindowError &&
+        bot._platform &&
+        typeof bot._platform.sendTemplate === 'function'
+      ) {
+        try {
+          // Requires the `otp_reset` template to be approved in Meta Business Manager.
+          await bot._platform.sendTemplate(chatId, 'otp_reset', lang === 'en' ? 'en' : 'bn', [
+            { type: 'body', parameters: [{ type: 'text', text: otp }] },
+          ]);
+          logger.info({ chatId }, 'Sent OTP via template fallback');
+        } catch (templateErr) {
+          logger.error({ err: templateErr.message, chatId }, 'Template OTP send also failed');
+          return getMessage(lang, 'ERROR');
+        }
+      } else {
+        logger.error({ err: err.message, chatId }, 'OTP send failed (no template fallback available)');
+        return getMessage(lang, 'ERROR');
+      }
     }
 
     return getMessage(lang, 'FORGOT_OTP_SENT');

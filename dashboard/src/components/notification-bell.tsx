@@ -82,25 +82,31 @@ export function NotificationBell() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchNotifications = useCallback(async () => {
+    setLoading(true)
     try {
       const d = await api<NotificationData>('/api/notifications')
       setData(d)
     } catch {
       // ignore — notifications are non-critical
+    } finally {
+      setLoading(false)
     }
   }, [])
 
   // Load read IDs from localStorage on mount
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setReadIds(loadReadIds())
   }, [])
 
-  // Initial fetch + polling every 60 seconds
+  // Initial fetch + polling every 30 seconds.
+  // BUG-015 fix: previously the bell only fetched on mount, so notifications
+  // were stale until the user refreshed the page. Polling at 30s is a
+  // pragmatic trade-off (WebSocket/SSE would be heavier infra). The manual
+  // Refresh button at the bottom of the panel still triggers an immediate
+  // fetch on demand.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchNotifications()
-    pollRef.current = setInterval(fetchNotifications, 60000)
+    pollRef.current = setInterval(fetchNotifications, 30000)
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
     }

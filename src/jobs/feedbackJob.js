@@ -25,25 +25,34 @@ function initFeedbackJob(bot) {
           : lang === 'hi'
           ? `👋 नमस्ते ${appt.patientName}!\n\nआपने हाल ही में *${appt.schedule.doctor?.fullName}* को देखा। आपका अनुभव कैसा था?\n\nकृपया नीचे 1-5 स्टार दें:`
           : `👋 হ্যালো ${appt.patientName}!\n\nআপনি সম্প্রতি *${appt.schedule.doctor?.fullName}* এর কাছে গিয়েছিলেন। আপনার অভিজ্ঞতা কেমন ছিল?\n\nঅনুগ্রহ করে নিচে ১-৫ তারকা দিন:`;
-        const keyboard = { inline_keyboard: [[
+        // BUG-003 fix: build the buttons as a flat array of button objects.
+        // The WhatsApp platform's sendInlineKeyboard expects an array-of-rows
+        // (each row is an array of button objects). It auto-switches to the
+        // "list" interactive type when there are more than 3 buttons, so a
+        // single row of 5 rating buttons is fine. The previous code built a
+        // Telegram-style `reply_markup.inline_keyboard` envelope and then
+        // unwrapped it with `keyboard.reply_markup.inline_keyboard` — that
+        // worked by accident but was needlessly indirect. Pass the rows
+        // directly so the contract with sendInlineKeyboard is explicit.
+        const keyboard = [[
           { text: '⭐ 1', callback_data: `fb_${appt.id}_1` },
           { text: '⭐ 2', callback_data: `fb_${appt.id}_2` },
           { text: '⭐ 3', callback_data: `fb_${appt.id}_3` },
           { text: '⭐ 4', callback_data: `fb_${appt.id}_4` },
           { text: '⭐ 5', callback_data: `fb_${appt.id}_5` },
-        ]] };
+        ]];
         try {
-          // WhatsApp supports max 3 buttons per message via "button" type;
-          // for 5 options the platform automatically switches to "list" type.
           await bot.sendInlineKeyboard(
             String(appt.patientPhone),
             message,
-            keyboard.reply_markup.inline_keyboard
+            keyboard
           );
           await markFeedbackSent(appt.id);
           logger.info({ appointmentId: appt.id }, 'Sent feedback request');
         } catch (err) {
           logger.error({ appointmentId: appt.id, err: err.message }, 'Failed to send feedback request');
+          // Mark as sent anyway so we don't keep retrying — the patient can
+          // always provide feedback via the next appointment's request.
           await markFeedbackSent(appt.id);
         }
       }

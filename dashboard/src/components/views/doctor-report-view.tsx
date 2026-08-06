@@ -9,10 +9,17 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Badge } from '../ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { Calendar, Users, Star, TrendingUp, IndianRupee, Activity, Clock, ChevronLeft } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
+
+interface Doctor {
+  id: string
+  fullName: string
+  specialization: string
+}
 
 interface Report {
   doctor: { id: string; fullName: string; specialization: string; fee: number }
@@ -30,9 +37,21 @@ export function DoctorReportView() {
   const search = useSearchParams()
   const [data, setData] = useState<Report | null>(null)
   const [loading, setLoading] = useState(true)
+  // BUG-010 fix: super admins get a dropdown of doctors instead of having
+  // to type a raw CUID. We fetch the full doctor list from /api/doctors.
+  const [doctors, setDoctors] = useState<Doctor[]>([])
   const [doctorId, setDoctorId] = useState(search.get('doctorId') || user?.ownedDoctorId || user?.delegatedDoctorId || '')
   const [from, setFrom] = useState(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
   const [to, setTo] = useState(new Date().toISOString().split('T')[0])
+
+  // Fetch the doctor list for the super-admin dropdown.
+  useEffect(() => {
+    if (user?.role !== 'SUPER_ADMIN') return
+    api<{ doctors: Doctor[] }>('/api/doctors')
+      .then((d) => setDoctors(d.doctors || []))
+      .catch(() => { /* ignore — dropdown just stays empty */ })
+  }, [user])
+
   const fetch = useCallback(async () => {
     if (!doctorId) return
     setLoading(true)
@@ -48,9 +67,23 @@ export function DoctorReportView() {
         <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2"><Activity className="w-6 h-6 text-primary" />Doctor Performance Report</h1>
       </div>
       <Card><CardContent className="p-4 grid grid-cols-1 sm:grid-cols-4 gap-3">
-        {/* V9-3 fix: auto-detect doctorId for non-super-admins, show dropdown for super admins */}
+        {/* BUG-010 fix: super admins get a dropdown; non-super-admins see their own doctor name. */}
         {user?.role === 'SUPER_ADMIN' ? (
-          <div className="space-y-1.5"><Label className="text-xs">Doctor</Label><Input value={doctorId} onChange={(e) => setDoctorId(e.target.value)} placeholder="Doctor ID (CUID)" /></div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Doctor</Label>
+            <Select value={doctorId} onValueChange={(v) => setDoctorId(v)}>
+              <SelectTrigger>
+                <SelectValue placeholder={doctors.length === 0 ? 'Loading doctors…' : 'Select a doctor'} />
+              </SelectTrigger>
+              <SelectContent>
+                {doctors.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.fullName} · {d.specialization}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         ) : (
           <div className="space-y-1.5"><Label className="text-xs">Doctor</Label><p className="text-sm font-medium py-2">{user?.doctor?.fullName || 'Your doctor'}</p></div>
         )}

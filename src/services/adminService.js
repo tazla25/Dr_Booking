@@ -9,10 +9,21 @@ const prisma = require('../database/prisma');
  * kept for backward compatibility with any code paths that still call /admin
  * without going through the new login flow.
  *
+ * BUG-009: as of v11, the bot itself no longer imports or calls this
+ * function. We log a one-line warning each time it is invoked so we can
+ * track down any remaining callers.
+ *
  * @param {string} chatId - WhatsApp phone number in E.164 format
  * @returns {Object|null} { adminUser, magicLink } or null
  */
 async function handleAdminAuth(chatId) {
+  try {
+    require('../utils/logger').warn(
+      { chatId, deprecated: 'handleAdminAuth' },
+      'handleAdminAuth (legacy magic-link flow) was called — use authenticateUser (phone+password) instead'
+    );
+  } catch { /* ignore logger load failure */ }
+
   const adminUser = await prisma.adminUser.findFirst({
     where: {
       OR: [
