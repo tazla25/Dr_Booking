@@ -56,7 +56,7 @@ export function DashboardView() {
   const [loading, setLoading] = useState(true)
 
   const today = formatInTimeZone(new Date(), IST, 'yyyy-MM-dd')
-  const todayDow = DAYS[new Date().getDay()]
+  const todayDow = formatInTimeZone(new Date(), IST, 'EEEE')
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
