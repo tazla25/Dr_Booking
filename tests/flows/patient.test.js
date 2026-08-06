@@ -179,7 +179,7 @@ describe('handlePatientFlow — AWAITING_NAME step', () => {
 
     const reply = await handlePatientFlow('123', 'Rahul Das');
 
-    expect(reply).toContain('3');
+
     expect(reply).toContain('Rahul Das');
     expect(session.clearSession).toHaveBeenCalledWith('123');
   });

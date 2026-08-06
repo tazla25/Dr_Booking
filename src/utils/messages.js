@@ -238,7 +238,27 @@ const translations = {
     FORGOT_OTP_EXPIRED: '⏰ OTP expired. Please try again.',
     FORGOT_OTP_INVALID: '❌ Wrong OTP. Try again:',
     FORGOT_ASK_NEW_PASSWORD: '✅ OTP verified. Enter a new password (at least 8 chars, 1 letter + 1 digit):',
-    FORGOT_SUCCESS: '✅ Password changed. Login with /login.',
+        FORGOT_SUCCESS: '✅ Password changed. Login with /login.',
+
+    // ── Phone + Password login flow (v11) ─────────────────────────────
+    LOGIN_ASK_PHONE: '🔑 Login\n\nEnter your phone number (E.164 format):\n\nExample: +919876543210 or 9876543210',
+    LOGIN_ASK_PASSWORD: '🔑 Enter your password:',
+    LOGIN_INVALID_PHONE: '❌ Invalid phone number. Try again:',
+    LOGIN_USER_NOT_FOUND: '❌ No account found for this number. Register with /register.',
+    LOGIN_NO_PASSWORD: '⚠️ No password set for your account. Contact the admin.',
+    LOGIN_INVALID_PASSWORD: '❌ Incorrect password. Try again:',
+    LOGIN_SUCCESS: (dashboardUrl) => `✅ *Login successful!*\n\nClick the link below to open your dashboard:\n${dashboardUrl}`,
+    LOGIN_RATE_LIMITED: (remainMin) => `🔒 Too many incorrect password attempts. Please try again after ${remainMin} minutes.`,
+
+    // ── Doctor registration — password step (v11) ──────────────────────
+    REGISTER_ASK_PASSWORD: '🔑 Choose a password:\n\n• At least 8 characters\n• At least one letter and one number\n\nThis password will be used to log in.',
+    REGISTER_INVALID_PASSWORD: '❌ Weak password. Enter at least 8 characters, one letter, and one number. Try again:',
+
+    // ── /back command (v11) ─────────────────────────────────────────────
+    BACK_NO_PREVIOUS: '↩️ No previous step to go back to.',
+    BACK_TO_PREVIOUS: (stepName) => `↩️ Went back to previous step: ${stepName}`,
+
+    VERIFICATION_PENDING_LOGIN: '⏳ Your account is not yet verified. Please wait for super admin approval.',
 
     // /link command for compounders (V8-3 fix)
     LINK_INVALID_PHONE: '❌ Invalid phone number. Use E.164 format (e.g., +919876543210).',

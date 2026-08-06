@@ -36,6 +36,10 @@
     "collectCoverageFrom": [
       "src/**/*.js",
       "!src/database/**"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/dashboard/"
     ]
   },
   "engines": {
