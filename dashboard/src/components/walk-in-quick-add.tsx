@@ -28,7 +28,7 @@ export function WalkInQuickAdd({ schedules, onAdded }: Props) {
 
   useEffect(() => {
     if (!open || schedules.length === 0 || scheduleId) return
-    const dayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()]
+    const dayName = formatInTimeZone(new Date(), 'Asia/Kolkata', 'EEEE')
     const todaySched = schedules.find(s => s.dayOfWeek === dayName)
     setScheduleId(todaySched?.id || schedules[0]?.id || '')
   }, [open, schedules, scheduleId])

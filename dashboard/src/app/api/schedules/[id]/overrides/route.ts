@@ -13,6 +13,7 @@ import { NextRequest } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { audit, canAccessDoctor } from '@/lib/api-helpers'
 import { db } from '@/lib/db'
+import { formatInTimeZone } from 'date-fns-tz'
 import { z } from 'zod'
 
 const bodySchema = z.object({
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   }
 
   const url = new URL(req.url)
-  const today = new Date().toISOString().split('T')[0]
+  const today = formatInTimeZone(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd')
   const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   const from = url.searchParams.get('from') || today
   const to = url.searchParams.get('to') || future
@@ -108,7 +109,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   // via the bot's /api/notify endpoint (best-effort, non-blocking).
   let affectedAppointments: { id: string; patientName: string; patientPhone: string; queueNumber: number }[] = []
   if (parsed.type === 'CLOSED') {
-    const today = new Date().toISOString().split('T')[0]
+    const today = formatInTimeZone(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd')
     if (parsed.date === today) {
       affectedAppointments = await db.appointment.findMany({
         where: {
