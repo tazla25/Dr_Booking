@@ -11,9 +11,10 @@ import { Label } from '../ui/label'
 import { Input } from '../ui/input'
 import { Skeleton } from '../ui/skeleton'
 import { Badge } from '../ui/badge'
-import { Globe, Moon, Sun, KeyRound, ShieldAlert, History, User, UserPlus, Users, Trash2, Loader2 } from 'lucide-react'
+import { Globe, Moon, Sun, KeyRound, ShieldAlert, History, User, UserPlus, Users, Trash2, Loader2, Pencil } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
 
 interface AuditEntry {
   id: number
@@ -35,6 +36,7 @@ interface FailedLoginEntry {
 export function SettingsView() {
   const { t, lang, setLang, user } = useApp()
   const { theme, setTheme } = useTheme()
+  const router = useRouter()
 
   const [audit, setAudit] = useState<AuditEntry[]>([])
   const [failed, setFailed] = useState<{ count: number; recent: FailedLoginEntry[] }>({ count: 0, recent: [] })
@@ -174,11 +176,25 @@ export function SettingsView() {
               <Label className="text-xs text-muted-foreground">{t('lastLogin')}</Label>
               <p className="text-sm font-medium">
                 {user?.lastLoginAt
-                  ? new Date(user.lastLoginAt).toLocaleString(lang === 'bn' ? 'bn-BD' : 'en-US')
+                  ? new Date(user.lastLoginAt).toLocaleString(lang === 'bn' ? 'bn-IN' : 'en-US')
                   : t('none')}
               </p>
             </div>
           </div>
+          {/* IMP-V4-002: doctors can edit their own profile (fee, phone,
+              specialization) directly from Settings. Opens a dialog that
+              calls PUT /api/doctors/{id}. */}
+          {user?.role === 'DOCTOR' && user?.doctor?.id && (
+            <div className="pt-2 border-t border-border">
+              <Button variant="outline" size="sm" onClick={() => router.push(`/?view=doctors`)} className="gap-2">
+                <Pencil className="w-3.5 h-3.5" />
+                Edit My Doctor Profile
+              </Button>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Update your consultation fee, specialization, and contact info in the Doctors view.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -418,7 +434,7 @@ export function SettingsView() {
                     <li key={f.id} className="flex items-center justify-between bg-accent/30 rounded px-2 py-1">
                       <span className="text-muted-foreground">{f.email}</span>
                       <span className="text-muted-foreground">
-                        {new Date(f.attemptedAt).toLocaleString(lang === 'bn' ? 'bn-BD' : 'en-US')}
+                        {new Date(f.attemptedAt).toLocaleString(lang === 'bn' ? 'bn-IN' : 'en-US')}
                       </span>
                     </li>
                   ))}
@@ -456,7 +472,7 @@ export function SettingsView() {
                     </p>
                   </div>
                   <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                    {new Date(l.createdAt).toLocaleString(lang === 'bn' ? 'bn-BD' : 'en-US')}
+                    {new Date(l.createdAt).toLocaleString(lang === 'bn' ? 'bn-IN' : 'en-US')}
                   </span>
                 </li>
               ))}

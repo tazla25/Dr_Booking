@@ -11,7 +11,7 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
-import { Users, CheckCircle2, UserX, TrendingUp, BarChart3, Star, AlertCircle } from 'lucide-react'
+import { Users, CheckCircle2, UserX, TrendingUp, BarChart3, Star, AlertCircle, IndianRupee } from 'lucide-react'
 import { FeedbackWidget } from './feedback-widget'
 
 interface AnalyticsData {
@@ -23,6 +23,7 @@ interface AnalyticsData {
     confirmed: number
     noShowRate: number
     completionRate: number
+    revenue: number // IMP-V4-006: total revenue from completed appointments
   }
   daily: Array<{ date: string; total: number; completed: number; cancelled: number; noShow: number }>
   statusBreakdown: Array<{ status: string; count: number }>
@@ -123,12 +124,13 @@ export function AnalyticsView() {
         </Card>
       ) : data ? (
         <>
-          {/* KPIs */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* KPIs — IMP-V4-006: added revenue card */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <KpiCard icon={Users} label={t('totalPatients')} value={data.kpis.total} color="primary" />
             <KpiCard icon={CheckCircle2} label={t('completed')} value={data.kpis.completed} sub={`${data.kpis.completionRate}%`} color="emerald" />
             <KpiCard icon={UserX} label={t('noShow')} value={data.kpis.noShow} sub={`${data.kpis.noShowRate}%`} color="rose" />
             <KpiCard icon={TrendingUp} label={t('waiting')} value={data.kpis.confirmed} color="amber" />
+            <KpiCard icon={IndianRupee} label="Revenue" value={`₹${data.kpis.revenue.toLocaleString('en-IN')}`} color="emerald" />
           </div>
 
           {/* Daily appointments line chart */}
@@ -313,7 +315,7 @@ function KpiCard({
 }: {
   icon: typeof Users
   label: string
-  value: number
+  value: number | string
   color: 'primary' | 'emerald' | 'rose' | 'amber'
   sub?: string
 }) {

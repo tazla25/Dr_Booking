@@ -127,6 +127,28 @@ export async function GET(req: NextRequest) {
   const noShowRate = totalAppts > 0 ? (noShow / totalAppts) * 100 : 0
   const completionRate = totalAppts > 0 ? (completed / totalAppts) * 100 : 0
 
+  // IMP-V4-006: revenue = sum of doctor.fee for completed appointments.
+  // We already have the byDoctor list with doctor IDs — fetch their fees
+  // and compute revenue = completed_count_per_doctor × fee.
+  const doctorFees = new Map(doctors.map((d) => [d.id, d.fee || 0]))
+  let revenue = 0
+  for (const b of byDoctor) {
+    const fee = doctorFees.get(b.doctorId) || 0
+    // We only have the total count per doctor, not the completed count.
+    // Use the global completion rate as an approximation if we can't break
+    // it down — or better, fetch completed counts per doctor.
+  }
+  // Better: fetch completed appointment counts per doctor for accurate revenue
+  const completedByDoctor = await db.appointment.groupBy({
+    by: ['doctorId'],
+    where: { ...scope, status: 'Completed', appointmentDate: { gte: sinceStr } },
+    _count: { _all: true },
+  })
+  for (const c of completedByDoctor) {
+    const fee = doctorFees.get(c.doctorId) || 0
+    revenue += fee * c._count._all
+  }
+
   return Response.json({
     kpis: {
       total: totalAppts,
@@ -136,6 +158,7 @@ export async function GET(req: NextRequest) {
       confirmed,
       noShowRate: Number(noShowRate.toFixed(1)),
       completionRate: Number(completionRate.toFixed(1)),
+      revenue, // IMP-V4-006: total revenue from completed appointments
     },
     daily,
     statusBreakdown: statusCounts.map((s) => ({ status: s.status, count: s._count._all })),

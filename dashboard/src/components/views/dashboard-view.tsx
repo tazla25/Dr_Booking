@@ -110,6 +110,13 @@ export function DashboardView() {
     fetchAll()
   }, [fetchAll])
 
+  // IMP-V4-014: keyboard shortcuts for power users. Press 'N' to call
+  // next patient on the first schedule, 'R' to refresh, 'A' to open
+  // walk-in dialog. Only fires when no input/textarea is focused.
+  // (Defined after callNext to avoid TDZ — the effect callback runs
+  // after render so the order is safe, but the dependency array
+  // references must be in scope.)
+
   const pending = appointments.filter((a) => a.status === 'Confirmed' || a.status === 'Pending')
   const completed = appointments.filter((a) => a.status === 'Completed')
   const cancelled = appointments.filter((a) => a.status === 'Cancelled')
@@ -185,6 +192,24 @@ export function DashboardView() {
       setActingApptId(null)
     }
   }
+
+  // IMP-V4-014: keyboard shortcuts for power users.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      const key = e.key.toLowerCase()
+      if (key === 'r') { e.preventDefault(); fetchAll() }
+      else if (key === 'a') { e.preventDefault(); walkInRef.current?.open() }
+      else if (key === 'n' && schedules.length > 0) {
+        e.preventDefault()
+        callNext(schedules[0].id)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [fetchAll, schedules, callNext])
 
   const shareTracker = (scheduleId: string) => {
     const url = `${window.location.origin}/?view=tracker&scheduleId=${scheduleId}&date=${today}`

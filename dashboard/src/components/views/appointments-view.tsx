@@ -71,6 +71,8 @@ export function AppointmentsView() {
   const [doctorFilter, setDoctorFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [dateFilter, setDateFilter] = useState<string>('all')
+  // IMP-V4-007: client-side sort options
+  const [sortBy, setSortBy] = useState<string>('date_desc')
 
   // Actions
   const [rescheduleId, setRescheduleId] = useState<string | null>(null)
@@ -157,6 +159,29 @@ export function AppointmentsView() {
     const handler = setTimeout(() => fetchAppointments(null, false), 200)
     return () => clearTimeout(handler)
   }, [fetchAppointments])
+
+  // IMP-V4-007: client-side sort. The API returns results ordered by
+  // createdAt desc — we re-sort the current page client-side so the user
+  // can switch between queue #, name, and date ordering instantly.
+  const sortedAppointments = useMemo(() => {
+    const sorted = [...appointments]
+    switch (sortBy) {
+      case 'date_asc':
+        return sorted.sort((a, b) => a.appointmentDate.localeCompare(b.appointmentDate) || a.queueNumber - b.queueNumber)
+      case 'date_desc':
+        return sorted.sort((a, b) => b.appointmentDate.localeCompare(a.appointmentDate) || b.queueNumber - a.queueNumber)
+      case 'queue_asc':
+        return sorted.sort((a, b) => a.queueNumber - b.queueNumber)
+      case 'queue_desc':
+        return sorted.sort((a, b) => b.queueNumber - a.queueNumber)
+      case 'name_asc':
+        return sorted.sort((a, b) => a.patientName.localeCompare(b.patientName))
+      case 'name_desc':
+        return sorted.sort((a, b) => b.patientName.localeCompare(a.patientName))
+      default:
+        return sorted
+    }
+  }, [appointments, sortBy])
 
   const updateStatus = async (id: string, status: string) => {
     try {
@@ -420,6 +445,20 @@ export function AppointmentsView() {
                 aria-label="Custom appointment date"
               />
             )}
+            {/* IMP-V4-007: sort dropdown */}
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date_desc">Newest first</SelectItem>
+                <SelectItem value="date_asc">Oldest first</SelectItem>
+                <SelectItem value="queue_asc">Queue # (low → high)</SelectItem>
+                <SelectItem value="queue_desc">Queue # (high → low)</SelectItem>
+                <SelectItem value="name_asc">Name (A → Z)</SelectItem>
+                <SelectItem value="name_desc">Name (Z → A)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -431,7 +470,7 @@ export function AppointmentsView() {
             <div className="p-6 space-y-2">
               {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
-          ) : appointments.length === 0 ? (
+          ) : sortedAppointments.length === 0 ? (
             <div className="p-12 text-center">
               <CalendarClock className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
               <h3 className="text-lg font-semibold mb-1">{t('noResults')}</h3>
@@ -444,7 +483,7 @@ export function AppointmentsView() {
                   screens, so we render a vertical card list instead. Each
                   card surfaces the same status + actions as the table row. */}
               <div className="md:hidden divide-y divide-border">
-                {appointments.map((a) => (
+                {sortedAppointments.map((a) => (
                   <div key={a.id} className="p-4 space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
@@ -464,7 +503,7 @@ export function AppointmentsView() {
                     </div>
                     <div className="text-xs text-muted-foreground grid grid-cols-2 gap-1">
                       <span className="truncate">📞 {a.patientPhone}</span>
-                      <span className="truncate">📅 {new Date(a.appointmentDate).toLocaleDateString(lang === 'bn' ? 'bn-BD' : 'en-US', { day: '2-digit', month: 'short' })}</span>
+                      <span className="truncate">📅 {new Date(a.appointmentDate).toLocaleDateString(lang === 'bn' ? 'bn-IN' : 'en-US', { day: '2-digit', month: 'short' })}</span>
                       <span className="truncate col-span-2">🩺 {a.doctor.fullName} · {a.doctor.specialization}</span>
                     </div>
                     <div className="flex items-center gap-1 flex-wrap pt-1">
@@ -552,7 +591,7 @@ export function AppointmentsView() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {appointments.map((a) => (
+                  {sortedAppointments.map((a) => (
                     <tr key={a.id} className="hover:bg-accent/30 transition-colors">
                       <td className="px-3 sm:px-4 py-3">
                         <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary/15 text-primary font-bold text-xs">
@@ -573,7 +612,7 @@ export function AppointmentsView() {
                         <p className="text-xs text-muted-foreground">{a.doctor.specialization}</p>
                       </td>
                       <td className="px-3 sm:px-4 py-3 text-muted-foreground whitespace-nowrap">
-                        {new Date(a.appointmentDate).toLocaleDateString(lang === 'bn' ? 'bn-BD' : 'en-US', { day: '2-digit', month: 'short' })}
+                        {new Date(a.appointmentDate).toLocaleDateString(lang === 'bn' ? 'bn-IN' : 'en-US', { day: '2-digit', month: 'short' })}
                       </td>
                       <td className="px-3 sm:px-4 py-3">
                         <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusClass(a.status)}`}>

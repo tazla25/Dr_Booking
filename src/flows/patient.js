@@ -77,13 +77,16 @@ function renderDoctorList(schedules, lang, backCallbackData) {
   }
 
   // Strategy v2: build trust signal text for each doctor
-  const { buildTrustSignal, toBengaliNumber } = require('../utils/bengali');
+  const { buildTrustSignal, toLocalNumber } = require('../utils/bengali');
 
-  // NEW-002: defensive slice — if a caller bypassed the service-layer cap,
-  // we still never send more than 10 buttons to WhatsApp.
+  // V4-005 fix: WhatsApp list messages cap at 10 rows per section. The
+  // Back button adds 1 more row, so we cap the doctor list at 9 to leave
+  // room. The service layer (.take(10)) already limits the query, but we
+  // slice defensively here too.
   const { MAX_SEARCH_RESULTS = 10 } = require('../services/doctorService');
-  const truncated = schedules.length > MAX_SEARCH_RESULTS;
-  const displayed = truncated ? schedules.slice(0, MAX_SEARCH_RESULTS) : schedules;
+  const MAX_DISPLAY = MAX_SEARCH_RESULTS - 1; // 9, leaving room for Back button
+  const truncated = schedules.length > MAX_DISPLAY;
+  const displayed = truncated ? schedules.slice(0, MAX_DISPLAY) : schedules;
 
   const inlineKeyboard = displayed.map((s, idx) => {
     const clinicStr = s.clinicName ? ` · ${s.clinicName}` : '';
@@ -97,10 +100,18 @@ function renderDoctorList(schedules, lang, backCallbackData) {
   // Build the doctor list text with trust signals
   const listText = displayed.map((s, idx) => {
     const trust = buildTrustSignal(s.doctor, lang);
-    const feeStr = s.doctor.fee > 0 ? `\n   💰 ₹${toBengaliNumber(s.doctor.fee)}` : '';
+    // V4-002 fix: use toLocalNumber instead of toBengaliNumber so fees
+    // show as ₹500 in English mode instead of ₹৫০০.
+    const feeStr = s.doctor.fee > 0 ? `\n   💰 ₹${toLocalNumber(s.doctor.fee, lang)}` : '';
     const clinicStr = s.clinicName ? ` · ${s.clinicName}` : '';
     const isTopPick = s.doctor.isTopPick && idx === 0;
-    const topPickStr = isTopPick ? '⭐ সেরা পছন্দ\n' : '';
+    // V4-003 fix: "সেরা পছন্দ" (Top Pick) was hardcoded in Bengali — now
+    // language-aware.
+    const topPickStr = isTopPick
+      ? lang === 'en' ? '⭐ Top Pick\n'
+      : lang === 'hi' ? '⭐ शीर्ष चयन\n'
+      : '⭐ সেরা পছন্দ\n'
+      : '';
     return `${topPickStr}${idx + 1}. ${s.doctor.fullName}\n   ${trust}${feeStr}${clinicStr}`;
   }).join('\n\n');
 
@@ -433,34 +444,81 @@ async function handlePatientFlow(chatId, text, isCallback = false, callbackData 
       return getMessage(lang, 'INVALID_NAME');
     }
 
-    let booking;
-    try {
-      booking = await createBooking({
-        patientName: name,
-        patientPhone: String(chatId),
-        scheduleId: session.selectedSchedule.id,
-        appointmentDate: session.appointmentDate,
-      });
-    } catch (err) {
-      // NEW-004: surface a friendly message instead of the generic ERROR
-      // when the patient tries to double-book the same schedule+date.
-      if (err && err.code === 'DUPLICATE_BOOKING') {
-        return getMessage(lang, 'BOOKING_DUPLICATE');
+    // IMP-V4-001: instead of creating the booking instantly, show a
+    // confirmation prompt so the patient can verify their name + date +
+    // doctor before committing. This prevents accidental bookings from
+    // typos in the name or wrong date selection.
+    await setSession(chatId, { ...session, step: 'CONFIRM_BOOKING', pendingName: name });
+
+    const doctorName = session.selectedSchedule?.doctor?.fullName || '';
+    const clinicName = session.selectedSchedule?.clinicName || '';
+    const confirmText = lang === 'en'
+      ? `📋 *Please confirm your booking:*\n\n👤 Name: ${name}\n🩺 Doctor: ${doctorName}${clinicName ? `\n🏥 Clinic: ${clinicName}` : ''}\n📅 Date: ${session.appointmentDate}\n\nTap "Confirm" to book, or "Cancel" to go back.`
+      : lang === 'hi'
+      ? `📋 *कृपया अपनी बुकिंग की पुष्टि करें:*\n\n👤 नाम: ${name}\n🩺 डॉक्टर: ${doctorName}${clinicName ? `\n🏥 क्लिनिक: ${clinicName}` : ''}\n📅 तारीख: ${session.appointmentDate}\n\nबुक करने के लिए "पुष्टि करें" या वापस जाने के लिए "रद्द करें" चुनें।`
+      : `📋 *অনুগ্রহ করে আপনার বুকিং নিশ্চিত করুন:*\n\n👤 নাম: ${name}\n🩺 ডাক্তার: ${doctorName}${clinicName ? `\n🏥 ক্লিনিক: ${clinicName}` : ''}\n📅 তারিখ: ${session.appointmentDate}\n\nবুক করতে "নিশ্চিত করুন" অথবা ফিরে যেতে "বাতিল" নির্বাচন করুন।`;
+
+    const confirmLabel = lang === 'en' ? '✅ Confirm' : lang === 'hi' ? '✅ पुष्टि करें' : '✅ নিশ্চিত করুন';
+    const cancelLabel = lang === 'en' ? '↩️ Back' : lang === 'hi' ? '↩️ वापस' : '↩️ ফিরে যান';
+
+    return {
+      text: confirmText,
+      options: {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: confirmLabel, callback_data: 'confirm_yes' }],
+            [{ text: cancelLabel, callback_data: 'confirm_no' }],
+          ],
+        },
+      },
+    };
+  }
+
+  // ── CONFIRM_BOOKING step — patient confirmed or cancelled ─────────
+  if (session.step === 'CONFIRM_BOOKING') {
+    if (isCallback && callbackData === 'confirm_yes') {
+      const name = session.pendingName;
+      if (!name) {
+        await clearSession(chatId);
+        return getMessage(lang, 'ERROR');
       }
-      throw err;
+
+      let booking;
+      try {
+        booking = await createBooking({
+          patientName: name,
+          patientPhone: String(chatId),
+          scheduleId: session.selectedSchedule.id,
+          appointmentDate: session.appointmentDate,
+        });
+      } catch (err) {
+        if (err && err.code === 'DUPLICATE_BOOKING') {
+          await clearSession(chatId);
+          return getMessage(lang, 'BOOKING_DUPLICATE');
+        }
+        throw err;
+      }
+
+      await clearSession(chatId);
+      return getMessage(
+        lang,
+        'BOOKING_RECEIVED',
+        booking.patientName,
+        booking.appointmentDate
+      );
     }
 
-    await clearSession(chatId);
-    // Send immediate confirmation WITHOUT the queue number or tracking link.
-    // The doctor/compounder will confirm availability via the dashboard, at
-    // which point the patient receives their token + live tracking link
-    // (APPT_CONFIRMED_TRACKER message, sent by the dashboard's confirm endpoint).
-    return getMessage(
-      lang,
-      'BOOKING_RECEIVED',
-      booking.patientName,
-      booking.appointmentDate
-    );
+    if (isCallback && callbackData === 'confirm_no') {
+      // Go back to name entry
+      await setSession(chatId, { step: 'AWAITING_NAME' });
+      return {
+        text: getMessage(lang, 'ASK_NAME'),
+        options: { reply_markup: { inline_keyboard: getBackButton('back_date') } },
+      };
+    }
+
+    // Ignore non-callback input in this step
+    return null;
   }
 
   return getMessage(lang, 'ERROR');

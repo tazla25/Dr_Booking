@@ -39,6 +39,7 @@ import { toast } from 'sonner'
 import { ExportButton } from '../export-button'
 import { parseISO } from 'date-fns' // NEW-008: stable date parsing across browsers
 import { ReceiptDialog } from '../receipt-dialog'
+import { notifyPatients } from '@/lib/bot-notify' // IMP-V4-003: custom patient messaging
 
 interface Patient {
   phone: string
@@ -124,6 +125,9 @@ export function PatientsView() {
   const [receipts, setReceipts] = useState<PatientReceipt[]>([])
   const [receiptOpen, setReceiptOpen] = useState(false)
   const [receiptApptId, setReceiptApptId] = useState<string | null>(null)
+  // IMP-V4-003: custom patient messaging state
+  const [customMsg, setCustomMsg] = useState('')
+  const [sendingMsg, setSendingMsg] = useState(false)
 
   const fetchPatients = useCallback(async () => {
     setLoading(true)
@@ -244,7 +248,7 @@ export function PatientsView() {
     // timezones. parseISO treats a date-only string as local midnight, which
     // is what we want since the rest of the app standardizes on Asia/Kolkata.
     const d = parseISO(dateStr)
-    return d.toLocaleDateString(lang === 'bn' ? 'bn-BD' : 'en-US', { day: '2-digit', month: 'short', year: 'numeric' })
+    return d.toLocaleDateString(lang === 'bn' ? 'bn-IN' : 'en-US', { day: '2-digit', month: 'short', year: 'numeric' })
   }
 
   const statusColor = (status: string) => {
@@ -412,6 +416,52 @@ export function PatientsView() {
                 <StatBox icon={CheckCircle2} label="Completed" value={detail.patient.completed} color="emerald" />
                 <StatBox icon={UserX} label="No-show" value={`${detail.patient.noShow} (${detail.patient.noShowRate}%)`} color="amber" />
                 <StatBox icon={XCircle} label="Cancelled" value={detail.patient.cancelled} color="rose" />
+              </div>
+
+              {/* IMP-V4-003: Custom patient messaging — send a WhatsApp
+                  message to this patient directly from the dashboard. */}
+              <div>
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Send className="w-3.5 h-3.5" />
+                  Send WhatsApp Message
+                </Label>
+                <div className="mt-2 space-y-2">
+                  <Textarea
+                    value={customMsg}
+                    onChange={(e) => setCustomMsg(e.target.value)}
+                    placeholder="Type a custom message (e.g., 'Doctor is delayed by 1 hour', 'Please bring your reports')..."
+                    rows={2}
+                    className="text-sm resize-none"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      if (!customMsg.trim() || !selectedPhone) return
+                      setSendingMsg(true)
+                      try {
+                        const result = await notifyPatients([selectedPhone], customMsg.trim())
+                        if (result.ok) {
+                          toast.success('Message sent to patient')
+                          setCustomMsg('')
+                        } else {
+                          toast.error(`Failed to send: ${result.error || 'unknown error'}`)
+                        }
+                      } catch (e) {
+                        toast.error((e as Error).message || 'Failed to send message')
+                      } finally {
+                        setSendingMsg(false)
+                      }
+                    }}
+                    disabled={sendingMsg || !customMsg.trim()}
+                    className="gap-1.5"
+                  >
+                    {sendingMsg ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    Send to Patient
+                  </Button>
+                  <p className="text-[10px] text-muted-foreground">
+                    Note: message will only be delivered if the patient is within WhatsApp's 24-hour conversation window.
+                  </p>
+                </div>
               </div>
 
               {/* Doctors Seen */}

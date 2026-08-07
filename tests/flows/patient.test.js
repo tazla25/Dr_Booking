@@ -165,10 +165,10 @@ describe('handlePatientFlow — SEARCH_SPECIALTY_PIN sub-flow', () => {
 });
 
 describe('handlePatientFlow — AWAITING_NAME step', () => {
-  it('creates booking and returns confirmation with queue number', async () => {
+  it('shows confirmation prompt with patient name (IMP-V4-001: booking confirmation step)', async () => {
     session.getSession.mockReturnValue({
       step: 'AWAITING_NAME',
-      selectedSchedule: { id: 'sch-1' },
+      selectedSchedule: { id: 'sch-1', doctor: { fullName: 'Dr. Sen' }, clinicName: null },
       appointmentDate: '2026-07-10',
     });
     bookingService.createBooking.mockResolvedValue({
@@ -179,9 +179,17 @@ describe('handlePatientFlow — AWAITING_NAME step', () => {
 
     const reply = await handlePatientFlow('123', 'Rahul Das');
 
-
-    expect(reply).toContain('Rahul Das');
-    expect(session.clearSession).toHaveBeenCalledWith('123');
+    // IMP-V4-001: the AWAITING_NAME step now returns a confirmation prompt
+    // (object with text + options) instead of creating the booking immediately.
+    expect(reply).toBeInstanceOf(Object);
+    expect(reply.text).toContain('Rahul Das');
+    expect(reply.text).toContain('2026-07-10');
+    expect(reply.options.reply_markup.inline_keyboard).toBeDefined();
+    // Should have Confirm + Back buttons
+    expect(reply.options.reply_markup.inline_keyboard.length).toBe(2);
+    // Booking should NOT be created yet — that happens on 'confirm_yes' callback
+    expect(bookingService.createBooking).not.toHaveBeenCalled();
+    expect(session.clearSession).not.toHaveBeenCalled();
   });
 });
 

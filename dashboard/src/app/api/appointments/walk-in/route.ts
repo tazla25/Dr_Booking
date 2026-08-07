@@ -3,18 +3,18 @@ import { NextRequest } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { audit, canAccessDoctor, applyRateLimit } from '@/lib/api-helpers'
 import { db } from '@/lib/db'
+import { phoneSchema, futureDateSchema } from '@/lib/validators'
 import { z } from 'zod'
 
 const bodySchema = z.object({
   scheduleId: z.string().min(1),
   patientName: z.string().trim().min(2).max(100),
-  patientPhone: z
-    .string()
-    .trim()
-    .regex(/^\+?[0-9]{10,15}$/, 'Phone must be 10-15 digits'),
-  appointmentDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+  // IMP-V4-009: use the shared phoneSchema which auto-prepends +91 for
+  // 10-digit Indian numbers.
+  patientPhone: phoneSchema,
+  // IMP-V4-004: reject past dates — staff shouldn't create walk-ins
+  // for yesterday.
+  appointmentDate: futureDateSchema,
   notes: z.string().max(500).optional(),
 })
 

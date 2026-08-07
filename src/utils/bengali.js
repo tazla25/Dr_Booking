@@ -1,5 +1,10 @@
 // src/utils/bengali.js
 // Bengali number formatting + trust score calculation (Strategy v2)
+//
+// V4-002 fix: all number formatting functions now accept an optional `lang`
+// parameter. When lang === 'en' (or 'hi'), they return English digits
+// instead of Bengali numerals. Previously toBengaliNumber() was called
+// unconditionally, so English-mode users saw ₹৫০০ instead of ₹500.
 
 const BENGALI_DIGITS = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯']
 
@@ -14,20 +19,30 @@ function toBengaliNumber(input) {
 }
 
 /**
- * Format a patient count for display: "500+" if >= 500, else the raw number.
- * Returns Bengali numerals.
+ * V4-002: lang-aware number formatting. Returns English digits for lang='en'
+ * or lang='hi', Bengali numerals for lang='bn' (default).
  */
-function formatPatientCount(count) {
-  const display = count >= 500 ? `${count}+` : String(count)
-  return toBengaliNumber(display)
+function toLocalNumber(input, lang = 'bn') {
+  if (lang === 'en' || lang === 'hi') return String(input)
+  return toBengaliNumber(input)
 }
 
 /**
- * Format rating for display: "৪.৫" or "নতুন" if < 5 reviews.
+ * Format a patient count for display: "500+" if >= 500, else the raw number.
+ * V4-002: now lang-aware.
  */
-function formatRating(avgRating, reviewCount) {
-  if (reviewCount < 5) return 'নতুন'
-  return toBengaliNumber(Number(avgRating).toFixed(1))
+function formatPatientCount(count, lang = 'bn') {
+  const display = count >= 500 ? `${count}+` : String(count)
+  return toLocalNumber(display, lang)
+}
+
+/**
+ * Format rating for display: "৪.৫" or "নতুন"/"New" if < 5 reviews.
+ * V4-002: now lang-aware.
+ */
+function formatRating(avgRating, reviewCount, lang = 'bn') {
+  if (reviewCount < 5) return lang === 'en' ? 'New' : lang === 'hi' ? 'नया' : 'নতুন'
+  return toLocalNumber(Number(avgRating).toFixed(1), lang)
 }
 
 /**
@@ -68,31 +83,45 @@ function buildTrustSignal(doctor, lang = 'bn') {
 
   if (lang === 'en') {
     if (verified) parts.push('🟢 Verified')
-    const rating = formatRating(doctor.avgRating, doctor.reviewCount)
-    if (rating === 'নতুন') {
+    const rating = formatRating(doctor.avgRating, doctor.reviewCount, lang)
+    if (rating === 'New') {
       parts.push('New')
     } else {
-      parts.push(`⭐ ${rating} (${toBengaliNumber(doctor.reviewCount)})`)
+      parts.push(`⭐ ${rating} (${toLocalNumber(doctor.reviewCount, lang)})`)
     }
     if (doctor.appointmentCount > 0) {
-      parts.push(`${formatPatientCount(doctor.appointmentCount)} patients`)
+      parts.push(`${formatPatientCount(doctor.appointmentCount, lang)} patients`)
     }
     if (doctor.yearsExperience > 0) {
-      parts.push(`${toBengaliNumber(doctor.yearsExperience)} yrs exp`)
+      parts.push(`${toLocalNumber(doctor.yearsExperience, lang)} yrs exp`)
+    }
+  } else if (lang === 'hi') {
+    if (verified) parts.push('🟢 सत्यापित')
+    const rating = formatRating(doctor.avgRating, doctor.reviewCount, lang)
+    if (rating === 'नया') {
+      parts.push('नया')
+    } else {
+      parts.push(`⭐ ${rating} (${toLocalNumber(doctor.reviewCount, lang)})`)
+    }
+    if (doctor.appointmentCount > 0) {
+      parts.push(`${formatPatientCount(doctor.appointmentCount, lang)} रोगी`)
+    }
+    if (doctor.yearsExperience > 0) {
+      parts.push(`${toLocalNumber(doctor.yearsExperience, lang)} वर्ष`)
     }
   } else {
     if (verified) parts.push('🟢 যাচাই')
-    const rating = formatRating(doctor.avgRating, doctor.reviewCount)
+    const rating = formatRating(doctor.avgRating, doctor.reviewCount, lang)
     if (rating === 'নতুন') {
       parts.push('নতুন')
     } else {
-      parts.push(`⭐ ${rating} (${toBengaliNumber(doctor.reviewCount)})`)
+      parts.push(`⭐ ${rating} (${toLocalNumber(doctor.reviewCount, lang)})`)
     }
     if (doctor.appointmentCount > 0) {
-      parts.push(`${formatPatientCount(doctor.appointmentCount)} রোগী`)
+      parts.push(`${formatPatientCount(doctor.appointmentCount, lang)} রোগী`)
     }
     if (doctor.yearsExperience > 0) {
-      parts.push(`${toBengaliNumber(doctor.yearsExperience)} বছর`)
+      parts.push(`${toLocalNumber(doctor.yearsExperience, lang)} বছর`)
     }
   }
 
@@ -101,6 +130,7 @@ function buildTrustSignal(doctor, lang = 'bn') {
 
 module.exports = {
   toBengaliNumber,
+  toLocalNumber,
   formatPatientCount,
   formatRating,
   calculateTrustScore,

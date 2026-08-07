@@ -281,7 +281,7 @@ export function TrackerView() {
                 </div>
 
                 <p className="text-[10px] text-muted-foreground text-center pt-2 border-t border-border">
-                  {t('lastUpdated')}: {new Date().toLocaleTimeString(lang === 'bn' ? 'bn-BD' : 'en-US')}
+                  {t('lastUpdated')}: {new Date().toLocaleTimeString(lang === 'bn' ? 'bn-IN' : 'en-US')}
                 </p>
               </>
             ) : null}

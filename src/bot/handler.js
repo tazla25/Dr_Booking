@@ -91,7 +91,7 @@ function buildLanguagePicker() {
       reply_markup: {
         inline_keyboard: [
           [
-            { text: '🇧🇩 বাংলা', callback_data: 'lang_bn' },
+            { text: '🇮🇳 বাংলা', callback_data: 'lang_bn' },
             { text: '🇬🇧 English', callback_data: 'lang_en' },
             { text: '🇮🇳 हिन्दी', callback_data: 'lang_hi' }
           ]
@@ -188,10 +188,10 @@ async function handleMessage(bot, msg) {
         if (doctors.length === 0) {
           return send(getMessage(lang, 'SEARCH_NO_RESULTS'));
         }
-        const { buildTrustSignal, toBengaliNumber } = require('../utils/bengali');
+        const { buildTrustSignal, toLocalNumber } = require('../utils/bengali');
         const list = doctors.map((d, i) => {
           const trust = buildTrustSignal(d, lang);
-          const feeStr = d.fee > 0 ? `\n   💰 ₹${toBengaliNumber(d.fee)}` : '';
+          const feeStr = d.fee > 0 ? `\n   💰 ₹${toLocalNumber(d.fee, lang)}` : '';
           return `${i + 1}. ${d.fullName}\n   ${trust}${feeStr}`;
         }).join('\n\n');
         const header = lang === 'en'
@@ -348,6 +348,21 @@ async function handleMessage(bot, msg) {
             : lang === 'hi'
             ? `📋 *आपकी अपॉइंटमेंट हिस्ट्री*\n\n${list}`
             : `📋 *আপনার অ্যাপয়েন্টমেন্ট ইতিহাস*\n\n${list}`;
+
+        // IMP-V4-008: add inline Cancel buttons for upcoming Confirmed
+        // appointments so patients don't have to type /cancel <token>.
+        const today = new Date().toISOString().split('T')[0];
+        const upcoming = history.filter(a => a.status === 'Confirmed' && a.appointmentDate >= today);
+        if (upcoming.length > 0) {
+          const cancelLabel = lang === 'en' ? '❌ Cancel' : lang === 'hi' ? '❌ रद्द करें' : '❌ বাতিল করুন';
+          // WhatsApp caps at 10 rows per list section — limit to the next
+          // 9 upcoming appointments so we don't exceed the limit.
+          const cancelKeyboard = upcoming.slice(0, 9).map(a => [{
+            text: `${cancelLabel} #${a.queueNumber} · ${a.appointmentDate}`,
+            callback_data: `cancel_appt_${a.id}`,
+          }]);
+          return send(header, { reply_markup: { inline_keyboard: cancelKeyboard } });
+        }
         return send(header);
       } catch (err) {
         logger.error({ chatId, err: err.message }, 'Failed to fetch patient history');
@@ -523,6 +538,35 @@ async function handleCallbackQuery(bot, query) {
       const { showSearchModePicker } = require('../flows/patient');
       const replyObj = await showSearchModePicker(chatId, lang);
       return send(replyObj.text, replyObj.options);
+    }
+
+    // IMP-V4-008: handle inline cancel buttons from /history.
+    // Format: cancel_appt_<appointmentId>
+    if (data.startsWith('cancel_appt_')) {
+      const appointmentId = data.replace('cancel_appt_', '');
+      try {
+        const prisma = require('../database/prisma');
+        const appt = await prisma.appointment.findUnique({
+          where: { id: appointmentId },
+          select: { id: true, patientPhone: true, queueNumber: true, status: true, appointmentDate: true },
+        });
+        if (!appt || appt.patientPhone !== String(chatId)) {
+          return send(lang === 'en' ? '❌ Appointment not found.' : '❌ অ্যাপয়েন্টমেন্ট পাওয়া যায়নি।');
+        }
+        if (appt.status !== 'Confirmed' && appt.status !== 'Pending') {
+          return send(lang === 'en'
+            ? `❌ This appointment is already ${appt.status}.`
+            : `❌ এই অ্যাপয়েন্টমেন্ট ইতিমধ্যে ${appt.status}।`);
+        }
+        await prisma.appointment.update({
+          where: { id: appointmentId },
+          data: { status: 'Cancelled' },
+        });
+        return send(getMessage(lang, 'BOOKING_CANCELLED', appt.queueNumber));
+      } catch (err) {
+        logger.error({ chatId, err: err.message }, 'Failed to cancel appointment via inline button');
+        return send(getMessage(lang, 'ERROR'));
+      }
     }
 
     if (data === 'menu_status') {

@@ -48,7 +48,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
               {user?.role === 'SUPER_ADMIN' || user?.role === 'DOCTOR' ? t('dashboard') : t('todaysQueue')}
             </h2>
             <p className="text-xs text-muted-foreground hidden sm:block">
-              {new Date().toLocaleDateString(lang === 'bn' ? 'bn-BD' : 'en-US', {
+              {new Date().toLocaleDateString(lang === 'bn' ? 'bn-IN' : 'en-US', {
                 weekday: 'long',
                 year: 'numeric',
                 month: 'long',
