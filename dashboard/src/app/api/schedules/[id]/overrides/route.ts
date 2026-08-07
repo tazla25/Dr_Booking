@@ -104,83 +104,101 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   await audit(user, 'schedule.override', id, `${parsed.type} on ${parsed.date}${parsed.reason ? `: ${parsed.reason}` : ''}`)
 
-  // If closing today, return the list of affected appointments so the caller
-  // can notify them via the bot. We also try to send notifications directly
-  // via the bot's /api/notify endpoint (best-effort, non-blocking).
+  // NEW-005 fix: when closing the chamber for ANY date (not just today),
+  // bulk-cancel all Pending/Confirmed appointments for that date so
+  // patients don't show up to a closed chamber, AND fire WhatsApp
+  // notifications to each affected patient. The previous code only did
+  // this when parsed.date === today — closing tomorrow's chamber left
+  // tomorrow's appointments intact.
   let affectedAppointments: { id: string; patientName: string; patientPhone: string; queueNumber: number }[] = []
+  let cancelledCount = 0
   if (parsed.type === 'CLOSED') {
-    const today = formatInTimeZone(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd')
-    if (parsed.date === today) {
-      affectedAppointments = await db.appointment.findMany({
-        where: {
-          scheduleId: id,
-          appointmentDate: parsed.date,
-          status: { in: ['Confirmed', 'Pending'] },
-        },
-        select: { id: true, patientName: true, patientPhone: true, queueNumber: true },
-      })
+    // Cancel first (atomic updateMany), then read the (now-cancelled) rows
+    // for notification. We snapshot patientPhone before the updateMany so
+    // the notification list isn't affected by race conditions.
+    affectedAppointments = await db.appointment.findMany({
+      where: {
+        scheduleId: id,
+        appointmentDate: parsed.date,
+        status: { in: ['Confirmed', 'Pending'] },
+      },
+      select: { id: true, patientName: true, patientPhone: true, queueNumber: true },
+    })
+
+    if (affectedAppointments.length > 0) {
+      try {
+        const result = await db.appointment.updateMany({
+          where: {
+            scheduleId: id,
+            appointmentDate: parsed.date,
+            status: { in: ['Confirmed', 'Pending'] },
+          },
+          data: { status: 'Cancelled' },
+        })
+        cancelledCount = result.count || 0
+      } catch (err) {
+        console.error('Failed to auto-cancel appointments on CLOSED override:', err)
+      }
 
       // Best-effort: notify affected patients via the bot
-      if (affectedAppointments.length > 0) {
-        const botUrl = process.env.BOT_API_URL || process.env.PUBLIC_URL || process.env.DASHBOARD_URL
-        if (botUrl && process.env.BOT_API_SECRET) {
-          // Fetch each patient's language preference so we can send the
-          // closure notice in their chosen language instead of always Bengali.
-          const phoneToLang: Record<string, string> = {}
-          try {
-            const sessions = await db.botSession.findMany({
-              where: { chatId: { in: affectedAppointments.map((a) => a.patientPhone) } },
-              select: { chatId: true, lang: true, sessionData: true },
-            })
-            for (const s of sessions) {
-              let l = s.lang || 'bn'
-              if (s.sessionData) {
-                try {
-                  const parsed = JSON.parse(s.sessionData)
-                  if (parsed.lang) l = parsed.lang
-                } catch { /* ignore */ }
-              }
-              phoneToLang[s.chatId] = l
+      const botUrl = process.env.BOT_API_URL || process.env.PUBLIC_URL || process.env.DASHBOARD_URL
+      if (botUrl && process.env.BOT_API_SECRET) {
+        // Fetch each patient's language preference so we can send the
+        // closure notice in their chosen language instead of always Bengali.
+        const phoneToLang: Record<string, string> = {}
+        try {
+          const sessions = await db.botSession.findMany({
+            where: { chatId: { in: affectedAppointments.map((a) => a.patientPhone) } },
+            select: { chatId: true, lang: true, sessionData: true },
+          })
+          for (const s of sessions) {
+            let l = s.lang || 'bn'
+            if (s.sessionData) {
+              try {
+                const parsed = JSON.parse(s.sessionData)
+                if (parsed.lang) l = parsed.lang
+              } catch { /* ignore */ }
             }
-          } catch { /* ignore — fall back to 'bn' for everyone */ }
-
-          const buildClosureMessage = (lang: string) => {
-            const reasonLine = parsed.reason
-              ? (lang === 'en'
-                  ? `\nReason: ${parsed.reason}`
-                  : lang === 'hi'
-                  ? `\nकारण: ${parsed.reason}`
-                  : `\nকারণ: ${parsed.reason}`)
-              : ''
-            if (lang === 'en') {
-              return `⚠️ *Chamber Closed*\n\nThe chamber will be closed today (${parsed.date}).${reasonLine}\n\nSend /book to book for a new date.`
-            }
-            if (lang === 'hi') {
-              return `⚠️ *चैंबर बंद*\n\nआज (${parsed.date}) चैंबर बंद रहेगा।${reasonLine}\n\nनई तारीख के लिए /book भेजें।`
-            }
-            return `⚠️ *চেম্বার বন্ধ*\n\nআজ (${parsed.date}) চেম্বার বন্ধ থাকবে।${reasonLine}\n\nনতুন তারিখে বুক করতে /book পাঠান।`
+            phoneToLang[s.chatId] = l
           }
+        } catch { /* ignore — fall back to 'bn' for everyone */ }
 
-          // Group recipients by language so we send one localized message per patient
-          for (const appt of affectedAppointments) {
-            const lang = phoneToLang[appt.patientPhone] || 'bn'
-            const message = buildClosureMessage(lang)
-            // Fire-and-forget — don't block the API response on notifications
-            fetch(`${botUrl.replace(/\/$/, '')}/api/notify`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${process.env.BOT_API_SECRET}`,
-              },
-              body: JSON.stringify({ chatIds: [appt.patientPhone], text: message }),
-            }).catch((err) => {
-              console.error(`Failed to notify patient ${appt.patientPhone} of closure:`, err)
-            })
+        const buildClosureMessage = (lang: string) => {
+          const reasonLine = parsed.reason
+            ? (lang === 'en'
+                ? `\nReason: ${parsed.reason}`
+                : lang === 'hi'
+                ? `\nकारण: ${parsed.reason}`
+                : `\nকারণ: ${parsed.reason}`)
+            : ''
+          if (lang === 'en') {
+            return `⚠️ *Chamber Closed*\n\nThe chamber will be closed on ${parsed.date}.${reasonLine}\n\nYour appointment has been cancelled. Send /book to book for a new date.`
           }
+          if (lang === 'hi') {
+            return `⚠️ *चैंबर बंद*\n\n${parsed.date} को चैंबर बंद रहेगा।${reasonLine}\n\nआपका अपॉइंटमेंट रद्द कर दिया गया है। नई तारीख के लिए /book भेजें।`
+          }
+          return `⚠️ *চেম্বার বন্ধ*\n\n${parsed.date} তারিখে চেম্বার বন্ধ থাকবে।${reasonLine}\n\nআপনার অ্যাপয়েন্টমেন্ট বাতিল করা হয়েছে। নতুন তারিখে বুক করতে /book পাঠান।`
+        }
+
+        // Group recipients by language so we send one localized message per patient
+        for (const appt of affectedAppointments) {
+          const lang = phoneToLang[appt.patientPhone] || 'bn'
+          const message = buildClosureMessage(lang)
+          // Fire-and-forget — don't block the API response on notifications
+          fetch(`${botUrl.replace(/\/$/, '')}/api/notify`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${process.env.BOT_API_SECRET}`,
+            },
+            body: JSON.stringify({ chatIds: [appt.patientPhone], text: message }),
+          }).catch((err) => {
+            console.error(`Failed to notify patient ${appt.patientPhone} of closure:`, err)
+          })
         }
       }
     }
   }
 
-  return Response.json({ override, affectedAppointments }, { status: 201 })
+  return Response.json({ override, affectedAppointments, cancelledCount }, { status: 201 })
 }

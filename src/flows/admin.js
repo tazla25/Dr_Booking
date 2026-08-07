@@ -136,36 +136,72 @@ async function handleAdminFlow(bot, chatId, text, _scheduleId, _isCallback = fal
   // ── LOGIN_PASSWORD step — user entered their password ─────────────
   if (session.step === 'LOGIN_PASSWORD') {
     const s = await getSession(chatId);
-    const attempts = (s.loginAttempts || 0) + 1;
+    const phone = s.loginPhone;
+    if (!phone) {
+      // Lost the stashed phone — restart the flow
+      await setSession(chatId, { step: 'LOGIN_PHONE' });
+      return getMessage(lang, 'LOGIN_ASK_PHONE');
+    }
 
-    // Rate limit check
-    if (attempts > MAX_PASSWORD_ATTEMPTS) {
+    // NEW-001 fix: brute-force protection is enforced via the FailedLogin
+    // table, NOT via the in-session loginAttempts counter. The previous
+    // code called clearSession() on lockout, which wiped loginAttempts
+    // and let the user immediately /login again for 5 fresh attempts.
+    // The DB check is keyed on phone + attemptedAt, so the lockout
+    // survives session resets and applies across chat windows.
+    const lockoutCutoff = new Date(Date.now() - LOCKOUT_MS);
+    let recentFailures;
+    try {
+      recentFailures = await prisma.failedLogin.count({
+        where: { email: phone, attemptedAt: { gte: lockoutCutoff } },
+      });
+    } catch (err) {
+      // If the failed_logins table doesn't exist (migration not run), fall
+      // back to allowing the attempt — better than blocking all logins.
+      logger.warn({ err: err.message }, 'Failed to query failed_logins for lockout check');
+      recentFailures = 0;
+    }
+
+    if (recentFailures >= MAX_PASSWORD_ATTEMPTS) {
       const remainMin = Math.ceil(LOCKOUT_MS / 60000);
-      // Reset session so user has to start over after lockout
+      // Clear the bot session so the user must restart with /login after
+      // the lockout expires — but the lockout itself is enforced by the
+      // DB count above, not by session state, so they can't dodge it by
+      // starting a new session.
       await clearSession(chatId);
       await setSession(chatId, { step: 'IDLE', lang });
       return getMessage(lang, 'LOGIN_RATE_LIMITED', remainMin);
     }
 
-    const result = await authenticateUser(s.loginPhone, text);
+    const result = await authenticateUser(phone, text);
 
     if (result.ok && result.dashboardUrl) {
-      // Login successful — clear session and return the dashboard URL
+      // Login successful — clear session and any prior failed_login rows
+      // for this phone so a fresh lockout window starts.
+      try {
+        await prisma.failedLogin.deleteMany({ where: { email: phone } });
+      } catch (err) {
+        logger.warn({ err: err.message }, 'Failed to clear failed_logins after successful login');
+      }
       await clearSession(chatId);
       await setSession(chatId, { step: 'IDLE', lang });
       return getMessage(lang, 'LOGIN_SUCCESS', result.dashboardUrl);
     }
 
-    // On failure, increment attempt counter and stay on LOGIN_PASSWORD
-    // (don't clear session — user can retry)
-    await setSession(chatId, { loginAttempts: attempts });
-
+    // On failure: record to the FailedLogin table so the lockout is
+    // enforced even if the session is later cleared.
     if (result.reason === 'INVALID_PASSWORD') {
+      try {
+        await prisma.failedLogin.create({
+          data: { email: phone, ipAddress: undefined },
+        });
+      } catch (err) {
+        logger.warn({ err: err.message }, 'Failed to record failed_login');
+      }
       return getMessage(lang, 'LOGIN_INVALID_PASSWORD');
     }
     if (result.reason === 'USER_NOT_FOUND') {
       // Phone was deleted between step 1 and step 2 (race) — restart
-      await setSession(chatId, { step: 'LOGIN_PHONE' });
       return getMessage(lang, 'LOGIN_USER_NOT_FOUND');
     }
     if (result.reason === 'NO_PASSWORD') {

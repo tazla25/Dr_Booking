@@ -5,6 +5,7 @@
 
 import { useState } from 'react'
 import { api } from '@/lib/api-client'
+import { parseISO } from 'date-fns' // NEW-008: stable date parsing across browsers
 import {
   Dialog,
   DialogContent,
@@ -167,7 +168,7 @@ export function ReceiptDialog({ appointmentId, open, onOpenChange }: ReceiptDial
 
         <div class="section">
           <h2>Appointment Details</h2>
-          <div class="row"><span class="label">Date</span><span class="value">${new Date(receipt.appointment.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span></div>
+          <div class="row"><span class="label">Date</span><span class="value">${parseISO(receipt.appointment.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span></div>
           <div class="row"><span class="label">Queue Number</span><span class="value"><span class="queue-badge">#${receipt.appointment.queueNumber}</span></span></div>
           <div class="row"><span class="label">Status</span><span class="value">${receipt.appointment.status}</span></div>
           ${receipt.clinic.timing ? `<div class="row"><span class="label">Timing</span><span class="value">${receipt.clinic.timing}</span></div>` : ''}
@@ -275,7 +276,7 @@ export function ReceiptDialog({ appointmentId, open, onOpenChange }: ReceiptDial
               </div>
               <div>
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Date</p>
-                <p className="font-medium">{new Date(data.receipt.appointment.date + 'T00:00:00').toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                <p className="font-medium">{parseISO(data.receipt.appointment.date).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
               </div>
               <div>
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Queue Number</p>

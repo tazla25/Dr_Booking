@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { canAccessDoctor } from '@/lib/api-helpers'
 import { db } from '@/lib/db'
+import { parseISO } from 'date-fns' // NEW-008: stable date parsing (server-side too, for consistency)
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const completed = statusMap['Completed'] || 0, noShow = statusMap['NoShow'] || 0, cancelled = statusMap['Cancelled'] || 0, confirmed = statusMap['Confirmed'] || 0
   const daily = byDayRaw.map(g => ({ date: g.appointmentDate, count: g._count._all })).sort((a, b) => a.date.localeCompare(b.date))
   const byDow = DAYS.map(d => ({ day: d, count: 0 }))
-  for (const a of appts) { const dayName = DAYS[new Date(a.appointmentDate + 'T00:00:00').getDay()]; const entry = byDow.find(d => d.day === dayName); if (entry) entry.count++ }
+  for (const a of appts) { const dayName = DAYS[parseISO(a.appointmentDate).getDay()]; const entry = byDow.find(d => d.day === dayName); if (entry) entry.count++ }
   const totalUniquePatients = uniquePatients.length
   const returningPatients = uniquePatients.filter(g => g._count._all > 1).length
   const returningRate = totalUniquePatients > 0 ? (returningPatients / totalUniquePatients) * 100 : 0

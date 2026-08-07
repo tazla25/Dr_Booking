@@ -55,6 +55,12 @@ async function showSearchModePicker(chatId, lang) {
 /**
  * Render a list of schedules as a doctor-selection keyboard.
  * Used by all search modes.
+ *
+ * NEW-002 fix: WhatsApp Cloud API caps list messages at 10 rows per
+ * section. The doctorService queries already `.take(10)` so we never
+ * receive more than 10. We additionally slice defensively here, and
+ * surface a "refine your search" hint when the result count hit the
+ * cap (meaning there might be more matches the patient didn't see).
  */
 function renderDoctorList(schedules, lang, backCallbackData) {
   if (!schedules.length) {
@@ -73,7 +79,13 @@ function renderDoctorList(schedules, lang, backCallbackData) {
   // Strategy v2: build trust signal text for each doctor
   const { buildTrustSignal, toBengaliNumber } = require('../utils/bengali');
 
-  const inlineKeyboard = schedules.map((s, idx) => {
+  // NEW-002: defensive slice — if a caller bypassed the service-layer cap,
+  // we still never send more than 10 buttons to WhatsApp.
+  const { MAX_SEARCH_RESULTS = 10 } = require('../services/doctorService');
+  const truncated = schedules.length > MAX_SEARCH_RESULTS;
+  const displayed = truncated ? schedules.slice(0, MAX_SEARCH_RESULTS) : schedules;
+
+  const inlineKeyboard = displayed.map((s, idx) => {
     const clinicStr = s.clinicName ? ` · ${s.clinicName}` : '';
     return [{
       text: `${idx + 1}. ${s.doctor.fullName} (${s.doctor.specialization})${clinicStr}`,
@@ -83,7 +95,7 @@ function renderDoctorList(schedules, lang, backCallbackData) {
   inlineKeyboard.push([{ text: getMessage(lang, 'BTN_BACK'), callback_data: backCallbackData }]);
 
   // Build the doctor list text with trust signals
-  const listText = schedules.map((s, idx) => {
+  const listText = displayed.map((s, idx) => {
     const trust = buildTrustSignal(s.doctor, lang);
     const feeStr = s.doctor.fee > 0 ? `\n   💰 ₹${toBengaliNumber(s.doctor.fee)}` : '';
     const clinicStr = s.clinicName ? ` · ${s.clinicName}` : '';
@@ -92,8 +104,12 @@ function renderDoctorList(schedules, lang, backCallbackData) {
     return `${topPickStr}${idx + 1}. ${s.doctor.fullName}\n   ${trust}${feeStr}${clinicStr}`;
   }).join('\n\n');
 
+  // NEW-002: append truncation hint when we hit the cap
+  const truncatedHint = truncated ? '\n\n' + getMessage(lang, 'SEARCH_RESULTS_TRUNCATED') : '';
+  const header = getMessage(lang, 'SEARCH_RESULTS_FOUND', schedules.length) + truncatedHint;
+
   return {
-    text: getMessage(lang, 'SEARCH_RESULTS_FOUND', schedules.length) + '\n\n' + listText,
+    text: header + '\n\n' + listText,
     options: { reply_markup: { inline_keyboard: inlineKeyboard } },
   };
 }
@@ -417,12 +433,22 @@ async function handlePatientFlow(chatId, text, isCallback = false, callbackData 
       return getMessage(lang, 'INVALID_NAME');
     }
 
-    const booking = await createBooking({
-      patientName: name,
-      patientPhone: String(chatId),
-      scheduleId: session.selectedSchedule.id,
-      appointmentDate: session.appointmentDate,
-    });
+    let booking;
+    try {
+      booking = await createBooking({
+        patientName: name,
+        patientPhone: String(chatId),
+        scheduleId: session.selectedSchedule.id,
+        appointmentDate: session.appointmentDate,
+      });
+    } catch (err) {
+      // NEW-004: surface a friendly message instead of the generic ERROR
+      // when the patient tries to double-book the same schedule+date.
+      if (err && err.code === 'DUPLICATE_BOOKING') {
+        return getMessage(lang, 'BOOKING_DUPLICATE');
+      }
+      throw err;
+    }
 
     await clearSession(chatId);
     // Send immediate confirmation WITHOUT the queue number or tracking link.

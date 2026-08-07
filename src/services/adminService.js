@@ -4,10 +4,10 @@ const prisma = require('../database/prisma');
 /**
  * Handle admin authentication via WhatsApp number and generate magic link.
  *
- * DEPRECATED (v11): This function is the legacy magic-link flow. The bot
- * now uses phone + password login (see `authenticateUser` below). This is
- * kept for backward compatibility with any code paths that still call /admin
- * without going through the new login flow.
+ * @deprecated Use {@link authenticateUser} instead. Kept for backward-compat
+ *   only — will be removed in a future release. The bot itself no longer
+ *   imports or calls this function (see BUG-009 / NEW-010). Each call logs
+ *   a warn-level message so we can track down remaining callers.
  *
  * BUG-009: as of v11, the bot itself no longer imports or calls this
  * function. We log a one-line warning each time it is invoked so we can
@@ -20,7 +20,7 @@ async function handleAdminAuth(chatId) {
   try {
     require('../utils/logger').warn(
       { chatId, deprecated: 'handleAdminAuth' },
-      'handleAdminAuth (legacy magic-link flow) was called — use authenticateUser (phone+password) instead'
+      'DEPRECATED: handleAdminAuth (legacy magic-link flow) was called — use authenticateUser (phone+password) instead. Will be removed in a future release.'
     );
   } catch { /* ignore logger load failure */ }
 
@@ -414,13 +414,23 @@ async function inviteCompounder({ doctorAdminId, compounderPhone }) {
  * Approve a pending doctor (super admin only).
  * Creates the Doctor profile owned by the newly-approved admin user.
  *
+ * NEW-009 fix: when the doctor is approved, also auto-create a draft
+ * Schedule from the chamberAddress the doctor entered during /register
+ * (stored in verificationDocs JSON). The super admin previously had to
+ * manually re-enter the chamber info via the dashboard's Schedules tab.
+ * The draft has pinCode=0 and dayOfWeek='Sunday' as placeholders — the
+ * doctor/super admin must fill in real values before patients can find
+ * it via the bot's PIN-based search. We mark it as a draft by leaving
+ * the placeholder values; the dashboard's schedules view will let them
+ * edit it into a real schedule.
+ *
  * @param {Object} params - { doctorAdminId, superAdminId }
- * @returns {Object} { adminUser, doctorProfile }
+ * @returns {Object} { adminUser, doctorProfile, draftSchedule? }
  */
 async function approveDoctor({ doctorAdminId, superAdminId }) {
   const adminUser = await prisma.adminUser.findUnique({
     where: { id: doctorAdminId },
-    include: { ownedDoctor: true },
+    include: { ownedDoctor: { include: { schedules: true } } },
   });
 
   if (!adminUser || adminUser.role !== 'DOCTOR') {
@@ -454,10 +464,57 @@ async function approveDoctor({ doctorAdminId, superAdminId }) {
         phone: adminUser.phone,
         isActive: true,
       },
+      include: { schedules: true },
     });
   }
 
-  return { adminUser: updated, doctorProfile };
+  // NEW-009: auto-create a draft Schedule from the chamber address the
+  // doctor entered during registration. Skip if the doctor already has
+  // any schedules (e.g., super admin pre-created one).
+  let draftSchedule = null;
+  const hasExistingSchedules = doctorProfile.schedules && doctorProfile.schedules.length > 0;
+  const chamberAddress =
+    adminUser.verificationDocs && typeof adminUser.verificationDocs === 'object'
+      ? adminUser.verificationDocs.chamberAddress
+      : null;
+
+  if (!hasExistingSchedules && chamberAddress) {
+    try {
+      draftSchedule = await prisma.schedule.create({
+        data: {
+          doctorId: doctorProfile.id,
+          // Placeholder values — the doctor/super admin must edit this
+          // schedule via the dashboard to set a real PIN, dayOfWeek, and
+          // times before patients can book. clinicName/clinicAddress are
+          // pre-filled from the registration data so they don't have to
+          // re-type the chamber info.
+          pinCode: 0,
+          dayOfWeek: 'Sunday',
+          startTime: '10:00',
+          endTime: '14:00',
+          clinicName: `${adminUser.name}'s Chamber`,
+          clinicAddress: chamberAddress,
+          avgMinutesPerPatient: 10,
+        },
+      });
+      const logger = require('../utils/logger');
+      logger.info(
+        { doctorId: doctorProfile.id, scheduleId: draftSchedule.id },
+        'Auto-created draft Schedule from registration chamber address (NEW-009)'
+      );
+    } catch (err) {
+      // Don't fail the approval if the draft schedule creation fails —
+      // log and continue. The super admin can still create schedules
+      // manually via the dashboard.
+      const logger = require('../utils/logger');
+      logger.warn(
+        { err: err.message, doctorId: doctorProfile.id },
+        'Failed to auto-create draft Schedule during approval (NEW-009) — continuing'
+      );
+    }
+  }
+
+  return { adminUser: updated, doctorProfile, draftSchedule };
 }
 
 module.exports = {

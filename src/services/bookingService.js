@@ -35,6 +35,37 @@ async function createBooking({ patientName, patientPhone, scheduleId, appointmen
     throw new AppointmentError('Schedule not found', 'NOT_FOUND');
   }
 
+  // NEW-004 fix: prevent queue-stuffing. A patient should not be able to
+  // hold multiple active slots on the same schedule+date. We reject the
+  // booking if an existing Pending or Confirmed appointment already exists
+  // for the same patientPhone + scheduleId + appointmentDate. Cancelled /
+  // NoShow / Completed rows do NOT count — the patient can rebook after a
+  // cancellation or for a new visit on the same day.
+  try {
+    const existing = await prisma.appointment.findFirst({
+      where: {
+        patientPhone: String(patientPhone),
+        scheduleId,
+        appointmentDate,
+        status: { in: ['Pending', 'Confirmed'] },
+      },
+      select: { id: true, status: true, queueNumber: true },
+    });
+    if (existing) {
+      throw new AppointmentError(
+        'Patient already has an active booking for this schedule+date',
+        'DUPLICATE_BOOKING'
+      );
+    }
+  } catch (err) {
+    // Re-raise our DUPLICATE_BOOKING — only swallow DB connection errors.
+    if (err instanceof AppointmentError && err.code === 'DUPLICATE_BOOKING') throw err;
+    // Otherwise log and proceed (fail-open — better to allow a duplicate
+    // than to block all bookings because of a transient DB error).
+    const logger = require('../utils/logger');
+    logger.warn({ err: err.message }, 'Duplicate-booking check failed — proceeding (fail-open)');
+  }
+
   // Race-condition safe queue number assignment with retry.
   // The queue number is assigned now (so the unique constraint holds), but
   // the patient won't see it until the doctor confirms the appointment.

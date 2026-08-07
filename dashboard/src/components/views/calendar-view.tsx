@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
+import { parseISO } from 'date-fns' // NEW-008: stable date parsing across browsers
 
 interface CalendarDay {
   date: string
@@ -302,7 +303,7 @@ export function CalendarView() {
               <div>
                 <CardTitle className="text-base flex items-center gap-2">
                   <CalendarIcon className="w-4 h-4 text-primary" />
-                  {new Date(selectedDay.date + 'T00:00:00').toLocaleDateString('en-US', {
+                  {parseISO(selectedDay.date).toLocaleDateString('en-US', {
                     weekday: 'long',
                     year: 'numeric',
                     month: 'long',

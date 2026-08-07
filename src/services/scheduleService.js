@@ -64,6 +64,13 @@ async function getEffectiveHours(scheduleId, date) {
 /**
  * Set (upsert) an override for a schedule+date.
  *
+ * NEW-005 fix: when type === 'CLOSED', also bulk-cancel all Pending and
+ * Confirmed appointments for that schedule+date so patients don't show up
+ * to a closed chamber. Returns the upserted override plus a count of
+ * cancelled appointments so the caller can decide whether to send
+ * notifications (the dashboard's overrides route already handles the
+ * WhatsApp notification loop separately — see POST /api/schedules/[id]/overrides).
+ *
  * @param {Object} params
  * @param {string} params.scheduleId
  * @param {string} params.date - 'YYYY-MM-DD'
@@ -72,7 +79,7 @@ async function getEffectiveHours(scheduleId, date) {
  * @param {string|null} [params.newEndTime]
  * @param {string|null} [params.reason]
  * @param {string} params.userId - AdminUser.id of the creator
- * @returns {Promise<Object>} the upserted override
+ * @returns {Promise<{ override: Object, cancelledCount: number }>}
  */
 async function setOverride({
   scheduleId,
@@ -90,7 +97,7 @@ async function setOverride({
     throw new Error('MODIFIED_HOURS override requires newStartTime and newEndTime');
   }
 
-  return prisma.scheduleOverride.upsert({
+  const override = await prisma.scheduleOverride.upsert({
     where: { scheduleId_date: { scheduleId, date } },
     update: {
       type,
@@ -109,6 +116,34 @@ async function setOverride({
       createdBy: userId,
     },
   });
+
+  // NEW-005: when closing the chamber, cancel any active appointments so
+  // patients don't show up to a closed door. We use updateMany (not
+  // findMany + loop) so this stays atomic and fast even with many rows.
+  let cancelledCount = 0;
+  if (type === 'CLOSED') {
+    try {
+      const result = await prisma.appointment.updateMany({
+        where: {
+          scheduleId,
+          appointmentDate: date,
+          status: { in: ['Pending', 'Confirmed'] },
+        },
+        data: { status: 'Cancelled' },
+      });
+      cancelledCount = result.count || 0;
+      if (cancelledCount > 0) {
+        logger.info(
+          { scheduleId, date, cancelledCount },
+          'Auto-cancelled appointments due to CLOSED override'
+        );
+      }
+    } catch (err) {
+      logger.error({ err: err.message, scheduleId, date }, 'Failed to auto-cancel appointments on CLOSED override');
+    }
+  }
+
+  return { override, cancelledCount };
 }
 
 /**

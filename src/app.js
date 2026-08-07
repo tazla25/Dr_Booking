@@ -9,6 +9,13 @@ const prisma = require('./database/prisma');
 
 const app = express();
 
+// NEW-003 fix: trust the first proxy hop so req.ip reflects the real client
+// IP when running behind Render/Vercel/Nginx. Without this, every request
+// appears to come from the proxy's internal IP (e.g. 127.0.0.1) and the
+// rate limiter collapses all users into a single bucket — a single busy
+// user can lock out the entire API. Must be set BEFORE the rate limiter.
+app.set('trust proxy', 1);
+
 app.use(express.json());
 app.use(express.static('public'));
 
@@ -38,6 +45,13 @@ app.use((req, res, next) => {
 // ── Rate limiter (DB) ──────────────────────────────────
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const MAX_REQUESTS = 60;
+// NEW-007 fix: deterministic cleanup of expired rate-limit rows. The old
+// code ran deleteMany on 10% of all requests, which caused random latency
+// spikes. We now run cleanup at most once per minute per process, tracked
+// via a module-level timestamp. A dedicated cron job (cleanupJob.js)
+// handles the long-tail cleanup of magic_links / sessions / failed_logins.
+let lastCleanupAt = 0;
+const CLEANUP_INTERVAL_MS = 60 * 1000;
 
 async function rateLimiter(req, res, next) {
   const ip = req.ip || req.connection.remoteAddress || 'unknown';
@@ -45,11 +59,12 @@ async function rateLimiter(req, res, next) {
   const now = new Date();
 
   try {
-    // Delete expired entries sporadically
-    if (Math.random() < 0.1) {
-      await prisma.rateLimitEntry.deleteMany({
-        where: { expiresAt: { lt: now } }
-      });
+    // Periodic cleanup (at most once per minute)
+    if (now.getTime() - lastCleanupAt > CLEANUP_INTERVAL_MS) {
+      lastCleanupAt = now.getTime();
+      // Fire-and-forget — don't block the response on cleanup
+      prisma.rateLimitEntry.deleteMany({ where: { expiresAt: { lt: now } } })
+        .catch((e) => logger.warn({ err: e.message }, 'rate_limits cleanup failed'));
     }
 
     const entry = await prisma.rateLimitEntry.upsert({

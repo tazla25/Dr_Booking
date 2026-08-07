@@ -26,6 +26,8 @@ const translations = {
     // assign the token). No tracking link in this message.
     BOOKING_RECEIVED: (name, date) =>
       `📅 *বুকিং গ্রহণ করা হয়েছে!*\n\n👤 নাম: ${name}\n📅 তারিখ: ${date}\n\n⏳ ডাক্তার/কম্পাউন্ডার আপনার অ্যাপয়েন্টমেন্ট নিশ্চিত করছেন। কনফার্ম হওয়ার পর আপনার টোকেন নম্বর এবং লাইভ ট্র্যাকিং লিংক পাবেন।\n\nধন্যবাদ! 🙏`,
+    // NEW-004: patient tried to book the same schedule+date twice
+    BOOKING_DUPLICATE: '⚠️ আপনার এই চেম্বারে এই তারিখে ইতিমধ্যে একটি অ্যাক্টিভ বুকিং আছে।\n\nনতুন বুকিং করতে চাইলে আগে /cancel দিয়ে আগের বুকিংটি বাতিল করুন, অথবা অন্য তারিখ বেছে নিন।',
     // Sent AFTER the doctor/compounder confirms the appointment and assigns
     // a queue/token number. Includes the live tracking link.
     APPT_CONFIRMED_TRACKER: (name, queueNumber, date, scheduleId) =>
@@ -147,7 +149,9 @@ const translations = {
     SEARCH_INVALID_CITY: '❌ শহরের নাম কমপক্ষে ২ অক্ষরের হতে হবে। আবার চেষ্টা করুন:',
     SEARCH_INVALID_PIN: '❌ PIN কোড ৬ ডিজিটের হতে হবে। আবার চেষ্টা করুন:',
     SEARCH_NO_RESULTS: '😔 কোনো ডাক্তার পাওয়া যায়নি। অন্য মানদণ্ড দিয়ে চেষ্টা করুন।',
-    SEARCH_RESULTS_FOUND: (count) => `✅ ${count} জন ডাক্তার পাওয়া গেছে। নিচের বাটন থেকে বেছে নিন:`
+    SEARCH_RESULTS_FOUND: (count) => `✅ ${count} জন ডাক্তার পাওয়া গেছে। নিচের বাটন থেকে বেছে নিন:`,
+    // NEW-002: shown when a search returned more than 10 results and was truncated
+    SEARCH_RESULTS_TRUNCATED: '⚠️ আরও ফলাফল আছে। আপনার সার্চ আরও নির্দিষ্ট করুন (যেমন ছোট PIN এলাকা বা সম্পূর্ণ নাম)।',
   },
   en: {
     WELCOME: '👋 Hello! I am *Smart Queue Bot*.',
@@ -173,6 +177,8 @@ const translations = {
     // assign the token). No tracking link in this message.
     BOOKING_RECEIVED: (name, date) =>
       `📅 *Booking Received!*\n\n👤 Name: ${name}\n📅 Date: ${date}\n\n⏳ The doctor/compounder is confirming your appointment. Once confirmed, you will receive your token number and a live tracking link.\n\nThank you! 🙏`,
+    // NEW-004: patient tried to book the same schedule+date twice
+    BOOKING_DUPLICATE: '⚠️ You already have an active booking for this chamber on this date.\n\nTo make a new booking, cancel the existing one first with /cancel, or pick a different date.',
     // Sent AFTER the doctor/compounder confirms the appointment and assigns
     // a queue/token number. Includes the live tracking link.
     APPT_CONFIRMED_TRACKER: (name, queueNumber, date, scheduleId) =>
@@ -294,7 +300,9 @@ const translations = {
     SEARCH_INVALID_CITY: '❌ City must be at least 2 characters. Try again:',
     SEARCH_INVALID_PIN: '❌ PIN must be 6 digits. Try again:',
     SEARCH_NO_RESULTS: '😔 No doctors found. Try different criteria.',
-    SEARCH_RESULTS_FOUND: (count) => `✅ Found ${count} doctor${count === 1 ? '' : 's'}. Choose from the buttons below:`
+    SEARCH_RESULTS_FOUND: (count) => `✅ Found ${count} doctor${count === 1 ? '' : 's'}. Choose from the buttons below:`,
+    // NEW-002: shown when a search returned more than 10 results and was truncated
+    SEARCH_RESULTS_TRUNCATED: '⚠️ More results are available. Refine your search (e.g., a smaller PIN area or the full name).',
   },
   hi: {
     WELCOME: '👋 नमस्ते! मैं *Smart Queue Bot* हूँ।',
@@ -320,6 +328,8 @@ const translations = {
     // assign the token). No tracking link in this message.
     BOOKING_RECEIVED: (name, date) =>
       `📅 *बुकिंग प्राप्त हुई!*\n\n👤 नाम: ${name}\n📅 तारीख: ${date}\n\n⏳ डॉक्टर/कंपाउंडर आपके अपॉइंटमेंट की पुष्टि कर रहे हैं। पुष्टि होने पर आपको टोकन नंबर और लाइव ट्रैकिंग लिंक मिलेगा।\n\nधन्यवाद! 🙏`,
+    // NEW-004: patient tried to book the same schedule+date twice
+    BOOKING_DUPLICATE: '⚠️ इस चैंबर में इस तारीख के लिए आपके पास पहले से एक सक्रिय बुकिंग है।\n\nनई बुकिंग के लिए, पहले /cancel से पुरानी बुकिंग रद्द करें, या दूसरी तारीख चुनें।',
     // Sent AFTER the doctor/compounder confirms the appointment and assigns
     // a queue/token number. Includes the live tracking link.
     APPT_CONFIRMED_TRACKER: (name, queueNumber, date, scheduleId) =>
@@ -437,7 +447,9 @@ const translations = {
     SEARCH_INVALID_CITY: '❌ शहर कम से कम 2 अक्षरों का होना चाहिए। पुनः प्रयास करें:',
     SEARCH_INVALID_PIN: '❌ PIN 6 अंकों का होना चाहिए। पुनः प्रयास करें:',
     SEARCH_NO_RESULTS: '😔 कोई डॉक्टर नहीं मिला। अलग मानदंड आज़माएं।',
-    SEARCH_RESULTS_FOUND: (count) => `✅ ${count} डॉक्टर मिले। नीचे दिए गए बटन से चुनें:`
+    SEARCH_RESULTS_FOUND: (count) => `✅ ${count} डॉक्टर मिले। नीचे दिए गए बटन से चुनें:`,
+    // NEW-002: shown when a search returned more than 10 results and was truncated
+    SEARCH_RESULTS_TRUNCATED: '⚠️ और परिणाम उपलब्ध हैं। अपनी खोज को परिष्कृत करें (जैसे छोटा PIN क्षेत्र या पूरा नाम)।',
   }
 };
 

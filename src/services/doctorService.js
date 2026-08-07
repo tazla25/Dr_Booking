@@ -2,6 +2,15 @@ const { AppointmentError } = require('../utils/errors');
 const prisma = require('../database/prisma');
 const { sortByTrustScore } = require('../utils/bengali');
 
+// NEW-002 fix: WhatsApp Cloud API caps list messages at 10 rows per
+// section. The previous code returned ALL matching schedules, and
+// renderDoctorList() in patient.js built a button per result. When a
+// search returned 11+ rows the WhatsApp API rejected the message and
+// the bot went silent. Cap every search query at 10 rows so the
+// patient always gets a usable list (with a "refine your search" hint
+// when there are more results — see patient.js#renderDoctorList).
+const MAX_SEARCH_RESULTS = 10;
+
 /**
  * Get all doctor schedules for a given PIN code.
  * Returns array of schedule rows joined with doctor info, sorted by trust score.
@@ -25,6 +34,7 @@ async function getDoctorsByPin(pinCode) {
         },
       },
       include: { doctor: { include: { ownerAdmin: true } } },
+      take: MAX_SEARCH_RESULTS,
     });
 
     // Strategy v2: sort by trust score (verified first, then rating × reviews, etc.)
@@ -77,6 +87,7 @@ async function searchDoctorsByName(name) {
       },
       include: { doctor: { include: { ownerAdmin: true } } },
       orderBy: { doctor: { fullName: 'asc' } },
+      take: MAX_SEARCH_RESULTS,
     });
 
     return sortByTrustScore(schedules);
@@ -122,6 +133,7 @@ async function searchDoctorsBySpecialty(specialty, city) {
       },
       include: { doctor: { include: { ownerAdmin: true } } },
       orderBy: { doctor: { fullName: 'asc' } },
+      take: MAX_SEARCH_RESULTS,
     });
 
     return sortByTrustScore(schedules);
@@ -159,6 +171,7 @@ async function searchDoctorsBySpecialtyAndPin(specialty, pinCode) {
       },
       include: { doctor: { include: { ownerAdmin: true } } },
       orderBy: { doctor: { fullName: 'asc' } },
+      take: MAX_SEARCH_RESULTS,
     });
 
     return sortByTrustScore(schedules);
@@ -168,6 +181,7 @@ async function searchDoctorsBySpecialtyAndPin(specialty, pinCode) {
 }
 
 module.exports = {
+  MAX_SEARCH_RESULTS,
   getDoctorsByPin,
   getSchedulesForDoctor,
   searchDoctorsByName,

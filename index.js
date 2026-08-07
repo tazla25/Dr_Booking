@@ -23,6 +23,7 @@ const app = require('./src/app');
 const { createBot, registerWebhook } = require('./src/bot/index');
 const { initReminderJob } = require('./src/jobs/reminderJob');
 const { initFeedbackJob } = require('./src/jobs/feedbackJob');
+const { initCleanupJob } = require('./src/jobs/cleanupJob');
 
 const PORT = process.env.PORT || 3000;
 
@@ -33,6 +34,7 @@ app.set('bot', bot);
 registerWebhook(bot, app);
 initReminderJob(bot);
 initFeedbackJob(bot);
+initCleanupJob(); // NEW-007: hourly DB housekeeping (rate_limits, magic_links, sessions, failed_logins)
 
 const server = app.listen(PORT, () => {
   console.log(`🚀 Dr_Booking WhatsApp Bot running on port ${PORT}`);

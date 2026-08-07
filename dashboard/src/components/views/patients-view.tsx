@@ -37,6 +37,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ExportButton } from '../export-button'
+import { parseISO } from 'date-fns' // NEW-008: stable date parsing across browsers
 import { ReceiptDialog } from '../receipt-dialog'
 
 interface Patient {
@@ -237,7 +238,12 @@ export function PatientsView() {
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '—'
-    const d = new Date(dateStr + 'T00:00:00')
+    // NEW-008 fix: use date-fns parseISO instead of `new Date(dateStr + 'T00:00:00')`.
+    // The raw constructor interprets the date as UTC in some browsers (Safari)
+    // and local time in others, which can shift the date by a day in non-IST
+    // timezones. parseISO treats a date-only string as local midnight, which
+    // is what we want since the rest of the app standardizes on Asia/Kolkata.
+    const d = parseISO(dateStr)
     return d.toLocaleDateString(lang === 'bn' ? 'bn-BD' : 'en-US', { day: '2-digit', month: 'short', year: 'numeric' })
   }
 
