@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
-import { getDoctorScope } from '@/lib/api-helpers'
+import { getDoctorScope, getDoctorIdScope } from '@/lib/api-helpers'
 import { db } from '@/lib/db'
 import { formatInTimeZone } from 'date-fns-tz'
 
@@ -30,8 +30,12 @@ export async function GET(req: NextRequest) {
   const sinceDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
   const sinceStr = formatInTimeZone(sinceDate, tz, 'yyyy-MM-dd')
 
-  // Scope: SUPER_ADMIN sees all; DOCTOR sees own; COMPOUNDER sees delegated
-  const { filter: scope } = await getDoctorScope(user)
+  // V3-001 fix: getDoctorScope returns { doctorId: 'xxx' } which is correct
+  // for Appointment/Schedule queries (they have a doctorId FK), but it
+  // crashes on db.doctor.findMany because the Doctor model's primary key
+  // is `id`, not `doctorId`. Use getDoctorIdScope for direct Doctor queries.
+  const { filter: scope } = await getDoctorScope(user) // for Appointment queries
+  const { filter: doctorIdScope } = await getDoctorIdScope(user) // for Doctor queries
 
   // 1. Daily appointments (last N days)
   const dailyGroups = await db.appointment.groupBy({
@@ -84,7 +88,9 @@ export async function GET(req: NextRequest) {
     where: { ...scope, appointmentDate: { gte: sinceStr } },
     _count: { _all: true },
   })
-  const doctors = await db.doctor.findMany({ where: scope })
+  // V3-001 fix: use doctorIdScope ({ id: 'xxx' }) instead of scope ({ doctorId: 'xxx' })
+  // — Doctor.findMany filters on `id`, not `doctorId`.
+  const doctors = await db.doctor.findMany({ where: doctorIdScope })
   const doctorMap = new Map(doctors.map((d) => [d.id, d]))
   const byDoctorNamed = byDoctor.map((b) => ({
     doctorId: b.doctorId,

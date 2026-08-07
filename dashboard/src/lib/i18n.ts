@@ -45,6 +45,8 @@ export const STRINGS = {
   cancelled: { bn: 'বাতিল', en: 'Cancelled' },
   noShow: { bn: 'অনুপস্থিত', en: 'No-show' },
   noShowRate: { bn: 'অনুপস্থিতির হার', en: 'No-show Rate' },
+  // V3-010: label for the mini action bar shown after "Call Next"
+  nowSeeing: { bn: 'এখন দেখছেন', en: 'Now seeing' },
   avgWaitTime: { bn: 'গড় অপেক্ষার সময়', en: 'Avg Wait Time' },
   doctorUtilization: { bn: 'ডাক্তার ব্যবহারের হার', en: 'Doctor Utilization' },
   nextPatient: { bn: 'পরবর্তী রোগী', en: 'Next Patient' },

@@ -199,10 +199,15 @@ async function cancelBookingByQueueNumber(queueNumber, chatId) {
  * Also renamed from rescheduleBookingByToken → rescheduleBookingByQueueNumber
  * for consistency with cancelBookingByQueueNumber.
  *
+ * V3-007 fix: previously returned `true` and the handler told the patient
+ * their OLD token number, but the DB actually gave them a NEW queue number
+ * on the new date. Now returns `{ ok, newQueueNumber }` so the handler can
+ * show the patient their correct new token.
+ *
  * @param {number} queueNumber
  * @param {string} chatId
  * @param {string} newDate (YYYY-MM-DD)
- * @returns {boolean} true on success
+ * @returns {Promise<{ ok: boolean, newQueueNumber: number }>}
  */
 async function rescheduleBookingByQueueNumber(queueNumber, chatId, newDate) {
   try {
@@ -242,8 +247,33 @@ async function rescheduleBookingByQueueNumber(queueNumber, chatId, newDate) {
       );
     }
 
+    // V3-005 fix: reject reschedules to CLOSED dates. The previous code only
+    // checked dayOfWeek — if the doctor marked the target date as CLOSED
+    // (holiday, sick leave), the reschedule still went through. Check the
+    // schedule_overrides table and reject if a CLOSED override exists.
+    try {
+      const override = await prisma.scheduleOverride.findUnique({
+        where: { scheduleId_date: { scheduleId: appointment.scheduleId, date: newDate } },
+      });
+      if (override && override.type === 'CLOSED') {
+        throw new AppointmentError(
+          'Cannot reschedule to a closed date',
+          'DATE_CLOSED',
+          `❌ ${newDate} তারিখে চেম্বার বন্ধ থাকবে${override.reason ? ` (${override.reason})` : ''}। অন্য তারিখ বেছে নিন।`
+        );
+      }
+    } catch (err) {
+      // Re-raise our DATE_CLOSED — only swallow DB connection errors.
+      if (err instanceof AppointmentError && err.code === 'DATE_CLOSED') throw err;
+      // Otherwise log and proceed (fail-open — better to allow the reschedule
+      // than to block all reschedules because of a transient DB error).
+      const logger = require('../utils/logger');
+      logger.warn({ err: err.message }, 'Override check failed in reschedule — proceeding (fail-open)');
+    }
+
     // Recompute queue number for new date — race-condition safe with retry
     let attempts = 0;
+    let assignedQueueNumber = null;
     while (attempts < 3) {
       try {
         const maxRow = await prisma.appointment.aggregate({
@@ -256,6 +286,7 @@ async function rescheduleBookingByQueueNumber(queueNumber, chatId, newDate) {
           where: { id: appointment.id },
           data: { appointmentDate: newDate, queueNumber: nextQueue, status: 'Confirmed' },
         });
+        assignedQueueNumber = nextQueue;
         break;
       } catch (error) {
         attempts++;
@@ -267,7 +298,10 @@ async function rescheduleBookingByQueueNumber(queueNumber, chatId, newDate) {
       }
     }
 
-    return true;
+    // V3-007 fix: return the new queue number so the caller can tell the
+    // patient their CORRECT new token (was returning `true` and the handler
+    // was showing the old token number, causing queue confusion).
+    return { ok: true, newQueueNumber: assignedQueueNumber };
   } catch (error) {
     if (error instanceof AppointmentError) throw error;
     throw new AppointmentError(error.message, 'DB_ERROR');

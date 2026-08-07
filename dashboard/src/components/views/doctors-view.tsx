@@ -53,6 +53,15 @@ const emptyForm: DoctorForm = {
 
 export function DoctorsView() {
   const { t, lang, user } = useApp()
+  // V3-002 fix: the "Add New Doctor" button was visible to SUPER_ADMIN, but
+  // the underlying POST /api/doctors sets ownerAdminId = user.id (the super
+  // admin's ID). Since ownerAdminId is @unique on Doctor, the second doctor
+  // creation crashes with a unique-constraint violation. The architecture
+  // is: doctors self-register via the WhatsApp bot (/register), then super
+  // admins verify them in the Admin Verification view. So we hide the
+  // create button entirely — the doctor list is read-only for super admins,
+  // and DOCTOR users already see their own profile (no create needed).
+  // Edit/delete remain available to super admins.
   const isAdmin = user?.role === 'SUPER_ADMIN'
 
   const [doctors, setDoctors] = useState<Doctor[]>([])
@@ -147,7 +156,11 @@ export function DoctorsView() {
             {doctors.length} {t('doctors').toLowerCase()}
           </p>
         </div>
-        {isAdmin && (
+        {/* V3-002 fix: create button removed. Doctors register via the WhatsApp
+            bot (/register) and are verified by super admins in the Admin
+            Verification view. Showing a "create" button here was a footgun —
+            the underlying API crashes on the 2nd+ doctor (ownerAdminId unique). */}
+        {false && isAdmin && (
           <Button onClick={openCreate} className="gap-2 self-start">
             <Plus className="w-4 h-4" />
             {t('addNewDoctor')}

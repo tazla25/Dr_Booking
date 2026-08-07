@@ -381,8 +381,20 @@ async function handleMessage(bot, msg) {
         const token = parseInt(parts[1], 10);
         const newDate = validateDate(parts[2]);
         if (!isNaN(token) && newDate) {
-           await rescheduleBookingByToken(token, chatId, newDate);
-           return send(`✅ Booking (Token #${token}) rescheduled to ${newDate}.`);
+           // V3-007 fix: the service now returns the NEW queue number
+           // (the old code returned `true` and showed the patient their
+           // OLD token, but the DB actually gave them a new one on the
+           // new date). Show the patient their correct new token.
+           const result = await rescheduleBookingByToken(token, chatId, newDate);
+           const newToken = result && typeof result === 'object' && result.newQueueNumber
+             ? result.newQueueNumber
+             : token;
+           const msg = lang === 'en'
+             ? `✅ Rescheduled to ${newDate}. Your NEW token: #${newToken}`
+             : lang === 'hi'
+             ? `✅ री-शेड्यूल हो गया (${newDate})। आपका नया टोकन: #${newToken}`
+             : `✅ রিশেডিউল হয়েছে (${newDate})। আপনার নতুন টোকেন: #${newToken}`;
+           return send(msg);
         } else {
            return send('❌ Invalid format: /reschedule <token> <YYYY-MM-DD>');
         }

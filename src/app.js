@@ -108,14 +108,28 @@ app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().
 // ── Bot-internal notification endpoint (called by dashboard to send
 //    patient notifications when a schedule is closed, etc.) ──────────
 //    Header: Authorization: Bearer <BOT_API_SECRET>
-//    Body: { chatIds: string[], text: string }
+//    Body: {
+//      chatIds: string[],
+//      text: string,                    // free-text message (works within 24h window)
+//      template?: {                     // optional pre-approved WhatsApp template
+//        name: string,                  // e.g. 'appointment_reminder_1h'
+//        language: string,              // 'bn' | 'en' | 'hi'
+//        components?: Array,            // Prisma-shaped components array
+//      },
+//    }
+//
+// V3-006 fix: if a free-text send fails with a 24-hour-window error AND a
+// template was provided, fall back to bot._platform.sendTemplate() (the
+// same pattern reminderJob.js uses). This is critical for the confirm flow
+// — a patient who booked 2 days ago and gets confirmed today would never
+// receive their token otherwise.
 app.post('/api/notify', async (req, res) => {
   const auth = req.headers.authorization || '';
   const expected = `Bearer ${process.env.BOT_API_SECRET}`;
   if (auth !== expected) {
     return res.status(401).json({ error: 'unauthorized' });
   }
-  const { chatIds, text } = req.body || {};
+  const { chatIds, text, template } = req.body || {};
   if (!Array.isArray(chatIds) || chatIds.length === 0 || typeof text !== 'string') {
     return res.status(400).json({ error: 'invalid_input', message: 'chatIds (string[]) and text (string) required' });
   }
@@ -128,9 +142,32 @@ app.post('/api/notify', async (req, res) => {
   for (const chatId of chatIds) {
     try {
       await bot.sendMessage(String(chatId), text, { parse_mode: 'Markdown' });
-      results.push({ chatId, ok: true });
+      results.push({ chatId, ok: true, via: 'text' });
     } catch (err) {
-      results.push({ chatId, ok: false, error: err.message });
+      // V3-006: if free-text failed because the 24h conversation window
+      // expired and a template was provided, try sending the template.
+      const errMsg = String(err.message || '');
+      const isWindowError =
+        errMsg.includes('24-hour') ||
+        errMsg.includes('window') ||
+        errMsg.includes('not in allowed list') ||
+        errMsg.includes('Recipient phone number');
+      if (isWindowError && template && bot._platform && typeof bot._platform.sendTemplate === 'function') {
+        try {
+          await bot._platform.sendTemplate(
+            String(chatId),
+            template.name,
+            template.language || 'bn',
+            template.components || []
+          );
+          results.push({ chatId, ok: true, via: 'template_fallback' });
+          continue;
+        } catch (templateErr) {
+          results.push({ chatId, ok: false, error: `text_failed: ${errMsg}; template_failed: ${templateErr.message}` });
+          continue;
+        }
+      }
+      results.push({ chatId, ok: false, error: errMsg });
     }
   }
   return res.json({ ok: true, results });

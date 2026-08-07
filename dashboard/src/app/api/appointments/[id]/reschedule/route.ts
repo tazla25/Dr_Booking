@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { audit, canAccessDoctor } from '@/lib/api-helpers'
 import { db } from '@/lib/db'
 import { rescheduleSchema } from '@/lib/validators'
+import { notifyPatients, getPatientLang, buildRescheduledMessage } from '@/lib/bot-notify'
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -37,6 +38,23 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     )
   }
 
+  // V3-005 fix: reject reschedules to CLOSED dates. The previous code only
+  // checked dayOfWeek — if the doctor marked the target date as CLOSED
+  // (holiday, sick leave), the reschedule still went through and the
+  // patient showed up to a closed chamber.
+  const override = await db.scheduleOverride.findUnique({
+    where: { scheduleId_date: { scheduleId: existing.scheduleId, date: parsed.newDate } },
+  })
+  if (override?.type === 'CLOSED') {
+    return Response.json(
+      {
+        error: 'date_closed',
+        message: `Cannot reschedule. ${parsed.newDate} is marked as closed${override.reason ? `: ${override.reason}` : ''}`,
+      },
+      { status: 400 }
+    )
+  }
+
   // Recompute queue number for new date — race-condition safe with retry
   let attempts = 0
   let updated
@@ -64,5 +82,30 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   await audit(user, 'appointment.reschedule', id, `Rescheduled to ${parsed.newDate}`)
+
+  // V3-004 fix: notify the patient of the new date + new token number.
+  // The previous code updated the DB and wrote an audit log but never
+  // told the patient — they showed up on the old date with the old token.
+  // Fire-and-forget: a notification failure must not fail the reschedule.
+  // V3-006 fix: pass a pre-approved template so the bot can fall back to
+  // it if the free-text send fails outside the 24-hour window.
+  // V3-009 fix: use the centralized buildRescheduledMessage() helper.
+  if (updated) {
+    try {
+      const lang = await getPatientLang(existing.patientPhone, db)
+      const { text: message, template } = buildRescheduledMessage({
+        newDate: parsed.newDate,
+        queueNumber: updated.queueNumber,
+        scheduleId: existing.scheduleId,
+        lang,
+      })
+      notifyPatients([existing.patientPhone], message, template).catch((err) => {
+        console.error(`[reschedule] Failed to notify patient ${existing.patientPhone}:`, err)
+      })
+    } catch (err) {
+      console.error('[reschedule] Failed to build/send patient notification:', err)
+    }
+  }
+
   return Response.json({ appointment: updated })
 }

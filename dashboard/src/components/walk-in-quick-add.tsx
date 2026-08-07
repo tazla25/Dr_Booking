@@ -1,6 +1,6 @@
 // /home/z/my-project/src/components/walk-in-quick-add.tsx (Task 1.5)
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
 import { useApp } from './providers'
 import { api } from '@/lib/api-client'
 import { Button } from './ui/button'
@@ -16,7 +16,13 @@ const IST = 'Asia/Kolkata'
 interface RecentWalkIn { id: string; patientName: string; queueNumber: number; addedAt: number }
 interface Props { schedules: Array<{ id: string; dayOfWeek: string; startTime: string; endTime: string; clinicName: string | null; doctor: { id: string; fullName: string; specialization: string } | null }>; onAdded?: () => void }
 
-export function WalkInQuickAdd({ schedules, onAdded }: Props) {
+// V3-008 fix: expose an imperative `open()` method so the dashboard's
+// "Add Walk-In" quick action can open this dialog directly.
+export interface WalkInQuickAddHandle {
+  open: () => void
+}
+
+export const WalkInQuickAdd = forwardRef<WalkInQuickAddHandle, Props>(function WalkInQuickAdd({ schedules, onAdded }, ref) {
   const { t } = useApp()
   const [open, setOpen] = useState(false)
   const [patientName, setPatientName] = useState('')
@@ -25,6 +31,10 @@ export function WalkInQuickAdd({ schedules, onAdded }: Props) {
   const [saving, setSaving] = useState(false)
   const [recent, setRecent] = useState<RecentWalkIn[]>([])
   const today = formatInTimeZone(new Date(), IST, 'yyyy-MM-dd')
+
+  useImperativeHandle(ref, () => ({
+    open: () => setOpen(true),
+  }), [])
 
   useEffect(() => {
     if (!open || schedules.length === 0 || scheduleId) return
@@ -90,4 +100,4 @@ export function WalkInQuickAdd({ schedules, onAdded }: Props) {
       </Dialog>
     </>
   )
-}
+})

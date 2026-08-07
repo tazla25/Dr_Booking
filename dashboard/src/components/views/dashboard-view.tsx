@@ -1,17 +1,17 @@
 // /home/z/my-project/src/components/views/dashboard-view.tsx
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useApp } from '../providers'
 import { api } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card'
 import { Button } from '../ui/button'
 import { Skeleton } from '../ui/skeleton'
 import { Badge } from '../ui/badge'
-import { Users, Clock, CheckCircle2, XCircle, UserX, TrendingUp, Calendar, ChevronRight, Play, Share2, Stethoscope, Plus, Globe, Zap } from 'lucide-react'
+import { Users, Clock, CheckCircle2, XCircle, UserX, TrendingUp, Calendar, ChevronRight, Play, Share2, Stethoscope, Plus, Globe, Zap, SkipForward } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { WalkInQuickAdd } from '../walk-in-quick-add'
+import { WalkInQuickAdd, type WalkInQuickAddHandle } from '../walk-in-quick-add'
 import { formatInTimeZone } from 'date-fns-tz'
 
 const IST = 'Asia/Kolkata'
@@ -58,6 +58,14 @@ export function DashboardView() {
   const [schedules, setSchedules] = useState<ScheduleWithDoctor[]>([])
   const [queueMap, setQueueMap] = useState<Record<string, QueueStatus>>({})
   const [loading, setLoading] = useState(true)
+  // V3-008 fix: ref to the WalkInQuickAdd component so the dashboard's
+  // "Add Walk-In" quick action can open its dialog directly (was navigating
+  // to the appointments view, which surprised users).
+  const walkInRef = useRef<WalkInQuickAddHandle>(null)
+  // V3-010 fix: track the last "called" appointment per schedule so we can
+  // show a mini action bar (Complete / No-Show / Skip) right after Call Next.
+  const [lastCalled, setLastCalled] = useState<Record<string, Appointment | null>>({})
+  const [actingApptId, setActingApptId] = useState<string | null>(null)
 
   const today = formatInTimeZone(new Date(), IST, 'yyyy-MM-dd')
   const todayDow = formatInTimeZone(new Date(), IST, 'EEEE')
@@ -117,14 +125,64 @@ export function DashboardView() {
           body: JSON.stringify({ scheduleId, date: today }),
         }
       )
-      if (result.ok) {
+      if (result.ok && result.appointment) {
         toast.success(t('queueUpdated'))
+        // V3-010 fix: remember the called appointment so we can show a
+        // mini action bar (Complete / No-Show / Skip) right under the
+        // schedule card. The doctor can finalize the visit without
+        // navigating to the Appointments view.
+        setLastCalled((prev) => ({ ...prev, [scheduleId]: result.appointment as Appointment }))
         fetchAll()
       } else {
         toast.info(t('noAppointmentsToday'))
       }
     } catch {
       toast.error(t('error'))
+    }
+  }
+
+  // V3-003 fix: action handlers for the live-queue appointment list.
+  // These call the same API routes the Appointments view uses, so the
+  // doctor can confirm / complete / cancel / no-show without leaving
+  // the dashboard.
+  const confirmAppointment = async (id: string) => {
+    setActingApptId(id)
+    try {
+      await api(`/api/appointments/${id}/confirm`, { method: 'POST' })
+      toast.success(t('appointmentConfirmed'))
+      fetchAll()
+    } catch (e) {
+      toast.error((e as Error).message || t('error'))
+    } finally {
+      setActingApptId(null)
+    }
+  }
+
+  const updateAppointmentStatus = async (id: string, status: 'Completed' | 'Cancelled' | 'NoShow') => {
+    setActingApptId(id)
+    try {
+      await api(`/api/appointments/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      })
+      toast.success(
+        status === 'Completed' ? t('appointmentCompleted')
+        : status === 'Cancelled' ? t('appointmentCancelled')
+        : t('appointmentNoShow')
+      )
+      // Clear the lastCalled bar for this schedule if the action targeted it
+      setLastCalled((prev) => {
+        const next = { ...prev }
+        for (const [schedId, appt] of Object.entries(next)) {
+          if (appt?.id === id) next[schedId] = null
+        }
+        return next
+      })
+      fetchAll()
+    } catch (e) {
+      toast.error((e as Error).message || t('error'))
+    } finally {
+      setActingApptId(null)
     }
   }
 
@@ -288,6 +346,47 @@ export function DashboardView() {
                         {t('viewTracker')}
                       </Button>
                     </div>
+                    {/* V3-010 fix: mini action bar shown after "Call Next".
+                        The doctor can finalize the visit (Complete / No-Show)
+                        or skip (clear the bar) without leaving the dashboard. */}
+                    {lastCalled[sch.id] && (
+                      <div className="mt-2 pt-2 border-t border-border space-y-1.5">
+                        <p className="text-[11px] text-muted-foreground">
+                          {t('nowSeeing')}: <span className="font-medium text-foreground">#{lastCalled[sch.id]!.queueNumber} · {lastCalled[sch.id]!.patientName}</span>
+                        </p>
+                        <div className="flex gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 gap-1 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                            onClick={() => updateAppointmentStatus(lastCalled[sch.id]!.id, 'Completed')}
+                            disabled={actingApptId === lastCalled[sch.id]!.id}
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            {t('completed')}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 gap-1 text-zinc-700 dark:text-zinc-400"
+                            onClick={() => updateAppointmentStatus(lastCalled[sch.id]!.id, 'NoShow')}
+                            disabled={actingApptId === lastCalled[sch.id]!.id}
+                          >
+                            <UserX className="w-3.5 h-3.5" />
+                            {t('noShow')}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="px-2"
+                            onClick={() => setLastCalled((prev) => ({ ...prev, [sch.id]: null }))}
+                            aria-label="Dismiss"
+                          >
+                            <SkipForward className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )
@@ -334,7 +433,59 @@ export function DashboardView() {
                         </p>
                       </div>
                     </div>
-                    <StatusBadge status={a.status} lang={lang} />
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {/* V3-003 fix: inline action buttons so the doctor can
+                          confirm / complete / cancel / no-show directly from
+                          the live queue — no need to navigate to Appointments. */}
+                      {a.status === 'Pending' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs gap-1 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                          onClick={() => confirmAppointment(a.id)}
+                          disabled={actingApptId === a.id}
+                        >
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span className="hidden sm:inline">{t('confirmBtn')}</span>
+                        </Button>
+                      )}
+                      {a.status === 'Confirmed' && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs gap-1 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                            onClick={() => updateAppointmentStatus(a.id, 'Completed')}
+                            disabled={actingApptId === a.id}
+                            title={t('markCompleted')}
+                          >
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span className="hidden sm:inline">{t('completed')}</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 w-7 p-0 text-zinc-600 dark:text-zinc-400"
+                            onClick={() => updateAppointmentStatus(a.id, 'NoShow')}
+                            disabled={actingApptId === a.id}
+                            title={t('markNoShow')}
+                          >
+                            <UserX className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 w-7 p-0 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                            onClick={() => updateAppointmentStatus(a.id, 'Cancelled')}
+                            disabled={actingApptId === a.id}
+                            title={t('cancel')}
+                          >
+                            <XCircle className="w-3 h-3" />
+                          </Button>
+                        </>
+                      )}
+                      <StatusBadge status={a.status} lang={lang} />
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -350,7 +501,11 @@ export function DashboardView() {
           <Button
             variant="outline"
             className="h-auto py-5 justify-start gap-3"
-            onClick={() => router.push('/?view=appointments')}
+            // V3-008 fix: open the walk-in dialog directly instead of
+            // navigating to the Appointments view. Users clicked "Add
+            // Walk-In" expecting to add a walk-in immediately — landing
+            // on the full appointments list was surprising.
+            onClick={() => walkInRef.current?.open()}
           >
             <div className="w-10 h-10 rounded-lg bg-primary/15 text-primary flex items-center justify-center">
               <Plus className="w-5 h-5" />
@@ -363,7 +518,12 @@ export function DashboardView() {
           <Button
             variant="outline"
             className="h-auto py-5 justify-start gap-3"
-            onClick={() => router.push('/?view=doctors')}
+            // V3-002 fix: doctors register via the WhatsApp bot, not via a
+            // dashboard "create" form. Point this quick action at the
+            // Admin Verification view where super admins approve pending
+            // doctor registrations. DOCTOR/COMPOUNDER users won't see this
+            // tile anyway because the doctors view is admin-only.
+            onClick={() => router.push('/?view=admin-verification')}
           >
             <div className="w-10 h-10 rounded-lg bg-primary/15 text-primary flex items-center justify-center">
               <Stethoscope className="w-5 h-5" />
@@ -390,7 +550,7 @@ export function DashboardView() {
       </div>
 
       {/* Floating Quick-Add for walk-in patients (Task 1.5) */}
-      <WalkInQuickAdd schedules={schedules} onAdded={fetchAll} />
+      <WalkInQuickAdd ref={walkInRef} schedules={schedules} onAdded={fetchAll} />
     </div>
   )
 }

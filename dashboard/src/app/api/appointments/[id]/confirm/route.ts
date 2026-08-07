@@ -22,7 +22,7 @@ import { NextRequest } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { audit, canAccessDoctor } from '@/lib/api-helpers'
 import { db } from '@/lib/db'
-import { notifyPatients, getPatientLang } from '@/lib/bot-notify'
+import { notifyPatients, getPatientLang, buildConfirmedMessage } from '@/lib/bot-notify'
 
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -64,21 +64,21 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
   await audit(user, 'appointment.confirm', id, `Confirmed appointment for ${updated.patientName} (token #${updated.queueNumber})`)
 
-  // Build the localized tracker message and send it to the patient.
-  // The patient learns their token number and gets the live tracking link here —
-  // NOT at booking time (booking only sends BOOKING_RECEIVED without a token).
+  // V3-009 fix: use the centralized buildConfirmedMessage() helper so the
+  // message text lives in one place (bot-notify.ts) and can't drift out of
+  // sync with the bot's APPT_CONFIRMED_TRACKER message.
+  // V3-006 fix: pass the template so the bot can fall back to a pre-approved
+  // WhatsApp template if the free-text send fails outside the 24-hour window.
   const lang = await getPatientLang(updated.patientPhone, db)
-  const trackerUrl = `${process.env.DASHBOARD_URL || ''}/?view=tracker&scheduleId=${updated.scheduleId}&date=${updated.appointmentDate}`
-  let message: string
-  if (lang === 'en') {
-    message = `✅ *Appointment Confirmed!*\n\n👤 Name: ${updated.patientName}\n📅 Date: ${updated.appointmentDate}\n🔢 Your Token: *#${updated.queueNumber}*\n\nSee live queue status:\n${trackerUrl}`
-  } else if (lang === 'hi') {
-    message = `✅ *अपॉइंटमेंट की पुष्टि हुई!*\n\n👤 नाम: ${updated.patientName}\n📅 तारीख: ${updated.appointmentDate}\n🔢 आपका टोकन: *#${updated.queueNumber}*\n\nलाइव कतार स्थिति देखें:\n${trackerUrl}`
-  } else {
-    message = `✅ *অ্যাপয়েন্টমেন্ট নিশ্চিত!*\n\n👤 নাম: ${updated.patientName}\n📅 তারিখ: ${updated.appointmentDate}\n🔢 আপনার টোকেন: *#${updated.queueNumber}*\n\nলাইভ কিউ স্ট্যাটাস দেখুন:\n${trackerUrl}`
-  }
+  const { text: message, template } = buildConfirmedMessage({
+    patientName: updated.patientName,
+    appointmentDate: updated.appointmentDate,
+    queueNumber: updated.queueNumber,
+    scheduleId: updated.scheduleId,
+    lang,
+  })
 
-  const notifyResult = await notifyPatients([updated.patientPhone], message)
+  const notifyResult = await notifyPatients([updated.patientPhone], message, template)
 
   return Response.json({
     appointment: updated,
