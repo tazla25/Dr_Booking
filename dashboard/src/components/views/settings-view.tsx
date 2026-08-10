@@ -178,7 +178,7 @@ export function SettingsView() {
               <Label className="text-xs text-muted-foreground">{t('lastLogin')}</Label>
               <p className="text-sm font-medium">
                 {user?.lastLoginAt
-                  ? new Date(user.lastLoginAt).toLocaleString(lang === 'bn' ? 'bn-IN' : 'en-US')
+                  ? new Date(user.lastLoginAt).toLocaleString(lang === 'bn' ? 'bn-IN' : 'en-IN')
                   : t('none')}
               </p>
             </div>
@@ -436,7 +436,7 @@ export function SettingsView() {
                     <li key={f.id} className="flex items-center justify-between bg-accent/30 rounded px-2 py-1">
                       <span className="text-muted-foreground">{f.email}</span>
                       <span className="text-muted-foreground">
-                        {new Date(f.attemptedAt).toLocaleString(lang === 'bn' ? 'bn-IN' : 'en-US')}
+                        {new Date(f.attemptedAt).toLocaleString(lang === 'bn' ? 'bn-IN' : 'en-IN')}
                       </span>
                     </li>
                   ))}
@@ -474,7 +474,7 @@ export function SettingsView() {
                     </p>
                   </div>
                   <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                    {new Date(l.createdAt).toLocaleString(lang === 'bn' ? 'bn-IN' : 'en-US')}
+                    {new Date(l.createdAt).toLocaleString(lang === 'bn' ? 'bn-IN' : 'en-IN')}
                   </span>
                 </li>
               ))}

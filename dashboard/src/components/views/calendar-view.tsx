@@ -305,7 +305,7 @@ export function CalendarView() {
               <div>
                 <CardTitle className="text-base flex items-center gap-2">
                   <CalendarIcon className="w-4 h-4 text-primary" />
-                  {parseISO(selectedDay.date).toLocaleDateString('en-US', {
+                  {parseISO(selectedDay.date).toLocaleDateString('en-IN', {
                     weekday: 'long',
                     year: 'numeric',
                     month: 'long',

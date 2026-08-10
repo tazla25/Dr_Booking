@@ -250,7 +250,7 @@ export function PatientsView() {
     // timezones. parseISO treats a date-only string as local midnight, which
     // is what we want since the rest of the app standardizes on Asia/Kolkata.
     const d = parseISO(dateStr)
-    return d.toLocaleDateString(lang === 'bn' ? 'bn-IN' : 'en-US', { day: '2-digit', month: 'short', year: 'numeric' })
+    return d.toLocaleDateString(lang === 'bn' ? 'bn-IN' : 'en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
   }
 
   const statusColor = (status: string) => {
@@ -660,7 +660,7 @@ export function PatientsView() {
                               <span className="text-muted-foreground/50">·</span>
                               <span>{note.author.role}</span>
                               <span className="text-muted-foreground/50">·</span>
-                              <span>{new Date(note.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                              <span>{new Date(note.createdAt).toLocaleDateString(lang === 'bn' ? 'bn-IN' : 'en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-0.5 flex-shrink-0">

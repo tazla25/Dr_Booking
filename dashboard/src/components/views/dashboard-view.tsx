@@ -158,12 +158,15 @@ export function DashboardView() {
   // the dashboard.
   const confirmAppointment = async (id: string) => {
     setActingApptId(id)
+    // Optimistic update
+    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: 'Confirmed' } : a))
     try {
       await api(`/api/appointments/${id}/confirm`, { method: 'POST' })
       toast.success(t('appointmentConfirmed'))
       fetchAll()
     } catch (e) {
       toast.error((e as Error).message || t('error'))
+      fetchAll() // Revert on failure
     } finally {
       setActingApptId(null)
     }
@@ -171,6 +174,8 @@ export function DashboardView() {
 
   const updateAppointmentStatus = async (id: string, status: 'Completed' | 'Cancelled' | 'NoShow') => {
     setActingApptId(id)
+    // Optimistic update
+    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a))
     try {
       await api(`/api/appointments/${id}/status`, {
         method: 'PATCH',
@@ -192,6 +197,7 @@ export function DashboardView() {
       fetchAll()
     } catch (e) {
       toast.error((e as Error).message || t('error'))
+      fetchAll() // Revert on failure
     } finally {
       setActingApptId(null)
     }
@@ -206,9 +212,17 @@ export function DashboardView() {
       const key = e.key.toLowerCase()
       if (key === 'r') { e.preventDefault(); fetchAll() }
       else if (key === 'a') { e.preventDefault(); walkInRef.current?.open() }
-      else if (key === 'n' && schedules.length > 0) {
+      else if ((key === 'n' || (e.shiftKey && key === 'n')) && schedules.length > 0) {
         e.preventDefault()
         callNext(schedules[0].id)
+      }
+      else if ((key === 'c' || (e.shiftKey && key === 'c')) && schedules.length > 0 && lastCalled[schedules[0].id]) {
+        e.preventDefault()
+        updateAppointmentStatus(lastCalled[schedules[0].id]!.id, 'Completed')
+      }
+      else if ((key === 's' || (e.shiftKey && key === 's')) && schedules.length > 0 && lastCalled[schedules[0].id]) {
+        e.preventDefault()
+        updateAppointmentStatus(lastCalled[schedules[0].id]!.id, 'NoShow')
       }
     }
     window.addEventListener('keydown', onKey)
@@ -226,7 +240,13 @@ export function DashboardView() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{t('todaysQueue')}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{t('todaysQueue')}</h1>
+            <Badge variant="outline" className="hidden sm:flex text-[10px] text-muted-foreground ml-2 gap-1" title="Keyboard Shortcuts: 'N' (Next), 'C' (Complete), 'S' (No-Show), 'R' (Refresh)">
+              <span className="font-mono bg-muted px-1 rounded">N</span> Next
+              <span className="font-mono bg-muted px-1 rounded ml-1">C</span> Complete
+            </Badge>
+          </div>
           <p className="text-muted-foreground text-sm mt-1">{t('managePatients')}</p>
         </div>
         <Button variant="outline" size="sm" onClick={fetchAll} className="gap-2 self-start">

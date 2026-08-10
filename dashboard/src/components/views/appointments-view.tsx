@@ -188,6 +188,8 @@ export function AppointmentsView() {
   }, [appointments, sortBy])
 
   const updateStatus = async (id: string, status: string) => {
+    // Optimistic update
+    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a))
     try {
       await api(`/api/appointments/${id}/status`, {
         method: 'PATCH',
@@ -201,6 +203,7 @@ export function AppointmentsView() {
       fetchAppointments()
     } catch {
       toast.error(t('error'))
+      fetchAppointments() // Revert on failure
     }
   }
 
@@ -211,6 +214,8 @@ export function AppointmentsView() {
   // availability which triggers the tracker message.
   const confirmAppointment = async (id: string) => {
     setConfirming(true)
+    // Optimistic update
+    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: 'Confirmed' } : a))
     try {
       await api(`/api/appointments/${id}/confirm`, { method: 'POST' })
       toast.success(t('appointmentConfirmed'))
@@ -218,6 +223,7 @@ export function AppointmentsView() {
       fetchAppointments()
     } catch {
       toast.error(t('error'))
+      fetchAppointments() // Revert on failure
     } finally {
       setConfirming(false)
     }
@@ -511,7 +517,7 @@ export function AppointmentsView() {
                     </div>
                     <div className="text-xs text-muted-foreground grid grid-cols-2 gap-1">
                       <span className="truncate">📞 {a.patientPhone}</span>
-                      <span className="truncate">📅 {new Date(a.appointmentDate).toLocaleDateString(lang === 'bn' ? 'bn-IN' : 'en-US', { day: '2-digit', month: 'short' })}</span>
+                      <span className="truncate">📅 {new Date(a.appointmentDate).toLocaleDateString(lang === 'bn' ? 'bn-IN' : 'en-IN', { day: '2-digit', month: 'short' })}</span>
                       <span className="truncate col-span-2">🩺 {a.doctor.fullName} · {a.doctor.specialization}</span>
                     </div>
                     <div className="flex items-center gap-1 flex-wrap pt-1">
@@ -620,7 +626,7 @@ export function AppointmentsView() {
                         <p className="text-xs text-muted-foreground">{a.doctor.specialization}</p>
                       </td>
                       <td className="px-3 sm:px-4 py-3 text-muted-foreground whitespace-nowrap">
-                        {new Date(a.appointmentDate).toLocaleDateString(lang === 'bn' ? 'bn-IN' : 'en-US', { day: '2-digit', month: 'short' })}
+                        {new Date(a.appointmentDate).toLocaleDateString(lang === 'bn' ? 'bn-IN' : 'en-IN', { day: '2-digit', month: 'short' })}
                       </td>
                       <td className="px-3 sm:px-4 py-3">
                         <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusClass(a.status)}`}>
