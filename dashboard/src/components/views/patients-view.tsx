@@ -5,8 +5,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useApp } from '../providers'
 import { api } from '@/lib/api-client'
-// @ts-ignore
-import { useQuery, useAction } from 'wasp/client/operations'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -41,7 +39,6 @@ import { toast } from 'sonner'
 import { ExportButton } from '../export-button'
 import { parseISO } from 'date-fns' // NEW-008: stable date parsing across browsers
 import { ReceiptDialog } from '../receipt-dialog'
-import { notifyPatients } from '@/lib/bot-notify' // IMP-V4-003: custom patient messaging
 
 interface Patient {
   phone: string
@@ -441,7 +438,12 @@ export function PatientsView() {
                       if (!customMsg.trim() || !selectedPhone) return
                       setSendingMsg(true)
                       try {
-                        const result = await notifyPatients([selectedPhone], customMsg.trim())
+                        const res = await fetch('/api/patients/notify', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ chatIds: [selectedPhone], text: customMsg.trim() }),
+                        })
+                        const result = await res.json()
                         if (result.ok) {
                           toast.success('Message sent to patient')
                           setCustomMsg('')
