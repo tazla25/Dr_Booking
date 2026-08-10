@@ -1,7 +1,11 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
+import { getCurrentUser } from '@/lib/auth'
 
 export async function GET(req: NextRequest) {
+  const user = await getCurrentUser()
+  if (!user) return Response.json({ error: 'unauthorized' }, { status: 401 })
+
   const url = new URL(req.url)
   const scheduleIds = url.searchParams.get('scheduleIds')?.split(',') || []
   const date = url.searchParams.get('date')

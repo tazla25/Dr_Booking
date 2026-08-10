@@ -46,10 +46,12 @@ interface Schedule {
   doctor: { id: string; fullName: string }
 }
 
+import { phoneSchema } from '@/lib/validators'
+
 const walkInSchema = z.object({
   scheduleId: z.string().min(1),
   patientName: z.string().trim().min(2).max(100),
-  patientPhone: z.string().trim().regex(/^\+?[0-9]{10,15}$/),
+  patientPhone: phoneSchema.or(z.literal('')),
   appointmentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   notes: z.string().max(500).optional(),
 })
@@ -340,7 +342,11 @@ export function AppointmentsView() {
                   <Label>{t('phone')}</Label>
                   <Input
                     value={walkIn.patientPhone}
-                    onChange={(e) => setWalkIn({ ...walkIn, patientPhone: e.target.value })}
+                    onChange={(e) => {
+                      let val = e.target.value
+                      if (/^[6-9]\d{9}$/.test(val)) val = '+91' + val
+                      setWalkIn({ ...walkIn, patientPhone: val })
+                    }}
                     placeholder="+8801712345678"
                   />
                 </div>

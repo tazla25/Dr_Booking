@@ -517,7 +517,23 @@ async function handlePatientFlow(chatId, text, isCallback = false, callbackData 
       };
     }
 
-    // Ignore non-callback input in this step
+    // If patient types text instead of clicking a button, re-prompt them.
+    if (!isCallback) {
+      const confirmLabel = lang === 'en' ? '✅ Confirm' : lang === 'hi' ? '✅ पुष्टि करें' : '✅ নিশ্চিত করুন';
+      const cancelLabel = lang === 'en' ? '↩️ Back' : lang === 'hi' ? '↩️ वापस' : '↩️ ফিরে যান';
+      return {
+        text: 'Please tap a button below to confirm or cancel your booking.',
+        options: {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: confirmLabel, callback_data: 'confirm_yes' }],
+              [{ text: cancelLabel, callback_data: 'confirm_no' }],
+            ],
+          },
+        },
+      };
+    }
+
     return null;
   }
 
