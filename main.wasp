@@ -1,0 +1,286 @@
+app DrBooking {
+  wasp: {
+    version: "^0.15.0"
+  },
+  title: "Dr. Booking",
+  db: {
+    system: PostgreSQL
+  },
+  auth: {
+    userEntity: User,
+    methods: {
+      email: {},
+      google: {}
+    },
+    onAuthFailedRedirectTo: "/login"
+  },
+  server: {
+    setupFn: import { setupServer } from "@src/server/setup.ts"
+  }
+}
+
+enum Role {=psl
+  DOCTOR
+  COMPOUNDER
+  SUPER_ADMIN
+psl=}
+
+enum VerificationStatus {=psl
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
+psl=}
+
+entity Doctor {=psl
+  id              String   @id @default(cuid())
+  ownerAdminId    String   @unique
+  ownerAdmin      User     @relation("DoctorOwner", fields: [ownerAdminId], references: [id], onDelete: Cascade)
+  compounders     User[]   @relation("DoctorCompounders")
+
+  fullName        String
+  specialization  String
+  phone           String?
+  email           String?
+  fee             Int      @default(0)
+  rating          Float    @default(0)
+  isActive        Boolean  @default(true)
+  timezone        String   @default("Asia/Kolkata")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  yearsExperience   Int      @default(0)
+  isTopPick         Boolean  @default(false)
+  specialties       String[] @default([])
+  avgRating         Float    @default(0)
+  reviewCount       Int      @default(0)
+  appointmentCount  Int      @default(0)
+
+  isAvailableNow    Boolean  @default(false)
+
+  schedules    Schedule[]
+  appointments Appointment[] @relation("DoctorAppointments")
+
+  @@map("doctors")
+psl=}
+
+entity Schedule {=psl
+  id                   String   @id @default(cuid())
+  doctorId             String
+  doctor               Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  pinCode              Int
+  dayOfWeek            String // e.g. 'Monday', 'Tuesday'
+  startTime            String // 'HH:mm' 24h
+  endTime              String // 'HH:mm' 24h
+  clinicName           String?
+  clinicAddress        String?
+  landmark             String?
+  mapLink              String?
+  avgMinutesPerPatient Int      @default(10)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  appointments Appointment[]
+  overrides   ScheduleOverride[]
+
+  @@index([pinCode])
+  @@index([doctorId])
+  @@map("schedules")
+psl=}
+
+entity ScheduleOverride {=psl
+  id            String   @id @default(cuid())
+  scheduleId    String
+  schedule      Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  date          String // 'YYYY-MM-DD'
+  type          String // 'CLOSED' | 'MODIFIED_HOURS' | 'SPECIAL'
+  newStartTime  String?
+  newEndTime    String?
+  reason        String?
+  createdBy     String
+  createdAt     DateTime @default(now())
+
+  @@unique([scheduleId, date])
+  @@index([scheduleId, date])
+  @@map("schedule_overrides")
+psl=}
+
+entity Appointment {=psl
+  id              String   @id @default(cuid())
+  scheduleId      String
+  schedule        Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  doctorId        String
+  doctor          Doctor   @relation("DoctorAppointments", fields: [doctorId], references: [id], onDelete: Cascade)
+  patientName     String
+  patientPhone    String
+  appointmentDate String // 'YYYY-MM-DD'
+  queueNumber     Int
+  status          String   @default("Confirmed") // Pending | Confirmed | Completed | Cancelled | NoShow
+  source          String   @default("ONLINE") // 'ONLINE' | 'WALK_IN'
+  token           String   @unique @default(cuid())
+  notes           String?
+  reminderSent    Boolean  @default(false)
+  feedbackSent    Boolean  @default(false) // Phase 1 reform (Task 2.1) — feedback request sent
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  feedback        Feedback?
+
+  @@unique([scheduleId, appointmentDate, queueNumber])
+  @@index([scheduleId, appointmentDate])
+  @@index([status])
+  @@index([doctorId, appointmentDate])
+  @@index([source])
+  @@map("appointments")
+psl=}
+
+entity Feedback {=psl
+  id             String   @id @default(cuid())
+  appointmentId  String   @unique
+  appointment    Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  rating         Int      // 1-5 stars
+  comment        String?
+  createdAt      DateTime @default(now())
+
+  @@index([rating])
+  @@map("feedback")
+psl=}
+
+entity User {=psl
+  id       String  @id @default(cuid())
+
+  role                Role                @default(COMPOUNDER)
+  verificationStatus  VerificationStatus  @default(PENDING)
+
+  medicalRegNumber    String?  @unique
+  specialization      String?
+  verificationDocs    Json?
+  verifiedAt          DateTime?
+  verifiedBy          String?
+
+  delegatedDoctorId   String?
+  delegatedDoctor     Doctor?  @relation("DoctorCompounders", fields: [delegatedDoctorId], references: [id], onDelete: SetNull)
+  invitedBy           String?
+  invitedAt           DateTime?
+
+  phone           String?  @unique
+  email           String?  @unique
+  telegramChatId  String?  @unique
+  whatsappNumber  String?  @unique
+
+  name         String
+  passwordHash String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  ownedDoctor   Doctor?      @relation("DoctorOwner")
+  failedLogins  FailedLogin[]
+  auditLogs     AuditLog[]
+  magicLinks    MagicLink[]
+  sessions      Session[]
+  patientNotes  PatientNote[] @relation("PatientNoteAuthor")
+
+  @@index([role])
+  @@index([verificationStatus])
+  @@index([delegatedDoctorId])
+  @@map("admin_users")
+psl=}
+
+entity PatientNote {=psl
+  id           String   @id @default(cuid())
+  patientPhone String
+  authorId     String
+  author       User     @relation("PatientNoteAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  note         String
+  isImportant  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([patientPhone])
+  @@index([authorId])
+  @@index([isImportant])
+  @@map("patient_notes")
+psl=}
+
+entity MagicLink {=psl
+  id          String    @id @default(cuid())
+  tokenHash   String    @unique
+  adminUserId String
+  adminUser   User      @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  usedAt      DateTime?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  @@index([adminUserId])
+  @@index([expiresAt])
+  @@map("magic_links")
+psl=}
+
+entity FailedLogin {=psl
+  id          Int        @id @default(autoincrement())
+  email       String
+  ipAddress   String?
+  attemptedAt DateTime   @default(now())
+  adminUserId String?
+  adminUser   User?      @relation(fields: [adminUserId], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@index([attemptedAt])
+  @@map("failed_logins")
+psl=}
+
+entity AuditLog {=psl
+  id          Int        @id @default(autoincrement())
+  adminUserId String?
+  adminUser   User?      @relation(fields: [adminUserId], references: [id], onDelete: SetNull)
+  action      String
+  target      String?
+  detail      String?
+  ipAddress   String?
+  createdAt   DateTime   @default(now())
+
+  @@index([adminUserId])
+  @@index([createdAt])
+  @@map("audit_logs")
+psl=}
+
+entity BotSession {=psl
+  chatId      String   @id
+  step        String   @default("IDLE")
+  sessionData String   @default("{}")
+  lang        String   @default("bn")
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  @@map("bot_sessions")
+psl=}
+
+entity Session {=psl
+  id          String    @id @default(cuid())
+  adminUserId String
+  adminUser   User      @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  @@index([adminUserId])
+  @@index([expiresAt])
+  @@map("sessions")
+psl=}
+
+entity RateLimitEntry {=psl
+  id        String   @id @default(cuid())
+  ip        String
+  endpoint  String
+  hits      Int      @default(1)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@unique([ip, endpoint])
+  @@map("rate_limits")
+psl=}
