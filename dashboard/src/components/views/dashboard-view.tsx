@@ -4,6 +4,10 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useApp } from '../providers'
 import { api } from '@/lib/api-client'
+// @ts-ignore
+import { useQuery, useAction } from 'wasp/client/operations'
+// @ts-ignore
+import { getAppointments, getSchedules, getBatchQueue, advanceQueue, updateAppointmentStatus } from 'wasp/client/operations'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card'
 import { Button } from '../ui/button'
 import { Skeleton } from '../ui/skeleton'

@@ -4,6 +4,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useApp } from '../providers'
 import { api } from '@/lib/api-client'
+// @ts-ignore
+import { useQuery, useAction } from 'wasp/client/operations'
 import { Card, CardContent } from '../ui/card'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'

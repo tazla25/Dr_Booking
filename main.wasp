@@ -284,3 +284,152 @@ entity RateLimitEntry {=psl
   @@unique([ip, endpoint])
   @@map("rate_limits")
 psl=}
+
+// Queries
+
+query getAppointments {
+  fn: import { getAppointments } from "@src/server/queries.ts",
+  entities: [Appointment, Schedule, Doctor, PatientNote]
+}
+
+query getDoctors {
+  fn: import { getDoctors } from "@src/server/queries.ts",
+  entities: [Doctor, User]
+}
+
+query getAnalytics {
+  fn: import { getAnalytics } from "@src/server/queries.ts",
+  entities: [Appointment, Doctor, User]
+}
+
+query getDoctorAnalytics {
+  fn: import { getDoctorAnalytics } from "@src/server/queries.ts",
+  entities: [Appointment, Feedback, PatientNote]
+}
+
+query getPatient {
+  fn: import { getPatient } from "@src/server/queries.ts",
+  entities: [Appointment, PatientNote]
+}
+
+query getPatientReceipts {
+  fn: import { getPatientReceipts } from "@src/server/queries.ts",
+  entities: [Appointment]
+}
+
+query getSchedules {
+  fn: import { getSchedules } from "@src/server/queries.ts",
+  entities: [Schedule, Doctor]
+}
+
+query getOverrides {
+  fn: import { getOverrides } from "@src/server/queries.ts",
+  entities: [ScheduleOverride, Schedule]
+}
+
+query getNotifications {
+  fn: import { getNotifications } from "@src/server/queries.ts",
+  entities: [Appointment, User]
+}
+
+query getAuditLog {
+  fn: import { getAuditLog } from "@src/server/queries.ts",
+  entities: [AuditLog, User]
+}
+
+query getCompounders {
+  fn: import { getCompounders } from "@src/server/queries.ts",
+  entities: [User, Doctor]
+}
+
+query getFailedLogins {
+  fn: import { getFailedLogins } from "@src/server/queries.ts",
+  entities: [FailedLogin, User]
+}
+
+query getBatchQueue {
+  fn: import { getBatchQueue } from "@src/server/queries.ts",
+  entities: [Appointment]
+}
+
+// Actions
+
+action confirmAppointment {
+  fn: import { confirmAppointment } from "@src/server/actions.ts",
+  entities: [Appointment, Schedule, Doctor, User]
+}
+
+action rescheduleAppointment {
+  fn: import { rescheduleAppointment } from "@src/server/actions.ts",
+  entities: [Appointment, Schedule, Doctor, User]
+}
+
+action updateAppointmentStatus {
+  fn: import { updateAppointmentStatus } from "@src/server/actions.ts",
+  entities: [Appointment, Schedule, Doctor, User]
+}
+
+action createWalkIn {
+  fn: import { createWalkIn } from "@src/server/actions.ts",
+  entities: [Appointment, Schedule, Doctor]
+}
+
+action createDoctor {
+  fn: import { createDoctor } from "@src/server/actions.ts",
+  entities: [Doctor, User]
+}
+
+action updateDoctor {
+  fn: import { updateDoctor } from "@src/server/actions.ts",
+  entities: [Doctor]
+}
+
+action deleteDoctor {
+  fn: import { deleteDoctor } from "@src/server/actions.ts",
+  entities: [Doctor, User]
+}
+
+action createSchedule {
+  fn: import { createSchedule } from "@src/server/actions.ts",
+  entities: [Schedule, Doctor]
+}
+
+action createOverride {
+  fn: import { createOverride } from "@src/server/actions.ts",
+  entities: [ScheduleOverride, Schedule]
+}
+
+action deleteOverride {
+  fn: import { deleteOverride } from "@src/server/actions.ts",
+  entities: [ScheduleOverride]
+}
+
+action advanceQueue {
+  fn: import { advanceQueue } from "@src/server/actions.ts",
+  entities: [Appointment, Schedule, Doctor, User]
+}
+
+action createCompounder {
+  fn: import { createCompounder } from "@src/server/actions.ts",
+  entities: [User, Doctor]
+}
+
+action removeCompounder {
+  fn: import { removeCompounder } from "@src/server/actions.ts",
+  entities: [User, Doctor]
+}
+
+action verifyDoctor {
+  fn: import { verifyDoctor } from "@src/server/actions.ts",
+  entities: [User, Doctor]
+}
+
+action updatePatientNote {
+  fn: import { updatePatientNote } from "@src/server/actions.ts",
+  entities: [PatientNote]
+}
+
+action deletePatientNote {
+  fn: import { deletePatientNote } from "@src/server/actions.ts",
+  entities: [PatientNote]
+}
