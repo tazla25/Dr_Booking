@@ -12,8 +12,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api-client'
-// @ts-ignore
-import { useQuery, useAction } from 'wasp/client/operations'
 import { useApp } from '../providers'
 import { Button } from '../ui/button'
 import { Card, CardContent } from '../ui/card'

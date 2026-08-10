@@ -5,8 +5,6 @@ import { useEffect, useState, useCallback } from 'react'
 import { useApp } from '../providers'
 import { useTheme } from '../theme-provider'
 import { api } from '@/lib/api-client'
-// @ts-ignore
-import { useQuery, useAction } from 'wasp/client/operations'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card'
 import { Button } from '../ui/button'
 import { Label } from '../ui/label'

@@ -33,8 +33,8 @@ export async function GET(req: NextRequest) {
   const searchFilter = q
     ? {
         OR: [
-          { patientName: { contains: q } },
-          { patientPhone: { contains: q } },
+          { patientName: { contains: q, mode: 'insensitive' as const } },
+          { patientPhone: { contains: q, mode: 'insensitive' as const } },
         ],
       }
     : {}
