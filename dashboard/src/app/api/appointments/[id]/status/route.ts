@@ -48,12 +48,22 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const doctorLine = doctorName ? ` (${doctorName})` : ''
     const dateLine = existing.appointmentDate
     let msg: string
-    if (lang === 'en') {
-      msg = `❌ *Appointment Cancelled*\n\nYour appointment${doctorLine} on ${dateLine} has been cancelled by the clinic.\n\nSend /book to schedule a new appointment.`
-    } else if (lang === 'hi') {
-      msg = `❌ *अपॉइंटमेंट रद्द*\n\nआपका अपॉइंटमेंट${doctorLine} (${dateLine}) क्लिनिक द्वारा रद्द कर दिया गया है।\n\nनया अपॉइंटमेंट बुक करने के लिए /book भेजें।`
+    if (existing.status === 'Pending') {
+      if (lang === 'en') {
+        msg = `❌ *Booking Declined*\n\nYour booking request${doctorLine} for ${dateLine} has been declined by the clinic.\n\nSend /book to schedule a new appointment.`
+      } else if (lang === 'hi') {
+        msg = `❌ *बुकिंग अस्वीकृत*\n\nआपका बुकिंग अनुरोध${doctorLine} (${dateLine}) क्लिनिक द्वारा अस्वीकृत कर दिया गया है।\n\nनया अपॉइंटमेंट बुक करने के लिए /book भेजें।`
+      } else {
+        msg = `❌ *বুকিং বাতিল*\n\nআপনার বুকিং অনুরোধ${doctorLine} (${dateLine}) ক্লিনিক কর্তৃক প্রত্যাখ্যান করা হয়েছে।\n\nনতুন অ্যাপয়েন্টমেন্ট বুক করতে /book পাঠান।`
+      }
     } else {
-      msg = `❌ *অ্যাপয়েন্টমেন্ট বাতিল*\n\nআপনার অ্যাপয়েন্টমেন্ট${doctorLine} (${dateLine}) ক্লিনিক কর্তৃক বাতিল করা হয়েছে।\n\nনতুন অ্যাপয়েন্টমেন্ট বুক করতে /book পাঠান।`
+      if (lang === 'en') {
+        msg = `❌ *Appointment Cancelled*\n\nYour appointment${doctorLine} on ${dateLine} has been cancelled by the clinic.\n\nSend /book to schedule a new appointment.`
+      } else if (lang === 'hi') {
+        msg = `❌ *अपॉइंटमेंट रद्द*\n\nआपका अपॉइंटमेंट${doctorLine} (${dateLine}) क्लिनिक द्वारा रद्द कर दिया गया है।\n\nनया अपॉइंटमेंट बुक करने के लिए /book भेजें।`
+      } else {
+        msg = `❌ *অ্যাপয়েন্টমেন্ট বাতিল*\n\nআপনার অ্যাপয়েন্টমেন্ট${doctorLine} (${dateLine}) ক্লিনিক কর্তৃক বাতিল করা হয়েছে।\n\nনতুন অ্যাপয়েন্টমেন্ট বুক করতে /book পাঠান।`
+      }
     }
     // Fire-and-forget — don't block the API response on the notification
     notifyPatients([existing.patientPhone], msg).catch(() => {})
