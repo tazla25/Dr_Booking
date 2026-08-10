@@ -2,6 +2,8 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { api } from '@/lib/api-client'
+// @ts-ignore
+import { useQuery, useAction } from 'wasp/client/operations'
 import { useApp } from '../providers'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card'
 import { Skeleton } from '../ui/skeleton'

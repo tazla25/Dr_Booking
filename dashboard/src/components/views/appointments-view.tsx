@@ -4,6 +4,8 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useApp } from '../providers'
 import { api } from '@/lib/api-client'
+// @ts-ignore
+import { useQuery, useAction } from 'wasp/client/operations'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { formatInTimeZone } from 'date-fns-tz'
