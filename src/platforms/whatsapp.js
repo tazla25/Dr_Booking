@@ -256,20 +256,40 @@ class WhatsAppPlatform extends Platform {
   supportsUrlButtons() { return false; }
 
   async _send(body) {
-    try {
-      const response = await axios.post(this.apiBase, body, {
-        headers: {
-          Authorization: `Bearer ${this.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 10000,
-      });
-      return response.data;
-    } catch (error) {
-      const errData = error.response?.data;
-      console.error('WhatsApp API error:', errData || error.message);
-      throw new Error(`WhatsApp send failed: ${errData?.error?.message || error.message}`, { cause: error });
+    let lastError = null;
+    let delay = 1000;
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const response = await axios.post(this.apiBase, body, {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 10000,
+        });
+        return response.data;
+      } catch (error) {
+        lastError = error;
+        const status = error.response?.status;
+
+        // Don't retry on 400 Bad Request or 401 Unauthorized (unlikely to succeed on retry)
+        if (status === 400 || status === 401) {
+          break;
+        }
+
+        console.warn(`WhatsApp API error (attempt ${attempt}/3):`, error.response?.data || error.message);
+
+        if (attempt < 3) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+        }
+      }
     }
+
+    const errData = lastError.response?.data;
+    console.error('WhatsApp API final error:', errData || lastError.message);
+    throw new Error(`WhatsApp send failed: ${errData?.error?.message || lastError.message}`, { cause: lastError });
   }
 }
 

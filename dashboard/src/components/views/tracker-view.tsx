@@ -104,6 +104,8 @@ export function TrackerView() {
     }
   }, [soundOn])
 
+  const [isOffline, setIsOffline] = useState(false)
+
   const refresh = useCallback(async () => {
     if (!scheduleId) {
       setLoading(false)
@@ -115,6 +117,13 @@ export function TrackerView() {
       const d: QueueData = await res.json()
       setData(d)
       setError(null)
+      setIsOffline(false)
+
+      try {
+        localStorage.setItem(`tracker_${scheduleId}_${date}`, JSON.stringify(d))
+      } catch (e) {
+        console.warn('Could not cache tracker data', e)
+      }
 
       // Sound on token change
       if (prevToken.current !== -1 && d.currentToken > prevToken.current) {
@@ -122,7 +131,18 @@ export function TrackerView() {
       }
       prevToken.current = d.currentToken
     } catch {
-      setError(t('errorLoading'))
+      try {
+        const cached = localStorage.getItem(`tracker_${scheduleId}_${date}`)
+        if (cached) {
+          setData(JSON.parse(cached))
+          setIsOffline(true)
+          setError(null)
+        } else {
+          setError(t('errorLoading'))
+        }
+      } catch (e) {
+        setError(t('errorLoading'))
+      }
     } finally {
       setLoading(false)
     }
@@ -172,14 +192,23 @@ export function TrackerView() {
 
         <Card className="overflow-hidden shadow-xl">
           {/* Header */}
-          <div className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground p-6 text-center">
+          <div className={`p-6 text-center text-primary-foreground ${isOffline ? 'bg-amber-600' : 'bg-gradient-to-br from-primary to-primary/80'}`}>
             <div className="flex items-center justify-center gap-2 mb-1">
               <Activity className="w-5 h-5" />
               <h1 className="text-lg font-bold">{t('liveQueueTracker')}</h1>
             </div>
-            <p className="text-xs text-primary-foreground/80 flex items-center justify-center gap-1">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
-              {t('updatesEvery15s')}
+            <p className="text-xs text-primary-foreground/90 flex items-center justify-center gap-1">
+              {isOffline ? (
+                <>
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-300" />
+                  Offline - Showing cached queue status
+                </>
+              ) : (
+                <>
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
+                  {t('updatesEvery15s')}
+                </>
+              )}
             </p>
           </div>
 
@@ -281,7 +310,7 @@ export function TrackerView() {
                 </div>
 
                 <p className="text-[10px] text-muted-foreground text-center pt-2 border-t border-border">
-                  {t('lastUpdated')}: {new Date().toLocaleTimeString(lang === 'bn' ? 'bn-IN' : 'en-US')}
+                  {t('lastUpdated')}: {new Date().toLocaleTimeString(lang === 'bn' ? 'bn-IN' : 'en-IN')}
                 </p>
               </>
             ) : null}

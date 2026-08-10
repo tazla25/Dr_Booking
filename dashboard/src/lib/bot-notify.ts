@@ -51,25 +51,45 @@ export async function notifyPatients(
     return { ok: false, error: 'not_configured' }
   }
 
-  try {
-    const res = await fetch(`${botUrl.replace(/\/$/, '')}/api/notify`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.BOT_API_SECRET}`,
-      },
-      body: JSON.stringify({ chatIds, text, template }),
-    })
-    if (!res.ok) {
-      const body = await res.text().catch(() => '')
-      console.error(`[bot-notify] bot returned ${res.status}: ${body}`)
-      return { ok: false, error: `bot_http_${res.status}` }
+  let lastError: Error | null = null;
+  let delay = 1000;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await fetch(`${botUrl.replace(/\/$/, '')}/api/notify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.BOT_API_SECRET}`,
+        },
+        body: JSON.stringify({ chatIds, text, template }),
+      })
+      if (!res.ok) {
+        const status = res.status;
+        const body = await res.text().catch(() => '')
+
+        // Don't retry on client errors (except 429)
+        if (status >= 400 && status < 500 && status !== 429) {
+          console.error(`[bot-notify] bot returned ${status}: ${body}`)
+          return { ok: false, error: `bot_http_${status}` }
+        }
+
+        throw new Error(`bot_http_${status}`);
+      }
+      return { ok: true }
+    } catch (err) {
+      lastError = err as Error;
+      console.warn(`[bot-notify] fetch failed (attempt ${attempt}/3):`, lastError.message);
+
+      if (attempt < 3) {
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2; // Exponential backoff
+      }
     }
-    return { ok: true }
-  } catch (err) {
-    console.error('[bot-notify] fetch failed:', err)
-    return { ok: false, error: (err as Error).message }
   }
+
+  console.error('[bot-notify] fetch failed after retries:', lastError);
+  return { ok: false, error: lastError?.message || 'unknown_error' }
 }
 
 /**

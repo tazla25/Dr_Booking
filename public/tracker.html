@@ -245,6 +245,9 @@
       <h1>লাইভ কিউ ট্র্যাকার</h1>
     </div>
     <p class="subtitle"><span class="dot"></span>প্রতি ১৫ সেকেন্ডে আপডেট হয়</p>
+    <div id="offlineBanner" style="display: none; background-color: #d97706; color: white; padding: 8px; border-radius: 8px; margin-bottom: 16px; font-size: 0.85rem;">
+      Offline - Showing cached queue status <button onclick="refresh()" style="margin-left: 8px; padding: 2px 8px; border-radius: 4px; border: 1px solid white; background: transparent; color: white; cursor: pointer;">Retry</button>
+    </div>
 
     <div class="current-label">বর্তমান টোকেন</div>
     <div class="current-token" id="currentToken">—</div>
@@ -296,6 +299,14 @@
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
+        try {
+          localStorage.setItem(`tracker_${scheduleId}_${date}`, JSON.stringify(data));
+        } catch (e) {
+          console.warn('Could not cache tracker data');
+        }
+
+        document.getElementById('offlineBanner').style.display = 'none';
+
         document.getElementById('currentToken').textContent = data.currentToken ?? 0;
         document.getElementById('pendingCount').textContent = data.pending.length;
 
@@ -332,10 +343,44 @@
         const now = new Date().toLocaleTimeString('bn-IN');
         document.getElementById('lastUpdate').textContent = `সর্বশেষ আপডেট: ${now}`;
       } catch (e) {
-        document.getElementById('currentToken').innerHTML =
-          '<span class="error-msg">⚠</span>';
-        document.getElementById('pendingList').innerHTML =
-          '<p class="error-msg">ডেটা লোড করতে সমস্যা হয়েছে।</p>';
+        try {
+          const cached = localStorage.getItem(`tracker_${scheduleId}_${date}`);
+          if (cached) {
+            const data = JSON.parse(cached);
+            document.getElementById('offlineBanner').style.display = 'block';
+            document.getElementById('currentToken').textContent = data.currentToken ?? 0;
+            document.getElementById('pendingCount').textContent = data.pending.length;
+
+            const list = document.getElementById('pendingList');
+            if (data.pending.length === 0) {
+              list.innerHTML = `<p style="color:#94a3b8;font-size:0.9rem;">কোনো রোগী অপেক্ষায় নেই।</p>`;
+            } else {
+              list.innerHTML = data.pending
+                .map(
+                  (p) => {
+                    const escapedName = String(p.patient_name).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                    return `
+                  <div class="pending-item">
+                    <span class="pending-name">${escapedName}</span>
+                    <div style="display:flex;gap:6px;align-items:center">
+                      <span class="token-badge">#${p.queue_number}</span>
+                      <span class="status-badge">${p.status}</span>
+                    </div>
+                  </div>`;
+                }
+                )
+                .join('');
+            }
+            const now = new Date().toLocaleTimeString('bn-IN');
+            document.getElementById('lastUpdate').textContent = `সর্বশেষ আপডেট (Cached): ${now}`;
+          } else {
+            document.getElementById('currentToken').innerHTML = '<span class="error-msg">⚠</span>';
+            document.getElementById('pendingList').innerHTML = '<p class="error-msg">ডেটা লোড করতে সমস্যা হয়েছে।</p>';
+          }
+        } catch (cacheErr) {
+          document.getElementById('currentToken').innerHTML = '<span class="error-msg">⚠</span>';
+          document.getElementById('pendingList').innerHTML = '<p class="error-msg">ডেটা লোড করতে সমস্যা হয়েছে।</p>';
+        }
       }
     }
 
