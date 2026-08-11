@@ -150,6 +150,8 @@ model Appointment {
   @@index([status])
   @@index([doctorId, appointmentDate])
   @@index([source])
+  @@index([patientPhone])
+  @@index([createdAt])
   @@map("appointments")
 }
 

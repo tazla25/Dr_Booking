@@ -24,6 +24,7 @@ const {
   validateName,
   validateSpecialization,
 } = require('../utils/validators');
+const { formatInTimeZone } = require('date-fns-tz');
 const { getMessage } = require('../utils/messages');
 
 /**
@@ -332,7 +333,7 @@ async function handlePatientFlow(chatId, text, isCallback = false, callbackData 
       const d = new Date();
       d.setDate(d.getDate() + i);
       if (dayNameMap[d.getDay()] === targetDay) {
-        const dateStr = d.toISOString().split('T')[0];
+        const dateStr = formatInTimeZone(d, 'Asia/Kolkata', 'yyyy-MM-dd');
         // Skip closed dates (override type === 'CLOSED')
         const open = await isScheduleOpen(selected.id, dateStr);
         if (open) {
@@ -402,7 +403,7 @@ async function handlePatientFlow(chatId, text, isCallback = false, callbackData 
         const d = new Date();
         d.setDate(d.getDate() + i);
         if (dayNameMap[d.getDay()] === targetDay) {
-          const dateStr = d.toISOString().split('T')[0];
+          const dateStr = formatInTimeZone(d, 'Asia/Kolkata', 'yyyy-MM-dd');
           // Skip closed dates (override type === 'CLOSED')
           try {
             const open = await isScheduleOpen(session.selectedSchedule.id, dateStr);
