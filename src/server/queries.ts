@@ -49,7 +49,8 @@ export const getAppointments = async (args: { scheduleId?: string, date?: string
     orderBy: [
       { appointmentDate: 'desc' },
       { queueNumber: 'asc' }
-    ]
+    ],
+    take: 100
   })
 }
 
@@ -85,12 +86,20 @@ export const getAnalytics = async (_args: any, context: any) => {
 export const getDoctorAnalytics = async (_args: any, context: any) => {
   if (!context.user) { throw new HttpError(401) }
 
-  const where = getDoctorScope(context.user)
-  const totalAppointments = await context.entities.Appointment.count({ where })
-  const appointments = await context.entities.Appointment.findMany({ where })
+  const scope = getDoctorScope(context.user)
+  const totalAppointments = await context.entities.Appointment.count({ where: scope })
+
+  const completedAppointments = await context.entities.Appointment.findMany({
+    where: { ...scope, status: 'Completed' },
+    include: { doctor: true }
+  })
 
   let revenue = 0
-  // Simplified revenue calculation for demo
+  for (const apt of completedAppointments) {
+    if (apt.doctor && apt.doctor.fee) {
+      revenue += apt.doctor.fee
+    }
+  }
 
   return {
     totalAppointments,
@@ -104,13 +113,15 @@ export const getPatient = async (args: { phone: string }, context: any) => {
   const appointments = await context.entities.Appointment.findMany({
     where: { patientPhone: args.phone },
     include: { doctor: true, schedule: true, feedback: true },
-    orderBy: { appointmentDate: 'desc' }
+    orderBy: { appointmentDate: 'desc' },
+    take: 100
   })
 
   const notes = await context.entities.PatientNote.findMany({
     where: { patientPhone: args.phone },
     include: { author: true },
-    orderBy: { createdAt: 'desc' }
+    orderBy: { createdAt: 'desc' },
+    take: 100
   })
 
   if (appointments.length === 0) {
@@ -132,7 +143,8 @@ export const getPatientReceipts = async (args: { phone: string }, context: any) 
 
   return context.entities.Appointment.findMany({
     where: { patientPhone: args.phone },
-    include: { doctor: true, schedule: true }
+    include: { doctor: true, schedule: true },
+    take: 100
   })
 }
 
@@ -178,8 +190,139 @@ export const getOverrides = async (_args: any, context: any) => {
 
 export const getNotifications = async (_args: any, context: any) => {
   if (!context.user) { throw new HttpError(401) }
-  // Simplified for demo
-  return []
+
+  const scope = getDoctorScope(context.user)
+  const now = new Date()
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const todayStr = new Date().toISOString().split('T')[0] // simplistic timezone, ideally Asia/Kolkata
+
+  const notifications: any[] = []
+
+  const todayBookings = await context.entities.Appointment.count({
+    where: {
+      ...scope,
+      appointmentDate: todayStr,
+      status: { in: ['Confirmed', 'Pending'] },
+    },
+  })
+  if (todayBookings > 0) {
+    notifications.push({
+      id: 'today-bookings',
+      type: 'new_booking',
+      title: 'Today\'s Appointments',
+      message: `${todayBookings} ${todayBookings === 1 ? 'patient is' : 'patients are'} scheduled for today`,
+      timestamp: now.toISOString(),
+      severity: 'info',
+      read: false,
+    })
+  }
+
+  const completedToday = await context.entities.Appointment.count({
+    where: {
+      ...scope,
+      appointmentDate: todayStr,
+      status: 'Completed',
+    },
+  })
+  if (completedToday > 0) {
+    notifications.push({
+      id: 'completed-today',
+      type: 'appointment_completed',
+      title: 'Appointments Completed',
+      message: `${completedToday} ${completedToday === 1 ? 'appointment has' : 'appointments have'} been completed today`,
+      timestamp: now.toISOString(),
+      severity: 'success',
+      read: false,
+    })
+  }
+
+  const recentFeedback = await context.entities.Feedback.count({
+    where: {
+      createdAt: { gte: weekAgo },
+      appointment: { ...scope },
+    },
+  })
+  if (recentFeedback > 0) {
+    notifications.push({
+      id: 'recent-feedback',
+      type: 'feedback_received',
+      title: 'New Patient Feedback',
+      message: `${recentFeedback} new ${recentFeedback === 1 ? 'review' : 'reviews'} in the last 7 days`,
+      timestamp: now.toISOString(),
+      severity: 'info',
+      read: false,
+    })
+  }
+
+  if (context.user.role === 'SUPER_ADMIN') {
+    const pendingDoctors = await context.entities.User.count({
+      where: { role: 'DOCTOR', verificationStatus: 'PENDING' },
+    })
+    if (pendingDoctors > 0) {
+      notifications.push({
+        id: 'pending-verification',
+        type: 'pending_verification',
+        title: 'Doctor Verification Pending',
+        message: `${pendingDoctors} ${pendingDoctors === 1 ? 'doctor is' : 'doctors are'} waiting for verification`,
+        timestamp: now.toISOString(),
+        severity: 'warning',
+        read: false,
+      })
+    }
+  }
+
+  const walkInsToday = await context.entities.Appointment.count({
+    where: {
+      ...scope,
+      appointmentDate: todayStr,
+      source: 'WALK_IN',
+    },
+  })
+  if (walkInsToday > 0) {
+    notifications.push({
+      id: 'walkins-today',
+      type: 'new_booking',
+      title: 'Walk-in Patients',
+      message: `${walkInsToday} walk-in ${walkInsToday === 1 ? 'patient' : 'patients'} added today`,
+      timestamp: now.toISOString(),
+      severity: 'info',
+      read: false,
+    })
+  }
+
+  const newPatients = await context.entities.Appointment.findMany({
+    where: {
+      ...scope,
+      createdAt: { gte: yesterday },
+      source: { not: 'WALK_IN' },
+    },
+    select: { patientName: true, patientPhone: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+    take: 3,
+    distinct: ['patientPhone'],
+  })
+
+  if (newPatients.length > 0) {
+    notifications.push({
+      id: 'new-patients',
+      type: 'new_booking',
+      title: 'New Patient Registrations',
+      message: `${newPatients.length} new ${newPatients.length === 1 ? 'patient' : 'patients'} booked in the last 24 hours`,
+      timestamp: newPatients[0].createdAt.toISOString(),
+      severity: 'success',
+      read: false,
+    })
+  }
+
+  const severityOrder: Record<string, number> = { error: 0, warning: 1, info: 2, success: 3 }
+  notifications.sort((a, b) => {
+    const sevDiff = severityOrder[a.severity] - severityOrder[b.severity]
+    if (sevDiff !== 0) return sevDiff
+    return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  })
+
+  return notifications
 }
 
 export const getAuditLog = async (_args: any, context: any) => {
@@ -229,6 +372,7 @@ export const getBatchQueue = async (args: { scheduleIds: string[], date: string 
       appointmentDate: args.date,
       status: { notIn: ['Cancelled', 'NoShow', 'Completed'] }
     },
-    orderBy: { queueNumber: 'asc' }
+    orderBy: { queueNumber: 'asc' },
+    take: 100
   })
 }

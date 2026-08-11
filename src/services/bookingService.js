@@ -156,20 +156,28 @@ async function getQueueStatus(scheduleId, appointmentDate) {
  *
  * @param {number} queueNumber
  * @param {string} chatId
+ * @param {string} [scheduleId]
+ * @param {string} [appointmentDate]
  * @returns {boolean} true on success
  */
-async function cancelBookingByQueueNumber(queueNumber, chatId) {
+async function cancelBookingByQueueNumber(queueNumber, chatId, scheduleId, appointmentDate) {
   try {
     const today = formatInTimeZone(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
 
     // Find the appointment — scoped to today's and future bookings for this patient
+    const whereClause = {
+      queueNumber: queueNumber,
+      patientPhone: String(chatId),
+      status: 'Confirmed',
+      appointmentDate: appointmentDate ? appointmentDate : { gte: today }
+    };
+
+    if (scheduleId) {
+      whereClause.scheduleId = scheduleId;
+    }
+
     const appointment = await prisma.appointment.findFirst({
-      where: {
-        queueNumber: queueNumber,
-        patientPhone: String(chatId),
-        status: 'Confirmed',
-        appointmentDate: { gte: today }
-      },
+      where: whereClause,
       orderBy: { createdAt: 'desc' }
     });
 

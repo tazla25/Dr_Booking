@@ -168,7 +168,7 @@ export async function GET() {
     where: {
       ...scope,
       appointmentDate: todayStr,
-      patientPhone: '+0000000000',
+      source: 'WALK_IN',
     },
   })
 
@@ -190,7 +190,7 @@ export async function GET() {
     where: {
       ...scope,
       createdAt: { gte: yesterday },
-      patientPhone: { not: '+0000000000' },
+      source: { not: 'WALK_IN' },
     },
     select: { patientName: true, patientPhone: true, createdAt: true },
     orderBy: { createdAt: 'desc' },
